@@ -1,0 +1,32 @@
+{
+    "name": "Sample Action",
+    "description": "My Sample Action Description",
+    "uuid": "99cd853b-c0f9-5385-90e8-5a6deb576c4c",
+    "docker_parameters": "SampleAction",
+    "arguments": {
+        "title": "SampleArguments",
+        "type": "object",
+        "properties": {
+            "argument": {
+                "title": "Argument",
+                "type": "boolean"
+            }
+        },
+        "required": [
+            "argument"
+        ]
+    },
+    "results": {
+        "title": "Results",
+        "type": "object",
+        "properties": {
+            "results_field": {
+                "title": "Results Field",
+                "type": "string"
+            }
+        },
+        "required": [
+            "results_field"
+        ]
+    }
+}

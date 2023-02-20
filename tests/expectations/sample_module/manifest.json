@@ -1,0 +1,20 @@
+{
+    "name": "Test Module",
+    "description": "TBD",
+    "uuid": "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154",
+    "docker": "sekoia-automation-module-sample",
+    "configuration": {
+        "properties": {
+            "module_field": {
+                "title": "Module Field",
+                "type": "string"
+            }
+        },
+        "required": [
+            "module_field"
+        ],
+        "title": "ModuleConfiguration",
+        "type": "object"
+    },
+    "version": "0.1"
+}

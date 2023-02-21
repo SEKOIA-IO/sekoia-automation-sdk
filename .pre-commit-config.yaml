@@ -19,3 +19,4 @@ repos:
       hooks:
         - id: mypy
           args: [--install-types, --non-interactive]
+          exclude: sekoia_automation/scripts/new_module/template/

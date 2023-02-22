@@ -21,14 +21,6 @@ jobs:
       - name: Build and Publish SDK 📦
         run: poetry build
 
-      - name: Publish SDK 📦 to Test PyPI
-        env:
-          PYPI_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
-        run: |
-          poetry config repositories.test-pypi https://test.pypi.org/legacy/
-          poetry config pypi-token.test-pypi $PYPI_TOKEN
-          poetry publish -r test-pypi
-
       - name: Publish SDK 📦 to PyPI
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

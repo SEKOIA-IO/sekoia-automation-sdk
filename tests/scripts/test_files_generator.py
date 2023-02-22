@@ -4,6 +4,7 @@ from pathlib import Path
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
+import click.exceptions
 import pytest
 
 from sekoia_automation.scripts.files_generator import FilesGenerator
@@ -12,7 +13,7 @@ from sekoia_automation.scripts.files_generator import FilesGenerator
 @pytest.fixture
 def sample_module():
     temp_directory = Path(mkdtemp())
-    data_directory = Path(os.path.dirname(__file__)) / "data" / "sample_module"
+    data_directory = Path(os.path.dirname(__file__)) / ".." / "data" / "sample_module"
     module_directory = temp_directory / "module"
 
     # Copy sample files to the test directory
@@ -24,7 +25,9 @@ def sample_module():
 
 
 def get_actual_and_expected(sample_module: Path, filename: str):
-    expectations = Path(os.path.dirname(__file__)) / "expectations" / "sample_module"
+    expectations = (
+        Path(os.path.dirname(__file__)) / ".." / "expectations" / "sample_module"
+    )
 
     actual_file = sample_module / filename
     expected_file = expectations / filename
@@ -65,3 +68,8 @@ def test_files_generator(sample_module):
     # The module manifest should have been updated
     actual, expected = get_actual_and_expected(sample_module, "manifest.json")
     assert actual == expected
+
+
+def test_files_generator_wrong_module_path():
+    with pytest.raises(click.exceptions.Exit):
+        FilesGenerator(Path("foo")).execute()

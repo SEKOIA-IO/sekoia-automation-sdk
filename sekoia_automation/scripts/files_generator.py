@@ -9,6 +9,7 @@ from uuid import UUID, uuid5
 
 import typer
 from pydantic import BaseModel
+from rich import print
 
 from sekoia_automation.action import Action
 from sekoia_automation.module import Module
@@ -17,6 +18,10 @@ from sekoia_automation.utils import get_annotation_for
 
 
 class FilesGenerator:
+    @property
+    def manifest_path(self) -> Path:
+        return self.base_path.joinpath("manifest.json")
+
     def __init__(self, base_path: Path):
         self.base_path = base_path
 
@@ -39,6 +44,13 @@ class FilesGenerator:
                     modules.add(obj)
 
     def execute(self):
+        # Make sure we are in a module directory by verifying that there is a manifest
+        if not self.manifest_path.is_file():
+            print(
+                "[bold red][!] No manifest.json found. "
+                "Execute this command from a module's root directory.[/bold red]"
+            )
+            raise typer.Exit(code=1)
         _old_path = sys.path
         sys.path = [self.base_path.as_posix(), *sys.path]
 
@@ -50,12 +62,10 @@ class FilesGenerator:
             if not ispkg:
                 self.inspect_module(name, modules, actions, triggers)
 
-        module = Module
-        if len(modules) > 1:
-            typer.echo("[!] Found several modules, aborting")
-            raise typer.Exit(code=2)
-        elif len(modules) == 1:
-            module = next(iter(modules))
+        if len(modules) != 1:
+            print("[bold red][!] Found 0 or more than 1 module, aborting[/bold red]")
+            raise typer.Exit(code=1)
+        module = next(iter(modules))
 
         self.generate_main(module, actions, triggers)
         self.generate_action_manifests(actions)
@@ -66,9 +76,7 @@ class FilesGenerator:
 
     @cached_property
     def module_uuid(self):
-        manifest = self.base_path / "manifest.json"
-
-        with manifest.open() as f:
+        with self.manifest_path.open() as f:
             return UUID(json.load(f)["uuid"])
 
     def generate_main(
@@ -103,7 +111,7 @@ class FilesGenerator:
 
             out.write("    module.run()\n")
 
-        typer.echo(f"[+] Generated {main}")
+        print(f"[green][+][/green] Generated {main}")
 
     def generate_action_manifests(self, actions: set[type[Action]]):
         for action in actions:
@@ -129,7 +137,7 @@ class FilesGenerator:
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))
 
-            typer.echo(f"[+] Generated {filepath}")
+            print(f"[green][+][/green] Generated {filepath}")
 
     def generate_trigger_manifests(self, triggers: set[type[Trigger]]):
         for trigger in triggers:
@@ -154,7 +162,7 @@ class FilesGenerator:
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))
 
-            typer.echo(f"[+] Generated {filepath}")
+            print(f"[green][+][/green] Generated {filepath}")
 
     def update_module_manifest(self, module: type[Module]):
         configuration_model = get_annotation_for(module, "configuration")
@@ -162,14 +170,12 @@ class FilesGenerator:
         if configuration_model is None:
             return
 
-        filepath = self.base_path / "manifest.json"
-
-        with filepath.open() as f:
+        with self.manifest_path.open() as f:
             manifest = json.load(f)
 
         manifest["configuration"] = configuration_model.schema()
 
-        with filepath.open("w") as out:
+        with self.manifest_path.open("w") as out:
             out.write(json.dumps(manifest, indent=2))
 
-        typer.echo(f"[+] Updated {filepath}")
+        print(f"[green][+][/green] Updated {self.manifest_path}")

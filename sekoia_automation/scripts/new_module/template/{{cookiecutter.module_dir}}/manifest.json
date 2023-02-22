@@ -1,0 +1,14 @@
+{
+  "configuration": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "{{cookiecutter.module_name}}",
+    "type": "object",
+    "properties": {},
+    "required": []
+  },
+  "description": "{{cookiecutter.module_description}}",
+  "name": "{{cookiecutter.module_name}}",
+  "uuid": "{{ uuid4() }}",
+  "docker": "symphony-module-{{cookiecutter.module_name.lower()}}",
+  "version": "1.0"
+}

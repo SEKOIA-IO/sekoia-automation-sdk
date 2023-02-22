@@ -1,0 +1,279 @@
+{
+    "swagger": "2.0",
+    "basePath": "/v1/dashboard",
+    "paths": {
+        "/dashboards": {
+            "post": {
+                "responses": {
+                    "201": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/wrapped_full_dashboard"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters"
+                    },
+                    "401": {
+                        "description": "Authentication failed"
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "404": {
+                        "description": "Unknown object"
+                    }
+                },
+                "summary": "Create a new dashboard",
+                "description": "The following permissions are required:\n - **DASHBOARD_WRITE_DASHBOARDS** (`d836f7c3-20d4-4add-90a0-1b903a8e11c7`): Write dashboards",
+                "operationId": "post_dashboards_resource",
+                "tags": [
+                    "dashboards"
+                ]
+            },
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/list_of_dashboards"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication failed"
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    }
+                },
+                "summary": "List dashboards",
+                "description": "The following permissions are required:\n - **DASHBOARD_READ_DASHBOARDS** (`e880a52e-fb5a-47ef-9071-57c4af03ed2f`): Read dashboards",
+                "operationId": "get_dashboards_resource",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "type": "integer",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "limit a number of items (allowed range is 1-100), default is 20."
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "required": true,
+                        "type": "integer",
+                        "default": 0,
+                        "minimum": 0,
+                        "description": "a number of items to skip, default is 0."
+                    }
+                ],
+                "tags": [
+                    "dashboards"
+                ]
+            }
+        },
+        "/dashboards/{uuid}": {
+            "parameters": [
+                {
+                    "name": "uuid",
+                    "in": "path",
+                    "required": true,
+                    "type": "string"
+                }
+            ],
+            "put": {
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/wrapped_full_dashboard"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters"
+                    },
+                    "401": {
+                        "description": "Authentication failed"
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "404": {
+                        "description": "Unknown object"
+                    }
+                },
+                "summary": "Update a dashboard",
+                "description": "The following permissions are required:\n - **DASHBOARD_WRITE_DASHBOARDS** (`d836f7c3-20d4-4add-90a0-1b903a8e11c7`): Write dashboards",
+                "operationId": "put_dashboard_resource",
+                "tags": [
+                    "dashboards"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "limit",
+                        "required": false,
+                        "type": "integer",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "limit a number of items (allowed range is 1-100), default is 20.",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "url": {
+                                    "type": "string",
+                                    "format": "url"
+                                },
+                                "headers": {
+                                    "type": "object",
+                                    "x-nullable": true
+                                }
+                            },
+                            "required": [
+                                "url"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/wrapped_full_dashboard"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication failed"
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "404": {
+                        "description": "Unknown object"
+                    }
+                },
+                "summary": "Get a dashboard by  its UUID",
+                "description": "The following permissions are required:\n - **DASHBOARD_READ_DASHBOARDS** (`e880a52e-fb5a-47ef-9071-57c4af03ed2f`): Read dashboards",
+                "operationId": "get_dashboard_resource",
+                "tags": [
+                    "dashboards"
+                ]
+            },
+            "delete": {
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Authentication failed"
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "404": {
+                        "description": "Unknown object"
+                    }
+                },
+                "summary": "Remove a dashboard",
+                "description": "The following permissions are required:\n - **DASHBOARD_WRITE_DASHBOARDS** (`d836f7c3-20d4-4add-90a0-1b903a8e11c7`): Write dashboards",
+                "operationId": "delete_dashboard_resource",
+                "tags": [
+                    "dashboards"
+                ]
+            }
+        }
+    },
+    "info": {
+        "title": "Dashboard API",
+        "version": "2.20221015-3255151409-6fd84bc92f9b01d0c0721effc1ab234266cefc36",
+        "description": "Dashboard application"
+    },
+    "produces": [
+        "application/json"
+    ],
+    "consumes": [
+        "application/json"
+    ],
+    "securityDefinitions": {
+        "accessToken": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Authorization"
+        }
+    },
+    "security": [
+        {
+            "accessToken": [
+
+            ]
+        }
+    ],
+    "tags": [
+        {
+            "name": "dashboards",
+            "description": "Dashboards endpoint"
+        }
+    ],
+    "definitions": {
+        "wrapped_full_dashboard": {
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/full_dashboard"
+                }
+            },
+            "type": "object"
+        },
+        "full_dashboard": {
+            "required": [
+                "community_uuid"
+            ],
+            "properties": {
+                "community_uuid": {
+                    "type": "string",
+                    "description": "The UUID of the community"
+                },
+                "created": {
+                    "type": "string",
+                    "description": "The creation date of the dashboard"
+                },
+                "modified": {
+                    "type": "string",
+                    "description": "The last modification date of the dashboard"
+                }
+            },
+            "type": "object"
+        },
+        "list_of_dashboards": {
+            "required": [
+                "total"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/full_dashboard"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "description": "The total number of dashboards"
+                }
+            },
+            "type": "object"
+        }
+    },
+    "responses": {
+        "ParseError": {
+            "description": "When a mask can't be parsed"
+        },
+        "MaskError": {
+            "description": "When any error occurs on mask"
+        }
+    }
+}

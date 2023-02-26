@@ -7,6 +7,8 @@ from sekoia_automation.connector import Connector
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
 
+from tests.utils import match_events
+
 EVENTS = ["foo", "bar"]
 
 
@@ -96,12 +98,23 @@ def test_push_event_to_intake_with_2_events(test_connector, mocked_trigger_logs)
 def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
     test_connector.configuration.chunk_size = 1
-    mocked_trigger_logs.post(url, [{"json": {"event_ids": ["001"]}}, {"json": {"event_ids": ["002"]}}])
-    result = test_connector.push_events_to_intakes(EVENTS)
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["002"]}, additional_matcher=match_events("bar")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["003"]}, additional_matcher=match_events("baz")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["004"]}, additional_matcher=match_events("oof")
+    )
+    result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
     assert result is not None
-    assert len(result) == 2
-    assert mocked_trigger_logs.call_count == 2
-    assert result == ["001", "002"]
+    assert len(result) == 4
+    assert mocked_trigger_logs.call_count == 4
+    assert result == ["001", "002", "003", "004"]
 
 
 def test_push_events_to_intakes_no_events(test_connector):

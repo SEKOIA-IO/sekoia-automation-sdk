@@ -96,12 +96,12 @@ def test_push_event_to_intake_with_2_events(test_connector, mocked_trigger_logs)
 def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
     test_connector.configuration.chunk_size = 1
-    mocked_trigger_logs.post(url, json={"event_ids": ["001"]})
+    mocked_trigger_logs.post(url, [{"json": {"event_ids": ["001"]}}, {"json": {"event_ids": ["002"]}}])
     result = test_connector.push_events_to_intakes(EVENTS)
     assert result is not None
     assert len(result) == 2
     assert mocked_trigger_logs.call_count == 2
-    assert result == ["001", "001"]
+    assert result == ["001", "002"]
 
 
 def test_push_events_to_intakes_no_events(test_connector):

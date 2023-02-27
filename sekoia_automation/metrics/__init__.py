@@ -2,7 +2,9 @@ from sekoia_automation.metrics.base import MetricsExporterThread
 from sekoia_automation.metrics.prometheus import PrometheusExporterThread
 
 
-def make_exporter(klass: type[MetricsExporterThread], *args, **kwargs) -> MetricsExporterThread:
+def make_exporter(
+    klass: type[MetricsExporterThread], *args, **kwargs
+) -> MetricsExporterThread:
     """
     Create a stoppable metrics exporter
     """

@@ -51,6 +51,6 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           commit: ${{ github.event.workflow_run.head_sha }}
-          event_file: Event File/event.json
+          event_file: event.json
           event_name: ${{ github.event.workflow_run.event }}
-          files: "**/*.xml"
+          files: "*.xml"

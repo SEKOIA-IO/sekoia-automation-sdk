@@ -58,10 +58,12 @@ jobs:
         run: |
           poetry run python -m pytest --junit-xml=junit.xml --cov-report term --cov-report xml:coverage.xml --cov=sekoia_automation tests
 
-      - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
         with:
-          files: junit.xml
+          name: Unit Test Results
+          path: junit.xml
 
       - name: SonarCloud scan
         uses: sonarsource/sonarcloud-github-action@master
@@ -77,3 +79,12 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  EventFile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Event File
+          path: ${{ github.event_path }}

@@ -67,7 +67,7 @@ class Trigger(ModuleItem):
                 self._log_request_error(exception)
         return secrets
 
-    def stop(self, *args, **kwargs):
+    def stop(self, *args, **kwargs): # noqa: ARG002
         """
         Engage the trigger exit
         """

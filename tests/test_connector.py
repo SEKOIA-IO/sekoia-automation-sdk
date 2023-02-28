@@ -6,7 +6,6 @@ from tenacity import Retrying
 from sekoia_automation.connector import Connector
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
-
 from tests.utils import match_events
 
 EVENTS = ["foo", "bar"]

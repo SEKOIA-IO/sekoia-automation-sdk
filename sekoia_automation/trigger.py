@@ -44,7 +44,7 @@ class Trigger(ModuleItem):
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
 
-    def stop(self, *args, **kwargs):
+    def stop(self, *args, **kwargs): # noqa: ARG002
         """
         Engage the trigger exit
         """

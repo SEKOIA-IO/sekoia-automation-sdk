@@ -52,7 +52,13 @@ class Connector(Trigger):
     def __connector_user_agent(self):
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
-    def _send_chunk(self, batch_api: str, chunk_index: int, chunk: list[Any], collect_ids: dict[int, list[str]]):
+    def _send_chunk(
+        self,
+        batch_api: str,
+        chunk_index: int,
+        chunk: list[Any],
+        collect_ids: dict[int, list[str]],
+    ):
         try:
             request_body = {"intake_key": self.configuration.intake_key, "jsons": chunk}
 
@@ -84,13 +90,19 @@ class Connector(Trigger):
         # pushing the events
         chunks = self._chunk_events(events, self.configuration.chunk_size)
         futures = [
-            self._executor.submit(self._send_chunk, batch_api, chunk_index, chunk, collect_ids)
+            self._executor.submit(
+                self._send_chunk, batch_api, chunk_index, chunk, collect_ids
+            )
             for chunk_index, chunk in enumerate(chunks)
         ]
         wait_futures(futures)
 
         # reorder event_ids according chunk index
-        event_ids = [event_id for chunk_index in sorted(collect_ids.keys()) for event_id in collect_ids[chunk_index]]
+        event_ids = [
+            event_id
+            for chunk_index in sorted(collect_ids.keys())
+            for event_id in collect_ids[chunk_index]
+        ]
 
         return event_ids
 

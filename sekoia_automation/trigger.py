@@ -1,9 +1,11 @@
 import logging
+import signal
 from abc import abstractmethod
 from contextlib import contextmanager
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
+from threading import Event
 
 import requests
 import sentry_sdk
@@ -36,6 +38,25 @@ class Trigger(ModuleItem):
         self._configuration: dict | BaseModel | None = None
         self._data_path = data_path or get_data_path()
         self._error_count = 0
+        self._stop_event = Event()
+
+        # Register signal to terminate thread
+        signal.signal(signal.SIGINT, self.stop)
+        signal.signal(signal.SIGTERM, self.stop)
+
+    def stop(self, *args, **kwargs):  # noqa: ARG002
+        """
+        Engage the trigger exit
+        """
+        # Exit signal received, asking the processor to stop
+        self._stop_event.set()
+
+    @property
+    def running(self) -> bool:
+        """
+        Return if the trigger is still active or not
+        """
+        return not self._stop_event.is_set()
 
     @property
     def configuration(self) -> dict | BaseModel | None:

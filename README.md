@@ -1,5 +1,10 @@
 # SEKOIA.IO Automation Python SDK
 
+[![CI](https://github.com/SEKOIA-IO/sekoia-automation-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/SEKOIA-IO/sekoia-automation-sdk/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/SEKOIA-IO/sekoia-automation-sdk/branch/main/badge.svg?token=13S5Q0WFRQ)](https://codecov.io/github/SEKOIA-IO/sekoia-automation-sdk)
+[![pypi](https://img.shields.io/pypi/v/sekoia-automation-sdk?color=%2334D058&label=pypi%20package)](https://pypi.org/project/sekoia-automation-sdk/)
+[![pypi](https://img.shields.io/pypi/pyversions/sekoia-automation-sdk?color=%2334D058&label=Python)](https://pypi.org/project/sekoia-automation-sdk/)
+
 SDK to create SEKOIA.IO playbook modules.
 
 Modules can define:

@@ -16,7 +16,6 @@ from sekoia_automation.exceptions import (
     TriggerConfigurationError,
 )
 from sekoia_automation.module import Module, ModuleItem
-from sekoia_automation.storage import get_data_path
 from sekoia_automation.utils import (
     capture_retry_error,
     get_annotation_for,
@@ -31,11 +30,11 @@ class Trigger(ModuleItem):
     TRIGGER_CONFIGURATION_FILE_NAME = "trigger_configuration"
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
-        super().__init__(module)
+        super().__init__(module, data_path)
         logging.basicConfig(level=logging.INFO)
         self._configuration: dict | BaseModel | None = None
-        self._data_path = data_path or get_data_path()
         self._error_count = 0
+        sentry_sdk.set_tag("item_type", "trigger")
 
     @property
     def configuration(self) -> dict | BaseModel | None:
@@ -82,6 +81,7 @@ class Trigger(ModuleItem):
             self.log(str(e), level=level)
 
     def execute(self) -> None:
+        self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         while self._error_count < 5:
             self._execute_once()
@@ -109,13 +109,13 @@ class Trigger(ModuleItem):
         """Make sure the directory exists."""
         if directory:
             # This will work for both relative and absolute path
-            directory_path = self._data_path.joinpath(directory)
+            directory_path = self.data_path.joinpath(directory)
             if not directory_path.is_dir():
                 raise InvalidDirectoryError()
 
             # Make sure we send a relative directory
             try:
-                yield directory_path.relative_to(self._data_path).as_posix()
+                yield directory_path.relative_to(self.data_path).as_posix()
             finally:
                 # Remove directory if needed
                 if remove_directory:

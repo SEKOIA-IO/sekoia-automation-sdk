@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "symphony module for {{cookiecutter.module_name.capitalize()}}"
+name = "SEKOIA's automation module for {{cookiecutter.module_name.capitalize()}}"
 version = "0.0"
 description = ""
 authors = []
@@ -10,7 +10,7 @@ url = "https://delivery.sekoia.io/nexus/repository/pypi-test/simple"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.11"
-symphony-sdk = "^2"
+sekoia-automation-sdk = "^1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "*"

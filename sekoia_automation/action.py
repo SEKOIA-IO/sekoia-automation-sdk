@@ -27,7 +27,6 @@ from sekoia_automation.exceptions import (
     MissingActionArgumentFileError,
 )
 from sekoia_automation.module import Module, ModuleItem
-from sekoia_automation.storage import get_data_path
 from sekoia_automation.utils import returns
 
 
@@ -50,7 +49,7 @@ class Action(ModuleItem):
     ARGUMENTS_FILE_NAME = "arguments"
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
-        super().__init__(module)
+        super().__init__(module, data_path)
 
         self._arguments: dict | None = None
         self._logs: list[dict] = []
@@ -59,7 +58,6 @@ class Action(ModuleItem):
         self._outputs: dict[str, bool] = {}
         self._result_as_file = True
         self._update_secrets = False
-        self._data_path = data_path or get_data_path()
         logging.getLogger().addHandler(ActionLogHandler(self))
 
         # Make sure arguments are validated/coerced by pydantic
@@ -69,6 +67,8 @@ class Action(ModuleItem):
         # If a `results_model` is defined, also validate the return value
         if self.results_model:
             self.run = returns(self.results_model)(self.run)  # type: ignore
+
+        sentry_sdk.set_tag("item_type", "action")
 
     @property
     def arguments(self) -> dict:
@@ -95,6 +95,7 @@ class Action(ModuleItem):
 
     def execute(self) -> None:
         try:
+            self._ensure_data_path_set()
             self.set_task_as_running()
             self._results = self.run(self.arguments)
         except Exception:
@@ -142,7 +143,7 @@ class Action(ModuleItem):
             return arguments[name]
         elif f"{name}_path" in arguments:
             self._result_as_file = True
-            filepath = self._data_path.joinpath(arguments[f"{name}_path"])
+            filepath = self.data_path.joinpath(arguments[f"{name}_path"])
             if not filepath.is_file():
                 raise MissingActionArgumentFileError(filepath)
 
@@ -162,7 +163,7 @@ class Action(ModuleItem):
         if self._result_as_file:
             filename = f"{name}-{uuid4()}.json"
 
-            filepath = self._data_path / filename
+            filepath = self.data_path / filename
             with filepath.open("w") as f:
                 f.write(orjson.dumps(value).decode("utf-8"))
 

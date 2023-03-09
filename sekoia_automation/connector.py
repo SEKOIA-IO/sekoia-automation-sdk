@@ -88,7 +88,7 @@ class Connector(Trigger):
             return
 
         # save event in file
-        work_dir = self._data_path.joinpath(f"{self.name}_events").joinpath(
+        work_dir = self.data_path.joinpath(f"{self.name}_events").joinpath(
             str(uuid.uuid4())
         )
         work_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +98,7 @@ class Connector(Trigger):
             fp.write(orjson.dumps(records).decode("utf-8"))
 
         # Send Event
-        directory = str(work_dir.relative_to(self._data_path))
+        directory = str(work_dir.relative_to(self.data_path))
         file_path = str(event_path.relative_to(work_dir))
         self.send_event(
             event_name=event_name,

@@ -286,3 +286,20 @@ def test_configuration_errors_are_critical(mocked_trigger_logs):
 
     # configuration errors are directly considered to be critical
     assert mocked_trigger_logs.call_count == 1
+
+
+def test_trigger_data_path_error(mocked_trigger_logs):
+    class TestTrigger(Trigger):
+        def run(self):
+            pass
+
+    trigger = TestTrigger()
+
+    with patch("sekoia_automation.module.get_data_path") as mock, pytest.raises(
+        SystemExit
+    ):
+        mock.side_effect = ValueError()
+        trigger.execute()
+
+    # configuration errors are directly considered to be critical
+    assert mocked_trigger_logs.call_count == 1

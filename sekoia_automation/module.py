@@ -2,7 +2,8 @@ import json
 import logging
 import sys
 from abc import ABC, abstractmethod
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import requests
 import sentry_sdk
@@ -15,6 +16,7 @@ from sekoia_automation.exceptions import (
     ModuleConfigurationError,
     SendEventError,
 )
+from sekoia_automation.storage import get_data_path
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
 
@@ -199,7 +201,7 @@ class ModuleItem(ABC):
     description: str | None = None
     results_model: type[BaseModel] | None = None
 
-    def __init__(self, module: Module | None = None):
+    def __init__(self, module: Module | None = None, data_path: Path | None = None):
         self.module: Module = module or Module()
 
         self._token: str | None = None
@@ -209,6 +211,7 @@ class ModuleItem(ABC):
         # Worse case we use the class name
         if not self.name:
             self.name = self.__class__.__name__.lower()
+        self._data_path = data_path
 
         self._setup_logging()
 
@@ -234,6 +237,20 @@ class ModuleItem(ABC):
 
         return self._token
 
+    @property
+    def data_path(self) -> Path:
+        self._ensure_data_path_set()
+        return cast(Path, self._data_path)
+
+    def _ensure_data_path_set(self):
+        if not self._data_path:
+            try:
+                self._data_path = get_data_path()
+            except Exception as e:
+                self.log_exception(e)
+                self.log("Impossible to get the data path", level="critical")
+                raise
+
     def log(
         self, message: str, level: str = "debug", only_sentry: bool = False, **kwargs
     ) -> None:
@@ -242,7 +259,7 @@ class ModuleItem(ABC):
         if not only_sentry:
             log_level = logging.getLevelName(level.upper())
             self._logger.log(log_level, message)
-        if level.lower() in ["error", "warning"]:
+        if level.lower() in ["error", "warning", "critical"]:
             with sentry_sdk.push_scope() as scope:
                 for key, value in kwargs.items():
                     scope.set_extra(key, value)

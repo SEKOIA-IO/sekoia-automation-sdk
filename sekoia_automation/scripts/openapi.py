@@ -101,8 +101,7 @@ class {name}(GenericAPIAction):
 
             if param_in in ["body", "formData"] or "schema" in param.keys():
                 param = param["schema"]
-
-                for v in param["properties"].values():
+                for v in param.get("properties", {}).values():
                     v.update({"in": param_in})
 
                 properties.update(param.get("properties", {}))

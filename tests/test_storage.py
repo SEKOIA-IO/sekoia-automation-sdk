@@ -71,7 +71,7 @@ def test_get_data_path_for_local_storage():
         Path, "open", mock_file
     ):
         data_path = get_data_path()
-        assert isinstance(data_path, (PosixPath, WindowsPath))
+        assert isinstance(data_path, PosixPath | WindowsPath)
 
 
 def test_get_data_path_for_local_storage_sub_folder(config_storage):

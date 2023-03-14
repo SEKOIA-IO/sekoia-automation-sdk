@@ -57,7 +57,7 @@ black = "*"
 mypy = "*"
 
 [tool.black]
-target-version = ["py311", ]
+target-version = ["py311"]
 force-exclude = "tests/expectations/sample_module/main.py|sekoia_automation/scripts/new_module/template/"
 
 [tool.pytest.ini_options]

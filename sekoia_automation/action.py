@@ -13,19 +13,12 @@ import requests
 import sentry_sdk
 from pydantic import validate_arguments
 from requests import Response, Timeout
-from tenacity import (
-    RetryError,
-    Retrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import (RetryError, Retrying, retry_if_exception_type,
+                      stop_after_attempt, wait_exponential)
 from tenacity.wait import wait_base
 
-from sekoia_automation.exceptions import (
-    MissingActionArgumentError,
-    MissingActionArgumentFileError,
-)
+from sekoia_automation.exceptions import (MissingActionArgumentError,
+                                          MissingActionArgumentFileError)
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.utils import returns
 
@@ -202,7 +195,12 @@ class Action(ModuleItem):
         if self.module.has_secrets():
             data["need_secrets"] = True
             response = self._send_request(data, verb="PATCH")
-            self.module.secrets = response.json()["module_configuration"]["secrets"]
+            secrets = {
+                k: v
+                for k, v in response.json()["module_configuration"]["value"].items()
+                if k in self.module.manifest_secrets()
+            }
+            self.module.configuration |= secrets
         else:
             self._send_request(data, verb="PATCH")
 

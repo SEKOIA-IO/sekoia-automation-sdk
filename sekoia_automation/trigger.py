@@ -4,24 +4,20 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 import requests
 import sentry_sdk
 from pydantic import BaseModel
+from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from sekoia_automation.exceptions import (
-    InvalidDirectoryError,
-    ModuleConfigurationError,
-    TriggerConfigurationError,
-)
+from sekoia_automation.exceptions import (InvalidDirectoryError,
+                                          ModuleConfigurationError,
+                                          TriggerConfigurationError)
 from sekoia_automation.module import Module, ModuleItem
-from sekoia_automation.utils import (
-    capture_retry_error,
-    get_annotation_for,
-    get_as_model,
-    validate_with_model,
-)
+from sekoia_automation.utils import (capture_retry_error, get_annotation_for,
+                                     get_as_model, validate_with_model)
 
 
 class Trigger(ModuleItem):
@@ -35,6 +31,26 @@ class Trigger(ModuleItem):
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
         sentry_sdk.set_tag("item_type", "trigger")
+        self._secrets: dict[str, Any] = {}
+
+    def _get_secrets_from_server(self) -> dict[str, Any]:
+        """Calls the API to fetch this trigger's secrets
+
+        If self.module has no secrets configured, we don't do anything
+
+        :return: A dict mapping the configuration's secrets to their value
+        :rtype: dict[str, Any]
+        """
+        if self.module.has_secrets():
+            try:
+                response = requests.get(
+                    self.callback_url.replace("/callback", "/secrets"),
+                    headers=self._headers,
+                )
+                response.raise_for_status()
+                return response.json()["value"]
+            except HTTPError as exception:
+                self._log_request_error(exception)
 
     @property
     def configuration(self) -> dict | BaseModel | None:
@@ -83,6 +99,7 @@ class Trigger(ModuleItem):
     def execute(self) -> None:
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
+        self._secrets = self._get_secrets_from_server()
         while self._error_count < 5:
             self._execute_once()
 

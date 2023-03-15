@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from typing import Any
 from threading import Event
+from typing import Any
 
 import requests
 import sentry_sdk

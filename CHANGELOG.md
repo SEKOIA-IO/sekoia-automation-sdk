@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Small fixes in cli commands
 - Better handling of error on data path access
+- Ignore tests packages to find code in the `generate-files-from-code` command
 
 ## [1.0.0] - 2023-02-16
 

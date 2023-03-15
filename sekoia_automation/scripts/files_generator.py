@@ -59,7 +59,7 @@ class FilesGenerator:
         triggers = set()
 
         for _, name, ispkg in walk_packages([self.base_path.as_posix()]):
-            if not ispkg:
+            if not ispkg and not (name == "tests" or name.startswith("tests.")):
                 self.inspect_module(name, modules, actions, triggers)
 
         if len(modules) != 1:

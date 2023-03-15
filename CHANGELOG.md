@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- When updating a module's configuration, a verification is made on potentiel missing required properties
+- When updating a module's configuration, a verification is made on potential missing required properties
 
 ### Fixed
 

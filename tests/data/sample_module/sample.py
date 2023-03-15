@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sekoia_automation.action import Action
 from sekoia_automation.module import Module
@@ -7,6 +7,8 @@ from sekoia_automation.trigger import Trigger
 
 class ModuleConfiguration(BaseModel):
     module_field: str
+    api_key: str = Field(secret=True)
+    password: str = Field(secret=True)
 
 
 class SampleModule(Module):

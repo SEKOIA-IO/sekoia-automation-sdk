@@ -1,6 +1,6 @@
 # How to contribute
 
-In order to run the test and the lint check of the project [Poetry](https://python-poetry.org/) must be installed. 
+In order to run the test and the lint check of the project [Poetry](https://python-poetry.org/) must be installed.
 
 ## Installing dependencies
 
@@ -52,7 +52,7 @@ poetry run mypy --install-types .
 
 ### Pre-commit hooks
 
-Pre-commit hooks can be installed using the [pre-commit](https://pre-commit.com) tool. 
+Pre-commit hooks can be installed using the [pre-commit](https://pre-commit.com) tool.
 Once the tool is installed the pre-commit hooks must be added to git by running the command
 
 ```shell

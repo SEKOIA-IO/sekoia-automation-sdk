@@ -27,7 +27,9 @@ def test_connector(storage, mocked_trigger_logs):
     test_connector.log = Mock()
     test_connector.log_exception = Mock()
 
-    return test_connector
+    yield test_connector
+
+    test_connector.stop()
 
 
 def test_forward_events(test_connector):

@@ -5,14 +5,12 @@
     "docker": "sekoia-automation-module-sample",
     "configuration": {
         "properties": {
-            "module_field": {
-                "title": "Module Field",
-                "type": "string"
-            }
+            "module_field": {"title": "Module Field", "type": "string"},
+            "api_key": {"title": "Api Key", "type": "string"},
+            "password": {"title": "Password", "type": "string"}
         },
-        "required": [
-            "module_field"
-        ],
+        "required": ["module_field", "api_key", "password"],
+        "secrets": ["api_key", "password"],
         "title": "ModuleConfiguration",
         "type": "object"
     },

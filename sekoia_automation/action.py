@@ -202,7 +202,12 @@ class Action(ModuleItem):
         if self.module.has_secrets():
             data["need_secrets"] = True
             response = self._send_request(data, verb="PATCH")
-            self.module.secrets = response.json()["module_configuration"]["secrets"]
+            secrets = {
+                k: v
+                for k, v in response.json()["module_configuration"]["value"].items()
+                if k in self.module.manifest_secrets()
+            }
+            self.module.configuration |= secrets
         else:
             self._send_request(data, verb="PATCH")
 

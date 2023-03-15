@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Triggers can retrieve module's configuration secrets by REST call to API
+- Secrets can be set in Pydantic models used for generating a manifest (e.g. `api_key: str = Field(secret=True)`)
+
+### Changed
+
+- When updating a module's configuration, a verification is made on potentiel missing required properties
+
 ### Fixed
 
 - Small fixes in cli commands

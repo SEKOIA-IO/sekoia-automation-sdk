@@ -35,7 +35,6 @@ class Module:
         self._command: str | None = None
         self._configuration: dict | BaseModel | None = None
         self._manifest: dict | None = None
-        self.secrets: dict | None = None
         self._community_uuid: str | None = None
         self._items: dict[str, type["ModuleItem"]] = {}
         self._playbook_uuid: str | None = None
@@ -79,25 +78,111 @@ class Module:
 
     @configuration.setter
     def configuration(self, configuration: dict) -> None:
-        try:
-            self._configuration = get_as_model(
-                get_annotation_for(self.__class__, "configuration"), configuration
+        """Generates the module's configuration using Pydantic's primitives
+
+        A check for the presence of required properties has to be done:
+        We look for properties that would be marked as "required" inside the
+        module's manifest but wouldn't be set in the "configuration" dict
+        given here as an argument.
+        If this happens an exception is raised.
+        Otherwise we set the "configuration" argument as the module's configuration.
+
+        :param configuration: Configuration to be applied to this instance
+        :type configuration: dict
+        :raises ModuleConfigurationError: If the module requires a property that
+            has not been set
+        :raises ModuleConfigurationError: If the parsing of the configuration
+            and the model by Pydantic fail and raise an Exception
+        """
+        required_properties: list[str] = self.manifest_required_properties()
+        actual_properties = {
+            k: v for k, v in configuration.items() if k in self.manifest_properties()
+        }
+        missing_required_properties = [
+            p for p in required_properties if p not in actual_properties
+        ]
+        if not missing_required_properties:
+            try:
+                self._configuration = get_as_model(
+                    get_annotation_for(self.__class__, "configuration"),
+                    configuration,
+                )
+            except Exception as e:
+                raise ModuleConfigurationError(str(e))
+        else:
+            raise ModuleConfigurationError(
+                f"Module configuration requires properties \
+                    that were not found: {missing_required_properties}",
             )
-        except Exception as e:
-            raise ModuleConfigurationError(str(e))
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context("module_configuration", self._configuration.dict())
         elif self._configuration:
             sentry_sdk.set_context("module_configuration", self._configuration)
 
+    def manifest_properties(self) -> list[str]:
+        """Gets the list of expected properties from the module's manifest
+
+        This is different from the properties that are actually set in the
+        module's configuration instance since some can be optionnal
+
+        :return: List of properties available for this module
+        :rtype: list[str]
+        """
+        return list(self.manifest.get("configuration", {}).get("properties", {}).keys())
+
+    def manifest_secrets(self) -> list[str]:
+        """Gets the list of expected secrets from the module's manifest
+
+        This is different from the secrets that are actually set in the
+        module's configuration instance since some can be optionnal
+
+        :return: List of secrets available for this module
+        :rtype: list[str]
+        """
+        return list(self.manifest.get("configuration", {}).get("secrets", []))
+
+    def manifest_required_properties(self) -> list[str]:
+        """Gets the list of required properties from the module's manifest
+
+        :return: List of required parameters for this module
+        :rtype: list[str]
+        """
+        return list(self.manifest.get("configuration", {}).get("required", []))
+
     def has_secrets(self) -> bool:
-        """Check with manifest if module configuration has secrets."""
-        if not self.secrets:
-            has_secrets = bool(self.manifest.get("configuration", {}).get("secrets"))
-        else:
-            has_secrets = True
-        return has_secrets
+        """Check with manifest if this module has secrets.
+
+        :return: True if the module's manifest has secrets, False otherwise
+        :rtype: bool
+        """
+        return bool(self.manifest.get("configuration", {}).get("secrets"))
+
+    @property
+    def secrets(self) -> dict[str, Any]:
+        """Returns a dict of the secrets of the current module
+
+        Both the manifest and the module configuration are required: this
+        method parses the module's manifest to get a list of the secret fields,
+        then it looks up their associated value in the module configuration
+        Note that some secrets may not be defined in the module configuration
+        and thus wouldn't be added to the return value. No check of required
+        secrets is made here.
+
+        :return: A dict mapping the secrets defined in the module conf
+        to their value. If no secret is found, the dict is empty.
+        :rtype: dict[str, Any]
+        """
+        secrets = {}
+        config_dict = {}
+        if isinstance(self.configuration, BaseModel):
+            config_dict = self.configuration.dict()
+        elif isinstance(self.configuration, dict):
+            config_dict = self.configuration
+        for secret_key in self.manifest_secrets():
+            if secret_key in config_dict:
+                secrets[secret_key] = config_dict[secret_key]
+        return secrets
 
     @property
     def community_uuid(self) -> str | None:

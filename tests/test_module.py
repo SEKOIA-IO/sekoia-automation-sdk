@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger
+from tests.conftest import DEFAULT_ARGUMENTS
 
 
 def test_load_config_file_not_exists():
@@ -24,7 +25,7 @@ def test_load_config_text(mock_volume):
 
 def test_load_config_json(mock_volume):
     module = Module()
-    assert module.load_config("foo", "json") == dict(key1="value1")
+    assert module.load_config("foo", "json") == DEFAULT_ARGUMENTS
 
 
 def test_command_no_arg():
@@ -123,3 +124,57 @@ def test_configuration_as_model():
     # Validation errors should be raised with bad values
     with pytest.raises(ModuleConfigurationError):
         module.configuration = {"number": "NotANumber"}
+
+
+def test_configuration_setter_add_secret_not_required():
+    module = Module()
+    secret_name = "foo"
+    secret_val = "bar"
+
+    with patch.object(
+        Module,
+        "manifest_properties",
+        return_value=[secret_name],
+    ), patch.object(
+        Module,
+        "manifest_required_properties",
+        return_value=[],
+    ):
+        module.configuration = {secret_name: secret_val}
+        assert module.configuration == {secret_name: secret_val}
+
+
+def test_configuration_setter_add_secret_required():
+    module = Module()
+    secret_name = "foo"
+    secret_val = "bar"
+
+    with patch.object(
+        Module,
+        "manifest_properties",
+        return_value=[secret_name],
+    ), patch.object(
+        Module,
+        "manifest_required_properties",
+        return_value=[secret_name],
+    ):
+        module.configuration = {secret_name: secret_val}
+        assert module.configuration == {secret_name: secret_val}
+
+
+def test_configuration_setter_missing_required_secret():
+    module = Module()
+    secret_name = "foo"
+
+    with patch.object(
+        Module,
+        "manifest_properties",
+        return_value=[secret_name],
+    ), patch.object(
+        Module,
+        "manifest_required_properties",
+        return_value=[secret_name],
+    ):
+        with pytest.raises(expected_exception=ModuleConfigurationError):
+            module.configuration = {"not a secret": "some value"}
+            assert module.configuration == {secret_name: "some other value"}

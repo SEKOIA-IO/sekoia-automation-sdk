@@ -14,6 +14,7 @@ from tenacity import wait_none
 # internal
 from sekoia_automation.action import Action, GenericAPIAction
 from sekoia_automation.exceptions import MissingActionArgumentError
+from sekoia_automation.module import Module
 from tests.conftest import DEFAULT_ARGUMENTS, FAKE_URL, MANIFEST_WITH_SECRETS
 
 
@@ -67,22 +68,32 @@ def test_action_error():
 
 def test_action_results_with_secrets_update(mock_volume):
     data = {"key1": "value1", "key2": "value2"}
+    secret = {"a_key": "a_secret"}
 
     class SimpleAction(Action):
         def run(self, arguments):
             self._update_secrets = True
-            self.module.secrets = {"a_key": "a_secret"}
             return data
 
     action = SimpleAction()
     with requests_mock.Mocker() as rmock:
-        rmock.patch(FAKE_URL)
+        rmock.patch(FAKE_URL, json={"module_configuration": {"value": secret}})
 
-        action.execute()
+        with patch.object(
+            Module, "manifest_secrets", return_value=["a_key"]
+        ), patch.object(
+            Module, "manifest_required_properties", return_value=[]
+        ), patch.object(
+            Module, "has_secrets", return_value=True
+        ):
+            action.execute()
 
         assert action.results == data
         assert rmock.call_count == 2
-        assert rmock.request_history[0].json() == {"status": "running"}
+        assert rmock.request_history[0].json() == {
+            "status": "running",
+            "need_secrets": True,
+        }
         assert rmock.last_request.json() == {
             "results": data,
             "status": "finished",
@@ -100,9 +111,7 @@ def test_action_execute_with_get_secrets(mock_volume):
     action.module._manifest = MANIFEST_WITH_SECRETS
 
     with requests_mock.Mocker() as rmock:
-        rmock.patch(
-            FAKE_URL, json={"module_configuration": {"secrets": {"foo": "bar"}}}
-        )
+        rmock.patch(FAKE_URL, json={"module_configuration": {"value": {"foo": "bar"}}})
 
         action.execute()
 

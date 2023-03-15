@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import PropertyMock, mock_open, patch
 
 # third parties
 import pytest
@@ -16,6 +16,7 @@ from sekoia_automation.exceptions import (
 # internal
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
+from tests.conftest import TRIGGER_SECRETS
 
 
 class DummyTrigger(Trigger):
@@ -51,11 +52,12 @@ def test_trigger_configuration():
 
 def test_module_configuration():
     trigger = DummyTrigger()
-    with patch.object(Module, "load_config", return_value="module_conf") as mock, patch(
+    module_conf = {"conf_key": "conf_val"}
+    with patch.object(Module, "load_config", return_value=module_conf) as mock, patch(
         "sentry_sdk.set_context"
     ) as sentry_patch:
-        assert trigger.module.configuration == "module_conf"
-        sentry_patch.assert_called_with("module_configuration", "module_conf")
+        assert trigger.module.configuration == module_conf
+        sentry_patch.assert_called_with("module_configuration", module_conf)
     mock.assert_called_with(Module.MODULE_CONFIGURATION_FILE_NAME, "json")
 
 
@@ -261,7 +263,8 @@ def test_trigger_log_retry(mocked_trigger_logs):
     assert mocked_trigger_logs.call_count == 2
 
 
-def test_execute_logs_errors(mocked_trigger_logs):
+@patch.object(Trigger, "_get_secrets_from_server")
+def test_execute_logs_errors(_, mocked_trigger_logs):
     class TestTrigger(Trigger):
         def run(self):
             raise NotImplementedError
@@ -274,7 +277,8 @@ def test_execute_logs_errors(mocked_trigger_logs):
     assert mocked_trigger_logs.call_count == 5
 
 
-def test_configuration_errors_are_critical(mocked_trigger_logs):
+@patch.object(Trigger, "_get_secrets_from_server")
+def test_configuration_errors_are_critical(_, mocked_trigger_logs):
     class TestTrigger(Trigger):
         def run(self):
             raise TriggerConfigurationError
@@ -288,18 +292,25 @@ def test_configuration_errors_are_critical(mocked_trigger_logs):
     assert mocked_trigger_logs.call_count == 1
 
 
-def test_trigger_data_path_error(mocked_trigger_logs):
-    class TestTrigger(Trigger):
+@patch.object(Module, "has_secrets", return_value=True)
+@patch.object(
+    Trigger,
+    "callback_url",
+    new_callable=PropertyMock,
+    return_value="http://sekoia-playbooks/callback",
+)
+@patch.object(Trigger, "token", return_value="secure_token")
+def test_get_secrets(_, __, ___):
+    class TestGetSecretsTrigger(Trigger):
         def run(self):
-            pass
+            self._error_count = 5
 
-    trigger = TestTrigger()
+    trigger = TestGetSecretsTrigger()
 
-    with patch("sekoia_automation.module.get_data_path") as mock, pytest.raises(
-        SystemExit
-    ):
-        mock.side_effect = ValueError()
+    with requests_mock.Mocker() as rmock:
+        rmock.get("http://sekoia-playbooks/secrets", json={"value": TRIGGER_SECRETS})
+
         trigger.execute()
 
-    # configuration errors are directly considered to be critical
-    assert mocked_trigger_logs.call_count == 1
+        assert rmock.call_count == 1
+        assert trigger._secrets == TRIGGER_SECRETS

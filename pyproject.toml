@@ -43,6 +43,7 @@ python-slugify = "^5.0.2"
 PyYAML = "^6.0"
 Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
+prometheus-client = "^0.16.0"
 
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"

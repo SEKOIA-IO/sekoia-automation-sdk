@@ -105,6 +105,49 @@ def test_generate_documentation(tmp_path):
     )
 
 
+def test_generate_documentation_specific_module(tmp_path):
+    current_dir = Path(os.path.dirname(__file__)).resolve()
+    modules_path = current_dir.joinpath("data")
+    documentation_path = tmp_path.joinpath("documentation")
+    shutil.copytree(current_dir.joinpath("data", "documentation"), documentation_path)
+    res: Result = runner.invoke(
+        app,
+        [
+            "generate-documentation",
+            str(modules_path),
+            str(documentation_path),
+            "--module",
+            "sample_module",
+        ],
+    )
+    assert res.exit_code == 0
+
+    assert documentation_path.joinpath(
+        "docs/assets/playbooks/library/test-module.svg"
+    ).exists()
+    assert documentation_path.joinpath(
+        "_shared_content/automate/library/test-module.md"
+    ).exists()
+
+    with documentation_path.joinpath("mkdocs.yml").open("r") as fp:
+        manifest = yaml.load(fp, Loader=Loader)
+
+    # Make sure we didn't remove other modules
+    assert (
+        manifest["nav"][0]["SEKOIA.IO XDR"][0]["Features"][0]["Automate"][0][
+            "Actions Library"
+        ][0]["SEKOIA.IO"]
+        == "xdr/features/automate/library/sekoia-io.md"
+    )
+    # And our module has been added
+    assert (
+        manifest["nav"][0]["SEKOIA.IO XDR"][0]["Features"][0]["Automate"][0][
+            "Actions Library"
+        ][1]["Test Module"]
+        == "xdr/features/automate/library/test-module.md"
+    )
+
+
 def test_openapi_to_module_no_title(tmp_path, swagger_path, requests_mock):
     with swagger_path.open() as fp:
         swagger = json.load(fp)

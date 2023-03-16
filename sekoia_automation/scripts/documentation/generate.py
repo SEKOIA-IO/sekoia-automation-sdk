@@ -111,14 +111,25 @@ class DocumentationGenerator:
                 return module_logo_filename
         return None
 
-    def _update_submenu(self, menu: list[dict], target: str, value: list):
+    def _update_submenu(
+        self, menu: list[dict], target: str, value: list, append_only: bool = False
+    ):
         root_target, *target_lst = target.split("/")
         for item in menu:
             if root_target in item:
                 if target_lst == []:
-                    item[root_target] = value
+                    if append_only:
+                        item.setdefault(root_target, [])
+                        # Sort by the name of the key in the dict
+                        item[root_target] = sorted(
+                            item[root_target] + value, key=lambda x: next(iter(x))
+                        )
+                    else:
+                        item[root_target] = value
 
-                self._update_submenu(item[root_target], "/".join(target_lst), value)
+                self._update_submenu(
+                    item[root_target], "/".join(target_lst), value, append_only
+                )
 
     def generate(self) -> None:
         self._validate_dirs()
@@ -156,7 +167,7 @@ class DocumentationGenerator:
                 f"SEKOIA.IO XDR/{self.MKDOCS_SUB_NAV}": "xdr/features/automate/library",
                 f"SEKOIA.IO TIP/{self.MKDOCS_SUB_NAV}": "tip/features/automate/library",
             }
-
+            append_only = True if self.module else False
             for root, directory in root_menu_items.items():
                 sub_content = [
                     {module.name: f"{directory}/{module.file_name}"}
@@ -164,7 +175,10 @@ class DocumentationGenerator:
                 ]
 
                 self._update_submenu(
-                    mkdocs_conf["nav"], root, copy.deepcopy(sub_content)
+                    mkdocs_conf["nav"],
+                    root,
+                    copy.deepcopy(sub_content),
+                    append_only=append_only,
                 )
                 print(f"[green][+][/green] {root} updated")
 

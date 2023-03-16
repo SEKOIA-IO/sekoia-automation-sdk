@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0b1] - 2023-03-16
+
 ### Added
 
 - Triggers can retrieve module's configuration secrets by REST call to API

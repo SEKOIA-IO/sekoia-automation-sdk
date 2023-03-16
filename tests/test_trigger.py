@@ -110,6 +110,14 @@ def test_trigger_configuration_setter():
     assert trigger.configuration == {"key1": "value1"}
 
 
+def test_trigger_stop():
+    trigger = DummyTrigger()
+    assert trigger.running is True
+
+    trigger.stop()
+    assert trigger.running is False
+
+
 def send_event_with_mock(
     name, event, directory, remove_directory=False, data_path=None
 ):

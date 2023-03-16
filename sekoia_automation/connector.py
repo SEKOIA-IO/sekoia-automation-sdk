@@ -1,5 +1,7 @@
 import uuid
 from collections.abc import Generator, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from datetime import time
 from functools import cached_property
 from typing import Any
@@ -28,6 +30,17 @@ class DefaultConnectorConfiguration(BaseModel):
 class Connector(Trigger):
     configuration: DefaultConnectorConfiguration
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._executor = ThreadPoolExecutor(kwargs.pop("executor_max_worker", 4))
+
+    def stop(self, *args, **kwargs):
+        """
+        Stop the connector
+        """
+        super().stop(*args, **kwargs)
+        self._executor.shutdown(wait=True)
+
     def _retry(self):
         return Retrying(
             stop=stop_after_attempt(5),
@@ -39,6 +52,30 @@ class Connector(Trigger):
     def __connector_user_agent(self):
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
+    def _send_chunk(
+        self,
+        batch_api: str,
+        chunk_index: int,
+        chunk: list[Any],
+        collect_ids: dict[int, list[str]],
+    ):
+        try:
+            request_body = {"intake_key": self.configuration.intake_key, "jsons": chunk}
+
+            for attempt in self._retry():
+                with attempt:
+                    res: Response = requests.post(
+                        batch_api,
+                        json=request_body,
+                        headers={"User-Agent": self.__connector_user_agent},
+                    )
+            if res.status_code > 299:
+                self.log(f"Intake rejected events: {res.text}", level="error")
+                res.raise_for_status()
+            collect_ids[chunk_index] = res.json().get("event_ids", [])
+        except Exception as ex:
+            self.log_exception(ex, message=f"Failed to forward {len(chunk)} events")
+
     def push_events_to_intakes(self, events: list[str]) -> list:
         # no event to push
         if not events:
@@ -47,32 +84,25 @@ class Connector(Trigger):
         intake_host = self.configuration.intake_server
         batch_api = urljoin(intake_host, "/batch")
 
-        event_ids: list = []
+        # Dict to collect event_ids for the API
+        collect_ids: dict[int, list] = {}
 
         # pushing the events
         chunks = self._chunk_events(events, self.configuration.chunk_size)
-        for chunk in chunks:
-            try:
-                request_body = {
-                    "intake_key": self.configuration.intake_key,
-                    "jsons": chunk,
-                }
+        futures = [
+            self._executor.submit(
+                self._send_chunk, batch_api, chunk_index, chunk, collect_ids
+            )
+            for chunk_index, chunk in enumerate(chunks)
+        ]
+        wait_futures(futures)
 
-                for attempt in self._retry():
-                    with attempt:
-                        res: Response = requests.post(
-                            batch_api,
-                            json=request_body,
-                            headers={"User-Agent": self.__connector_user_agent},
-                        )
-                if res.status_code > 299:
-                    self.log(f"Intake rejected events: {res.text}", level="error")
-                    res.raise_for_status()
-                event_ids += res.json().get("event_ids", [])
-            except Exception as ex:
-                self.log_exception(
-                    ex, message=f"Failed to forward {len(events)} events"
-                )
+        # reorder event_ids according chunk index
+        event_ids = [
+            event_id
+            for chunk_index in sorted(collect_ids.keys())
+            for event_id in collect_ids[chunk_index]
+        ]
 
         return event_ids
 

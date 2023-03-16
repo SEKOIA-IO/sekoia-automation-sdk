@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Triggers can retrieve module's configuration secrets by REST call to API
 - Secrets can be set in Pydantic models used for generating a manifest (e.g. `api_key: str = Field(secret=True)`)
+- add the ability to handle the trigger exit
+- parallelize the forward of chunks of events
 
 ### Changed
 

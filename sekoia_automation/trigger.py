@@ -1,9 +1,11 @@
 import logging
+import signal
 from abc import abstractmethod
 from contextlib import contextmanager
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 import requests
@@ -38,6 +40,11 @@ class Trigger(ModuleItem):
         self._error_count = 0
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
+        self._stop_event = Event()
+
+        # Register signal to terminate thread
+        signal.signal(signal.SIGINT, self.stop)
+        signal.signal(signal.SIGTERM, self.stop)
 
     def _get_secrets_from_server(self) -> dict[str, Any]:
         """Calls the API to fetch this trigger's secrets
@@ -59,6 +66,20 @@ class Trigger(ModuleItem):
             except HTTPError as exception:
                 self._log_request_error(exception)
         return secrets
+
+    def stop(self, *args, **kwargs):  # noqa: ARG002
+        """
+        Engage the trigger exit
+        """
+        # Exit signal received, asking the processor to stop
+        self._stop_event.set()
+
+    @property
+    def running(self) -> bool:
+        """
+        Return if the trigger is still active or not
+        """
+        return not self._stop_event.is_set()
 
     @property
     def configuration(self) -> dict | BaseModel | None:

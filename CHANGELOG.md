@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Don't retry requests to SEKOIA.IO with a status code of 4xx
+- Don't retry requests to SEKOIA.IO with a status code of 4xx and 504
 
 ## [1.1.0b1] - 2023-03-16
 

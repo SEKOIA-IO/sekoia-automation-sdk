@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Don't retry requests to SEKOIA.IO with a status code of 4xx
+
 ## [1.1.0b1] - 2023-03-16
 
 ### Added

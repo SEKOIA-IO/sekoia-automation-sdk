@@ -381,7 +381,11 @@ class ModuleItem(ABC):
             self._log_request_error(exception)
             if attempt == 3 or (
                 isinstance(exception.response, Response)
-                and 400 <= exception.response.status_code < 500
+                and (
+                    400 <= exception.response.status_code < 500
+                    # Hopefully the API will process the query
+                    or exception.response.status_code == 504
+                )
             ):
                 raise SendEventError("Impossible to send event to SEKOIA.IO API")
             return self._send_request(data, verb, attempt + 1)

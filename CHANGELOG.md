@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for config stored inside env variables
+
 ### Changed
 
 - Don't retry requests to SEKOIA.IO with a status code of 4xx and 504

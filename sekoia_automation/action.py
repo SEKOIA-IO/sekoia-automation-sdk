@@ -25,6 +25,7 @@ from tenacity.wait import wait_base
 from sekoia_automation.exceptions import (
     MissingActionArgumentError,
     MissingActionArgumentFileError,
+    SendEventError,
 )
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.utils import returns
@@ -232,7 +233,11 @@ class Action(ModuleItem):
         if self._update_secrets:
             data["secrets"] = self.module.secrets
 
-        self._send_request(data, verb="PATCH")
+        try:
+            self._send_request(data, verb="PATCH")
+        except SendEventError as ex:
+            if ex.status_code != 409:
+                raise ex
 
 
 class GenericAPIAction(Action):

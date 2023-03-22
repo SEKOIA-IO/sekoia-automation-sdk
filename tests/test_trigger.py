@@ -87,7 +87,7 @@ def test_send_event_4xx_error(mocked_trigger_logs):
         trigger.send_event("my_event", {"foo": "bar"})
 
 
-def test_send_event_too_much_failures(mocked_trigger_logs):
+def test_send_event_too_many_failures(mocked_trigger_logs):
     trigger = DummyTrigger()
 
     mocked_trigger_logs.post(

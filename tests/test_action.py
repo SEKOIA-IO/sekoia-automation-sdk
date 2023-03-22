@@ -13,7 +13,7 @@ from tenacity import wait_none
 
 # internal
 from sekoia_automation.action import Action, GenericAPIAction
-from sekoia_automation.exceptions import MissingActionArgumentError
+from sekoia_automation.exceptions import MissingActionArgumentError, SendEventError
 from sekoia_automation.module import Module
 from tests.conftest import DEFAULT_ARGUMENTS, FAKE_URL, MANIFEST_WITH_SECRETS
 
@@ -403,3 +403,33 @@ def test_action_with_results_model():
     # Return a bad value, it should raise a validation error
     with pytest.raises(ValidationError):
         action.run({"number": "NotANumber"})
+
+
+def test_action_send_result_client_error(mock_volume):
+    class DummyAction(Action):
+        def run(self, arguments):
+            pass
+
+    action = DummyAction()
+    with requests_mock.Mocker() as rmock:
+        rmock.patch(FAKE_URL, status_code=400)
+        with pytest.raises(SendEventError):
+            action.send_results()
+
+
+def test_action_send_result_conflict(mock_volume):
+    """
+    Conflict error should be ignored
+    """
+
+    class DummyAction(Action):
+        def run(self, arguments):
+            pass
+
+    action = DummyAction()
+    with requests_mock.Mocker() as rmock:
+        rmock.patch(FAKE_URL, status_code=409)
+        try:
+            action.send_results()
+        except Exception as ex:
+            assert False, f"'send_results' raised an exception {ex}"

@@ -277,6 +277,7 @@ class Trigger(ModuleItem):
         This is based on the date of the last sent events
         compared to the `seconds_without_events` threshold.
         """
+        delta = datetime.utcnow() - self._last_events
         if (
             self.seconds_without_events <= 0
             or datetime.utcnow() - self._last_events
@@ -284,9 +285,9 @@ class Trigger(ModuleItem):
         ):
             return True
 
-        delta = (datetime.utcnow() - self._last_events).seconds
         self.log(
-            message=f"The trigger didn't send events for {delta} seconds", level="error"
+            message=f"The trigger didn't send events for {delta.seconds} seconds",
+            level="error",
         )
         return False
 

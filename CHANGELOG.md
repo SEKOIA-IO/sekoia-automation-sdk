@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add support for config stored inside env variables
+- Add liveness HTTP endpoint to check if the trigger is still working
 
 ### Changed
 

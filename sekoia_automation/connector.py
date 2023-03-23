@@ -30,6 +30,8 @@ class DefaultConnectorConfiguration(BaseModel):
 class Connector(Trigger):
     configuration: DefaultConnectorConfiguration
 
+    seconds_without_events = 3600
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._executor = ThreadPoolExecutor(kwargs.pop("executor_max_worker", 4))

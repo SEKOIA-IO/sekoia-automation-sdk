@@ -2,10 +2,11 @@ import logging
 import signal
 from abc import abstractmethod
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 from typing import Any
 
 import requests
@@ -33,11 +34,18 @@ class Trigger(ModuleItem):
 
     TRIGGER_CONFIGURATION_FILE_NAME = "trigger_configuration"
 
+    # Number of seconds without sent events after which
+    # the trigger is considered in error.
+    # 0 means that the trigger is never considered in error
+    seconds_without_events = 0
+    LIVENESS_PORT_FILE_NAME = "liveness_port"
+
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
         logging.basicConfig(level=logging.INFO)
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
+        self._last_events = datetime.utcnow()
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
@@ -45,6 +53,8 @@ class Trigger(ModuleItem):
         # Register signal to terminate thread
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
+
+        self._liveness_server = None
 
     def _get_secrets_from_server(self) -> dict[str, Any]:
         """Calls the API to fetch this trigger's secrets
@@ -178,6 +188,9 @@ class Trigger(ModuleItem):
         remove_directory: bool = False,
     ):
         """Send a normalized event to SEKOIA.IO so that it triggers a playbook run."""
+        # Reset the consecutive error count
+        self._error_count = 0
+        self._last_events = datetime.utcnow()
         data = {"name": event_name, "event": event}
 
         with self._ensure_directory(directory, remove_directory) as directory_location:
@@ -197,9 +210,6 @@ class Trigger(ModuleItem):
 
         Makes sure `results_model` is used to validate/coerce the event if present
         """
-        # Reset the consecutive error count
-        self._error_count = 0
-
         return self.send_normalized_event(
             event_name,
             validate_with_model(self.results_model, event),
@@ -246,3 +256,52 @@ class Trigger(ModuleItem):
 
         Should usually be an infinite loop, calling send_event when relevant.
         """
+
+    def start_monitoring(self):
+        port = (
+            self.module.load_config(self.LIVENESS_PORT_FILE_NAME, non_exist_ok=True)
+            or 8000
+        )
+        LivenessHandler.trigger = self
+        self._liveness_server = HTTPServer(("", int(port)), LivenessHandler)
+        Thread(target=self._liveness_server.serve_forever, daemon=True).start()
+
+    def stop_monitoring(self):
+        if self._liveness_server:
+            self._liveness_server.shutdown()
+
+    def is_alive(self) -> bool:
+        """
+        Return whether the trigger appears to be alive.
+
+        This is based on the date of the last sent events
+        compared to the `seconds_without_events` threshold.
+        """
+        if (
+            self.seconds_without_events <= 0
+            or datetime.utcnow() - self._last_events
+            < timedelta(seconds=self.seconds_without_events)
+        ):
+            return True
+
+        delta = (datetime.utcnow() - self._last_events).seconds
+        self.log(
+            message=f"The trigger didn't send events for {delta} seconds", level="error"
+        )
+        return False
+
+
+class LivenessHandler(BaseHTTPRequestHandler):
+    trigger: Trigger
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/health":
+            self.send(200 if self.trigger.is_alive() else 500)
+            return
+        self.send(404)
+
+    def send(self, status_code: int):
+        self.send_response(status_code)
+        self.send_header("content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(f'{{"status_code": {status_code}}}'.encode())

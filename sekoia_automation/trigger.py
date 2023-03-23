@@ -60,6 +60,7 @@ class Trigger(ModuleItem):
                 response = requests.get(
                     self.callback_url.replace("/callback", "/secrets"),
                     headers=self._headers,
+                    timeout=30,
                 )
                 response.raise_for_status()
                 secrets = response.json()["value"]
@@ -228,7 +229,7 @@ class Trigger(ModuleItem):
             ]
         }
         response = requests.request(
-            "POST", self._log_url, json=data, headers=self._headers
+            "POST", self._log_url, json=data, headers=self._headers, timeout=30
         )
         response.raise_for_status()
 

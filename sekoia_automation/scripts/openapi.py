@@ -29,7 +29,7 @@ class {name}(GenericAPIAction):
         """
         if self.swagger_file.startswith("http") and self.swagger_file.endswith(".json"):
             response: Response = requests.get(
-                self.swagger_file, headers={"Accept": "application/json"}
+                self.swagger_file, headers={"Accept": "application/json"}, timeout=30
             )
             response.raise_for_status()
             return response.json()

@@ -68,6 +68,7 @@ class Connector(Trigger):
                         batch_api,
                         json=request_body,
                         headers={"User-Agent": self.__connector_user_agent},
+                        timeout=30,
                     )
             if res.status_code > 299:
                 self.log(f"Intake rejected events: {res.text}", level="error")

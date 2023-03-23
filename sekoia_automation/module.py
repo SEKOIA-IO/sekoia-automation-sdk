@@ -373,7 +373,7 @@ class ModuleItem(ABC):
     def _send_request(self, data: dict, verb: str = "POST", attempt=1) -> Response:
         try:
             response = requests.request(
-                verb, self.callback_url, json=data, headers=self._headers
+                verb, self.callback_url, json=data, headers=self._headers, timeout=30
             )
             response.raise_for_status()
             return response

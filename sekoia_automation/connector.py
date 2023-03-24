@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Generator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
-from datetime import time
+from datetime import datetime, time
 from functools import cached_property
 from typing import Any
 from urllib.parse import urljoin
@@ -84,6 +84,7 @@ class Connector(Trigger):
         if not events:
             return []
 
+        self._last_events = datetime.utcnow()
         intake_host = self.configuration.intake_server
         batch_api = urljoin(intake_host, "/batch")
 

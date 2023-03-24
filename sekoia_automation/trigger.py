@@ -278,15 +278,14 @@ class Trigger(ModuleItem):
         compared to the `seconds_without_events` threshold.
         """
         delta = datetime.utcnow() - self._last_events
-        if (
-            self.seconds_without_events <= 0
-            or datetime.utcnow() - self._last_events
-            < timedelta(seconds=self.seconds_without_events)
+        if self.seconds_without_events <= 0 or delta < timedelta(
+            seconds=self.seconds_without_events
         ):
             return True
 
         self.log(
-            message=f"The trigger didn't send events for {delta.seconds} seconds",
+            message=f"The trigger didn't send events for {delta.seconds} seconds, "
+            f"it will be restarted.",
             level="error",
         )
         return False

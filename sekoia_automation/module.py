@@ -241,7 +241,12 @@ class Module:
         command = self.command or ""
 
         if command in self._items:
-            self._items[command](self).execute()
+            to_run = self._items[command](self)
+            try:
+                to_run.start_monitoring()
+                to_run.execute()
+            finally:
+                to_run.stop_monitoring()
         else:
             error = f"Could not find any Action or Trigger matching command '{command}'"
             sentry_sdk.capture_message(error, "error")
@@ -405,3 +410,13 @@ class ModuleItem(ABC):
     @abstractmethod
     def execute(self) -> None:
         """To define in subclasses. Main method being called to run the ModuleItem."""
+
+    def start_monitoring(self) -> None:
+        """
+        Allow the Trigger or Action to start some background monitoring tasks
+        """
+
+    def stop_monitoring(self):
+        """
+        Stops the background monitoring operations
+        """

@@ -1,8 +1,10 @@
+import datetime
 from pathlib import Path
 from unittest.mock import PropertyMock, mock_open, patch
 
 # third parties
 import pytest
+import requests
 import requests_mock
 from pydantic import BaseModel
 from tenacity import wait_none
@@ -334,3 +336,35 @@ def test_get_secrets(_, __, ___):
 
         assert rmock.call_count == 1
         assert trigger._secrets == TRIGGER_SECRETS
+
+
+@pytest.fixture()
+def monitored_trigger():
+    trigger = DummyTrigger()
+    trigger.start_monitoring()
+    try:
+        yield trigger
+    finally:
+        trigger.stop_monitoring()
+
+
+def test_trigger_liveness(monitored_trigger):
+    res = requests.get("http://127.0.0.1:8000/health")
+    assert res.status_code == 200
+
+
+def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
+    monitored_trigger.seconds_without_events = 1
+    monitored_trigger._last_events = datetime.datetime.utcnow() - datetime.timedelta(
+        seconds=60
+    )
+    mocked_trigger_logs.register_uri(
+        "GET", "http://127.0.0.1:8000/health", real_http=True
+    )
+    res = requests.get("http://127.0.0.1:8000/health")
+    assert res.status_code == 500
+
+
+def test_trigger_liveness_not_found(monitored_trigger):
+    res = requests.get("http://127.0.0.1:8000/wrong")
+    assert res.status_code == 404

@@ -355,14 +355,18 @@ def test_trigger_liveness(monitored_trigger):
 
 def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
     monitored_trigger.seconds_without_events = 1
-    monitored_trigger._last_events = datetime.datetime.utcnow() - datetime.timedelta(
-        seconds=60
+    monitored_trigger._last_events_time = (
+        datetime.datetime.utcnow() - datetime.timedelta(seconds=60)
     )
     mocked_trigger_logs.register_uri(
         "GET", "http://127.0.0.1:8000/health", real_http=True
     )
     res = requests.get("http://127.0.0.1:8000/health")
     assert res.status_code == 500
+    data = res.json()
+    assert data["seconds_without_events_threshold"] == 1
+    assert data["last_events_time"] is not None
+    assert data["error_count"] is not None
 
 
 def test_trigger_liveness_not_found(monitored_trigger):

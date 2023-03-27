@@ -1,3 +1,4 @@
+import json
 import logging
 import signal
 from abc import abstractmethod
@@ -45,7 +46,7 @@ class Trigger(ModuleItem):
         logging.basicConfig(level=logging.INFO)
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
-        self._last_events = datetime.utcnow()
+        self._last_events_time = datetime.utcnow()
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
@@ -190,7 +191,7 @@ class Trigger(ModuleItem):
         """Send a normalized event to SEKOIA.IO so that it triggers a playbook run."""
         # Reset the consecutive error count
         self._error_count = 0
-        self._last_events = datetime.utcnow()
+        self._last_events_time = datetime.utcnow()
         data = {"name": event_name, "event": event}
 
         with self._ensure_directory(directory, remove_directory) as directory_location:
@@ -277,7 +278,7 @@ class Trigger(ModuleItem):
         This is based on the date of the last sent events
         compared to the `seconds_without_events` threshold.
         """
-        delta = datetime.utcnow() - self._last_events
+        delta = datetime.utcnow() - self._last_events_time
         if self.seconds_without_events <= 0 or delta < timedelta(
             seconds=self.seconds_without_events
         ):
@@ -290,18 +291,30 @@ class Trigger(ModuleItem):
         )
         return False
 
+    def liveness_context(self) -> dict:
+        """
+        Context returned when the health endpoint is requested
+        """
+        return {
+            "last_events_time": self._last_events_time.isoformat(),
+            "seconds_without_events_threshold": self.seconds_without_events,
+            "error_count": self._error_count,
+        }
+
 
 class LivenessHandler(BaseHTTPRequestHandler):
     trigger: Trigger
 
     def do_GET(self):  # noqa: N802
         if self.path == "/health":
-            self.send(200 if self.trigger.is_alive() else 500)
+            self.send(
+                200 if self.trigger.is_alive() else 500, self.trigger.liveness_context()
+            )
             return
-        self.send(404)
+        self.send(404, {"status_code": 404, "reason": "Endpoint doesn't exist"})
 
-    def send(self, status_code: int):
+    def send(self, status_code: int, content: dict):
         self.send_response(status_code)
         self.send_header("content-type", "application/json")
         self.end_headers()
-        self.wfile.write(f'{{"status_code": {status_code}}}'.encode())
+        self.wfile.write(json.dumps(content).encode())

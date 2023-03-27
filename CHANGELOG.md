@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0b2] - 2023-03-25
+## [1.1.0] - 2023-03-27
 
 ### Added
 
+- Triggers can retrieve module's configuration secrets by REST call to API
+- Secrets can be set in Pydantic models used for generating a manifest (e.g. `api_key: str = Field(secret=True)`)
+- add the ability to handle the trigger exit
+- parallelize the forward of chunks of events
+- Add module to create metrics in triggers
 - Add support for config stored inside env variables
 - Add liveness HTTP endpoint to check if the trigger is still working
 
@@ -20,21 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When updating a module's configuration, a verification is made on potential missing required properties
 - Specify timeout to HTTP requests
 
-## [1.1.0b1] - 2023-03-16
-
-### Added
-
-- Triggers can retrieve module's configuration secrets by REST call to API
-- Secrets can be set in Pydantic models used for generating a manifest (e.g. `api_key: str = Field(secret=True)`)
-- add the ability to handle the trigger exit
-- parallelize the forward of chunks of events
-- Add module to create metrics in triggers
-
-### Changed
-
-- When updating a module's configuration, a verification is made on potential missing required properties
 
 ### Fixed
 

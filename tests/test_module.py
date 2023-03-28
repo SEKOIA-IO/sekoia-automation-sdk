@@ -104,6 +104,15 @@ def test_configuration_setter():
     assert module.configuration == {"key1": "value1"}
 
 
+def test_configuration_setter_as_model():
+    class MyConfiguration(BaseModel):
+        number: int = 0
+
+    module = Module()
+    module.configuration = MyConfiguration()
+    assert module.configuration.number == 0
+
+
 def test_configuration_as_model():
     class MyConfiguration(BaseModel):
         number: int = 0

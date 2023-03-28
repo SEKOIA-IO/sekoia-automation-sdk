@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2023-03-28
+
+### Fixed
+
+- Fix setting Module configuration with Model object
+
 ## [1.1.0] - 2023-03-27
 
 ### Added

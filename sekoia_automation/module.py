@@ -77,7 +77,7 @@ class Module:
         return self._configuration
 
     @configuration.setter
-    def configuration(self, configuration: dict) -> None:
+    def configuration(self, configuration: dict | BaseModel) -> None:
         """Generates the module's configuration using Pydantic's primitives
 
         A check for the presence of required properties has to be done:
@@ -95,9 +95,12 @@ class Module:
             and the model by Pydantic fail and raise an Exception
         """
         required_properties: list[str] = self.manifest_required_properties()
-        actual_properties = {
-            k: v for k, v in configuration.items() if k in self.manifest_properties()
-        }
+        items = (
+            configuration.dict().items()
+            if isinstance(configuration, BaseModel)
+            else configuration.items()
+        )
+        actual_properties = {k: v for k, v in items if k in self.manifest_properties()}
         missing_required_properties = [
             p for p in required_properties if p not in actual_properties
         ]

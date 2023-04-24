@@ -92,6 +92,8 @@ class Connector(Trigger):
         collect_ids: dict[int, list] = {}
 
         # pushing the events
+        if self._stop_event.is_set():
+            return []
         chunks = self._chunk_events(events, self.configuration.chunk_size)
         futures = [
             self._executor.submit(

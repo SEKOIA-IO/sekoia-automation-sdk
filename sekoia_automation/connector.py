@@ -84,7 +84,7 @@ class Connector(Trigger):
         if not events:
             return []
 
-        self._last_events = datetime.utcnow()
+        self._last_events_time = datetime.utcnow()
         intake_host = self.configuration.intake_server
         batch_api = urljoin(intake_host, "/batch")
 

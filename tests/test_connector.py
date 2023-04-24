@@ -118,6 +118,14 @@ def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     assert result == ["001", "002", "003", "004"]
 
 
+def test_push_event_to_intake_with_chunks_executor_stopped(
+    test_connector, mocked_trigger_logs
+):
+    test_connector.stop()
+    result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
+    assert result == []
+
+
 def test_push_events_to_intakes_no_events(test_connector):
     result = test_connector.push_events_to_intakes([])
     assert result == []

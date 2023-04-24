@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix the last event date computation used for automatic restart of connectors
+- Fix threading error on shutdown
 
 ## [1.1.1] - 2023-03-28
 

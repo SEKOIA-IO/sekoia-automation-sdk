@@ -141,7 +141,7 @@ class Trigger(ModuleItem):
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
-        while self._error_count < 5:
+        while self._error_count < 5 and not self._stop_event.is_set():
             self._execute_once()
 
     def _rm_tree(self, path: Path):
@@ -270,6 +270,7 @@ class Trigger(ModuleItem):
     def stop_monitoring(self):
         if self._liveness_server:
             self._liveness_server.shutdown()
+            self._liveness_server = None
 
     def is_alive(self) -> bool:
         """

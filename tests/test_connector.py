@@ -122,8 +122,25 @@ def test_push_event_to_intake_with_chunks_executor_stopped(
     test_connector, mocked_trigger_logs
 ):
     test_connector.stop()
+    url = "https://intake.sekoia.io/batch"
+    test_connector.configuration.chunk_size = 1
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["002"]}, additional_matcher=match_events("bar")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["003"]}, additional_matcher=match_events("baz")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["004"]}, additional_matcher=match_events("oof")
+    )
     result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
-    assert result == []
+    assert result is not None
+    assert len(result) == 4
+    assert mocked_trigger_logs.call_count == 4
+    assert result == ["001", "002", "003", "004"]
 
 
 def test_push_events_to_intakes_no_events(test_connector):

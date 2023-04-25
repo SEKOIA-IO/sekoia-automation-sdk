@@ -33,8 +33,9 @@ class Connector(Trigger):
     seconds_without_events = 3600
 
     def __init__(self, *args, **kwargs):
+        executor_max_worker = kwargs.pop("executor_max_worker", 4)
         super().__init__(*args, **kwargs)
-        self._executor = ThreadPoolExecutor(kwargs.pop("executor_max_worker", 4))
+        self._executor = ThreadPoolExecutor(executor_max_worker)
 
     def stop(self, *args, **kwargs):
         """

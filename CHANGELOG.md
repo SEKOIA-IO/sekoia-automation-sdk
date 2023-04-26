@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Exit infinite loop when stop event is set
+- Reset error counter when pushing events to intake
+
 ## [1.1.2] - 2023-04-24
 
 ### Fixed

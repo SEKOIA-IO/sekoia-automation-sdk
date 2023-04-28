@@ -12,6 +12,7 @@ from typing import Any
 
 import requests
 import sentry_sdk
+from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
 from pydantic import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -19,6 +20,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from sekoia_automation.exceptions import (
     InvalidDirectoryError,
     ModuleConfigurationError,
+    SendEventError,
     TriggerConfigurationError,
 )
 from sekoia_automation.module import Module, ModuleItem
@@ -123,19 +125,16 @@ class Trigger(ModuleItem):
         except (TriggerConfigurationError, ModuleConfigurationError) as e:
             self.log_exception(e)
             self.log(str(e), "critical")
-        except Exception as e:
-            self.log_exception(e)
-            # Increase the consecutive error count
-            self._error_count += 1
-
-            # If there was more than 5 errors without any event being sent,
-            # consider the error to be critical
-            level = "error"
-            if self._error_count >= 5:
-                level = "critical"
-
-            # Make sure the error is recorded and available to the user
-            self.log(str(e), level=level)
+        except (ConnectionError, HTTPClientError) as ex:
+            # Error while communicating with the S3 storage
+            # Don't increment the error count because this is an internal issue
+            self.log_exception(ex)
+        except ClientError as ex:
+            self._handle_s3_exception(ex)
+        except SendEventError as ex:
+            self._handle_send_event_exception(ex)
+        except Exception as ex:
+            self._handle_trigger_exception(ex)
 
     def execute(self) -> None:
         self._ensure_data_path_set()
@@ -301,6 +300,52 @@ class Trigger(ModuleItem):
             "seconds_without_events_threshold": self.seconds_without_events,
             "error_count": self._error_count,
         }
+
+    def _handle_trigger_exception(self, e: Exception):
+        self.log_exception(e)
+        # Increase the consecutive error count
+        self._error_count += 1
+
+        # If there was more than 5 errors without any event being sent,
+        # consider the error to be critical
+        level = "error"
+        if self._error_count >= 5:
+            level = "critical"
+
+        # Make sure the error is recorded and available to the user
+        self.log(str(e), level=level)
+
+    def _handle_s3_exception(self, ex: ClientError):
+        """
+        Handle errors coming from the S3 storage
+        """
+        error_code = ex.response.get("Error", {}).get("Code", 500)
+        try:
+            status_code = int(error_code)
+        except ValueError:
+            if error_code in [
+                "InternalError",
+                "ServiceUnavailable",
+                "SlowDown",
+                "503 SlowDown",
+                "InsufficientCapacity",
+            ]:
+                status_code = 500
+            else:
+                status_code = 400
+        if status_code < 500:
+            # Let the exception follow the "normal flow"
+            return self._handle_trigger_exception(ex)
+
+        # We don't increment the error count because this is an internal issue
+        self.log_exception(ex)
+
+    def _handle_send_event_exception(self, ex: SendEventError):
+        if ex.status_code >= 500:
+            # We don't increment the error count because this is an internal issue
+            self.log_exception(ex)
+            return
+        return self._handle_trigger_exception(ex)
 
 
 class LivenessHandler(BaseHTTPRequestHandler):

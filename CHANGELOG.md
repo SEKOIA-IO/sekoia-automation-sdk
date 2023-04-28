@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Handle internal errors without increasing the error count
+
 ### Fixed
 
 - Exit infinite loop when stop event is set

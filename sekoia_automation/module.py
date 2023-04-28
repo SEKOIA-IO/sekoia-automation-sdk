@@ -388,7 +388,14 @@ class ModuleItem(ABC):
         except HTTPError as exception:
             self._log_request_error(exception)
             if attempt == 3:
-                raise SendEventError("Impossible to send event to SEKOIA.IO API")
+                status_code = (
+                    exception.response.status_code
+                    if isinstance(exception.response, Response)
+                    else 500
+                )
+                raise SendEventError(
+                    "Impossible to send event to SEKOIA.IO API", status_code=status_code
+                )
             if (
                 isinstance(exception.response, Response)
                 and 400 <= exception.response.status_code < 500

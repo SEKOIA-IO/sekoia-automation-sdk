@@ -6,6 +6,7 @@ from unittest.mock import PropertyMock, mock_open, patch
 import pytest
 import requests
 import requests_mock
+from botocore.exceptions import ClientError, ConnectionError
 from pydantic import BaseModel
 from tenacity import wait_none
 
@@ -26,6 +27,13 @@ class DummyTrigger(Trigger):
 
     def run(self):
         self.send_event("test", self.event)
+
+
+class ErrorTrigger(Trigger):
+    ex = Exception()
+
+    def run(self):
+        raise self.ex
 
 
 def test_token():
@@ -372,3 +380,70 @@ def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
 def test_trigger_liveness_not_found(monitored_trigger):
     res = requests.get("http://127.0.0.1:8000/wrong")
     assert res.status_code == 404
+
+
+def test_trigger_s3_connection_error():
+    trigger = ErrorTrigger()
+    trigger.ex = ConnectionError(error="Err")
+
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+    assert trigger._error_count == 0
+
+
+def test_trigger_s3_server_error_int():
+    trigger = ErrorTrigger()
+    trigger.ex = ClientError({"Error": {"Code": 500}}, "foo")
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+    assert trigger._error_count == 0
+
+
+def test_trigger_s3_server_error_str():
+    trigger = ErrorTrigger()
+    trigger.ex = ClientError({"Error": {"Code": "ServiceUnavailable"}}, "foo")
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+    assert trigger._error_count == 0
+
+
+def test_trigger_s3_client_error_int(mocked_trigger_logs):
+    trigger = ErrorTrigger()
+    trigger.ex = ClientError({"Error": {"Code": 400}}, "foo")
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
+    assert trigger._error_count == 1
+
+
+def test_trigger_s3_client_error_str(mocked_trigger_logs):
+    trigger = ErrorTrigger()
+    trigger.ex = ClientError({"Error": {"Code": "NoSuchBucket"}}, "foo")
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
+    assert trigger._error_count == 1
+
+
+def test_trigger_send_server_error():
+    trigger = ErrorTrigger()
+    trigger.ex = SendEventError("Server error", 500)
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+    assert trigger._error_count == 0
+
+
+def test_trigger_send_client_error(mocked_trigger_logs):
+    trigger = ErrorTrigger()
+    trigger.ex = SendEventError("Client error", 400)
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        trigger._execute_once()
+        sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
+    assert trigger._error_count == 1

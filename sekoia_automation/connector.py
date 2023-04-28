@@ -33,8 +33,9 @@ class Connector(Trigger):
     seconds_without_events = 3600
 
     def __init__(self, *args, **kwargs):
+        executor_max_worker = kwargs.pop("executor_max_worker", 4)
         super().__init__(*args, **kwargs)
-        self._executor = ThreadPoolExecutor(kwargs.pop("executor_max_worker", 4))
+        self._executor = ThreadPoolExecutor(executor_max_worker)
 
     def stop(self, *args, **kwargs):
         """
@@ -79,7 +80,7 @@ class Connector(Trigger):
         except Exception as ex:
             self.log_exception(ex, message=f"Failed to forward {len(chunk)} events")
 
-    def push_events_to_intakes(self, events: list[str]) -> list:
+    def push_events_to_intakes(self, events: list[str], sync: bool = False) -> list:
         # no event to push
         if not events:
             return []
@@ -94,16 +95,22 @@ class Connector(Trigger):
         collect_ids: dict[int, list] = {}
 
         # pushing the events
-        if self._stop_event.is_set():
-            return []
         chunks = self._chunk_events(events, self.configuration.chunk_size)
-        futures = [
-            self._executor.submit(
-                self._send_chunk, batch_api, chunk_index, chunk, collect_ids
-            )
-            for chunk_index, chunk in enumerate(chunks)
-        ]
-        wait_futures(futures)
+
+        # if requested, or if the executor is down
+        if sync or not self.running:
+            # forward in sequence
+            for chunk_index, chunk in enumerate(chunks):
+                self._send_chunk(batch_api, chunk_index, chunk, collect_ids)
+        else:
+            # Parallelize the forwarding
+            futures = [
+                self._executor.submit(
+                    self._send_chunk, batch_api, chunk_index, chunk, collect_ids
+                )
+                for chunk_index, chunk in enumerate(chunks)
+            ]
+            wait_futures(futures)
 
         # reorder event_ids according chunk index
         event_ids = [

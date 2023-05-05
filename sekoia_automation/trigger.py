@@ -1,5 +1,4 @@
 import json
-import logging
 import signal
 from abc import abstractmethod
 from contextlib import contextmanager
@@ -45,7 +44,6 @@ class Trigger(ModuleItem):
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
-        logging.basicConfig(level=logging.INFO)
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
         self._last_events_time = datetime.utcnow()

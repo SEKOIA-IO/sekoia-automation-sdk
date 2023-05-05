@@ -309,18 +309,12 @@ class ModuleItem(ABC):
         self._setup_logging()
 
     def _setup_logging(self):
-        self._logger = logging.getLogger(__name__)
-
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            level=logging.INFO,
         )
-        handler.setFormatter(formatter)
-
-        self._logger.addHandler(handler)
-
+        self._logger = logging.getLogger(self.name)
         sentry_sdk.set_tag("name", self.name)
 
     @property

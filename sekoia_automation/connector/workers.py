@@ -1,4 +1,4 @@
-from threading import Thread, Event
+from threading import Event, Thread
 
 
 class Worker(Thread):
@@ -76,7 +76,8 @@ class Workers(list[Worker]):
         """
         Stop all workers
 
-        :param int or None timeout_per_worker: The delay, per worker, before raising a timeout
+        :param int or None timeout_per_worker: The delay, per worker,
+                                               before raising a timeout
         """
 
         for worker in self:

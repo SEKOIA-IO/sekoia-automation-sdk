@@ -8,6 +8,7 @@ from unittest import mock
 
 import boto3
 import pytest
+from botocore.config import Config
 
 # thrid parties
 from s3path import S3Path
@@ -15,7 +16,9 @@ from s3path import S3Path
 # internal
 from sekoia_automation.storage import (
     PersistentJSON,
+    _get_tls_client_credentials,
     get_data_path,
+    get_s3_data_path,
     temp_directory,
     write,
 )
@@ -124,3 +127,52 @@ def test_get_data_path_for_remote_storage(config_storage):
     buffer = io.BytesIO()
     bucket.download_fileobj(filename, buffer)
     assert buffer.getvalue().decode("utf-8") == "hello"
+
+
+def test_get_tls_client_credentials_not_set():
+    ca, cert, key = _get_tls_client_credentials()
+    assert ca is None
+    assert cert is None
+    assert key is None
+
+
+def test_get_tls_client_credentials(config_storage):
+    mocked = dict(CA_CERT="foo", CLIENT_CERT="bar", CLIENT_KEY="baz")
+    with mock.patch.dict(os.environ, mocked):
+        ca, cert, key = _get_tls_client_credentials()
+        assert ca == Path(config_storage).joinpath("ca.crt")
+        assert Path(ca).exists()
+
+        assert cert == Path(config_storage).joinpath("client.crt")
+        assert Path(cert).exists()
+
+        assert key == Path(config_storage).joinpath("client.key")
+        assert Path(key).exists()
+
+
+def test_get_s3_data_path(config_storage):
+    mocked = dict(
+        AWS_BUCKET_NAME="bucket",
+        AWS_ACCESS_KEY_ID="access_key",
+        AWS_SECRET_ACCESS_KEY="secret",
+        AWS_DEFAULT_REGION="fr",
+        AWS_S3_ENDPOINT_URL="https://aws-fake_url.com",
+        CA_CERT="foo",
+        CLIENT_CERT="bar",
+        CLIENT_KEY="baz",
+    )
+    with mock.patch.dict(os.environ, mocked), mock.patch("boto3.resource") as m:
+        get_s3_data_path()
+        first_call = m.mock_calls[0]
+        assert first_call.args == ("s3",)
+
+        config: Config | None = first_call.kwargs.pop("config", None)
+        assert config is not None
+        assert config.client_cert == (
+            Path(config_storage).joinpath("client.crt"),
+            Path(config_storage).joinpath("client.key"),
+        )
+        assert first_call.kwargs == {
+            "endpoint_url": "https://aws-fake_url.com",
+            "verify": Path(config_storage).joinpath("ca.crt"),
+        }

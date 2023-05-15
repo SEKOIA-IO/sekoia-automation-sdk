@@ -7,6 +7,7 @@ import pytest
 import requests_mock
 
 from sekoia_automation import config
+from sekoia_automation import storage as storage_module
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 
@@ -50,6 +51,7 @@ def mock_volume():
 def config_storage():
     old_config_storage = config.VOLUME_PATH
     config.VOLUME_PATH = mkdtemp()
+    storage_module.VOLUME_PATH = config.VOLUME_PATH
 
     yield Path(config.VOLUME_PATH)
 

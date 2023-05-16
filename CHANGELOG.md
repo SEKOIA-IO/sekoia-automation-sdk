@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for TLS client authentication in S3 storage
+
 ## [1.2.0] - 2023-05-10
 
 ### Added

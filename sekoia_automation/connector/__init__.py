@@ -203,7 +203,7 @@ class Connector(Trigger):
                 self.log(message=f"Forwarding {len(records)} records", level="info")
                 self.send_records(
                     records=list(records),
-                    event_name=f"{self.name.lower().replace(' ', '-')}_{str(time())}",
+                    event_name=f"{self.name.lower().replace(' ', '-')}_{time()!s}",
                 )
         except Exception as ex:
             self.log_exception(ex, message="Failed to forward events")

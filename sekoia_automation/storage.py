@@ -5,16 +5,22 @@ from pathlib import Path
 
 import boto3
 import orjson
+from botocore.config import Config
 from s3path import S3Path, register_configuration_parameter
 
 from sekoia_automation import constants
-from sekoia_automation.config import load_config
+from sekoia_automation.config import VOLUME_PATH, load_config
 
 FilePath = Path | str
 
 
 @lru_cache
 def get_s3_data_path() -> Path:
+    ca_path, cert_path, key_path = _get_tls_client_credentials()
+    config = Config()
+    if cert_path and key_path:
+        config = Config(client_cert=(cert_path, key_path))
+
     bucket_name = load_config("aws_bucket_name")
 
     boto3.setup_default_session(
@@ -27,7 +33,9 @@ def get_s3_data_path() -> Path:
 
     # Allow to use S3 compatible backend (other than AWS)
     endpoint_url = load_config("aws_s3_endpoint_url")
-    stack_resource = boto3.resource("s3", endpoint_url=endpoint_url)
+    stack_resource = boto3.resource(
+        "s3", endpoint_url=endpoint_url, verify=ca_path, config=config
+    )
     register_configuration_parameter(base_path, resource=stack_resource)
 
     # This will also ensure that credentials are set and valid
@@ -35,6 +43,43 @@ def get_s3_data_path() -> Path:
     if not base_path.exists():
         raise ValueError("Bucket doesn't exist")
     return base_path
+
+
+def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None]:
+    """
+    Get the TLS client credentials if set. It returns the path to:
+        * The certificate authority certificate
+        * The client certificate
+        * The client private key
+
+    The cryptographic material is loaded from the following env variables/files:
+        * CLIENT_CERT/client_cert
+        * CLIENT_KEY/client_key
+        * CA_CERT/ca_cert
+
+    In order to be usable by the botocore lib the data is saved in the following files:
+        * client.crt
+        * client.key
+        * ca.crt
+    """
+    volume = Path(VOLUME_PATH)
+
+    ca_path = None
+    if ca_cert := load_config("ca_cert", non_exist_ok=True):
+        ca_path = volume.joinpath("ca.crt")
+        ca_path.write_text(ca_cert)
+
+    cert_path = None
+    if client_cert := load_config("client_cert", non_exist_ok=True):
+        cert_path = volume.joinpath("client.crt")
+        cert_path.write_text(client_cert)
+
+    key_path = None
+    if client_key := load_config("client_key", non_exist_ok=True):
+        key_path = volume.joinpath("client.key")
+        key_path.write_text(client_key)
+
+    return ca_path, cert_path, key_path
 
 
 def get_local_data_path() -> Path:

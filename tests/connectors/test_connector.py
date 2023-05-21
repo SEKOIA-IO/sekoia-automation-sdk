@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from tenacity import Retrying
@@ -18,18 +18,19 @@ class DummyConnector(Connector):
 
 @pytest.fixture
 def test_connector(storage, mocked_trigger_logs):
-    test_connector = DummyConnector(data_path=storage)
-    test_connector.send_event = Mock()
+    with patch("sentry_sdk.set_tag"):
+        test_connector = DummyConnector(data_path=storage)
+        test_connector.send_event = Mock()
 
-    test_connector.trigger_activation = "2022-03-14T11:16:14.236930Z"
-    test_connector.configuration = {"intake_key": ""}
+        test_connector.trigger_activation = "2022-03-14T11:16:14.236930Z"
+        test_connector.configuration = {"intake_key": ""}
 
-    test_connector.log = Mock()
-    test_connector.log_exception = Mock()
+        test_connector.log = Mock()
+        test_connector.log_exception = Mock()
 
-    yield test_connector
+        yield test_connector
 
-    test_connector.stop()
+        test_connector.stop()
 
 
 def test_forward_events(test_connector):

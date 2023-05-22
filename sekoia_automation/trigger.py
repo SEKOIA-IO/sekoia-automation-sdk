@@ -22,6 +22,7 @@ from sekoia_automation.exceptions import (
     SendEventError,
     TriggerConfigurationError,
 )
+from sekoia_automation.metrics import PrometheusExporterThread, make_exporter
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.utils import (
     capture_retry_error,
@@ -41,6 +42,7 @@ class Trigger(ModuleItem):
     # 0 means that the trigger is never considered in error
     seconds_without_events = 0
     LIVENESS_PORT_FILE_NAME = "liveness_port"
+    METRICS_PORT_FILE_NAME = "metrics_port"
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
@@ -56,6 +58,7 @@ class Trigger(ModuleItem):
         signal.signal(signal.SIGTERM, self.stop)
 
         self._liveness_server = None
+        self._exporter = None
 
     def _get_secrets_from_server(self) -> dict[str, Any]:
         """Calls the API to fetch this trigger's secrets
@@ -256,6 +259,7 @@ class Trigger(ModuleItem):
         """
 
     def start_monitoring(self):
+        # start the liveness server
         port = (
             self.module.load_config(self.LIVENESS_PORT_FILE_NAME, non_exist_ok=True)
             or 8000
@@ -264,10 +268,23 @@ class Trigger(ModuleItem):
         self._liveness_server = HTTPServer(("", int(port)), LivenessHandler)
         Thread(target=self._liveness_server.serve_forever, daemon=True).start()
 
+        # start the metrics exporter
+        metrics_port = (
+            self.module.load_config(self.METRICS_PORT_FILE_NAME, non_exist_ok=True)
+            or 8020
+        )
+        self._exporter = make_exporter(PrometheusExporterThread, int(metrics_port))
+        self._exporter.start()
+
     def stop_monitoring(self):
         if self._liveness_server:
             self._liveness_server.shutdown()
             self._liveness_server = None
+
+        # Stop the exporter
+        if self._exporter:
+            self._exporter.stop()
+            self._exporter = None
 
     def is_alive(self) -> bool:
         """

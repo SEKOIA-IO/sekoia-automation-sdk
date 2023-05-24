@@ -10,6 +10,7 @@ from sekoia_automation.scripts.documentation.generate import (
 )
 from sekoia_automation.scripts.files_generator import FilesGenerator
 from sekoia_automation.scripts.openapi import OpenApiToModule
+from sekoia_automation.scripts.sync_library import SyncLibrary
 
 app = typer.Typer(
     help="SEKOIA.IO's automation helper to generate playbook modules",
@@ -134,6 +135,29 @@ def openapi_to_module(
     OpenApiToModule(
         modules_path=modules_path, swagger_file=swagger, use_tags=tags
     ).run()
+
+
+@app.command(name="sync-library")
+def sync_library(
+    symphony_url=typer.Argument(..., help="URL of the Symphony API"),
+    api_key=typer.Argument(..., help="Secret key to connect to the Symphony API"),
+    modules_path: Path = typer.Argument("...", help="Path to the playbook modules"),
+    module: str = typer.Option("", help="Module to deploy"),
+    registry_pat: str = typer.Option("", help="Docker registry personnal access token"),
+    registry_user: str = typer.Option("", help="Docker registry username"),
+    check_image_on_registry: bool = typer.Option(
+        False, help="Wether to check registry for existing image"
+    ),
+):
+    SyncLibrary(
+        symphony_url,
+        api_key,
+        modules_path,
+        registry_pat,
+        registry_user,
+        module,
+        check_image_on_registry,
+    ).execute()
 
 
 if __name__ == "__main__":

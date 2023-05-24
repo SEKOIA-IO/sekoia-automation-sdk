@@ -38,3 +38,7 @@ class ModuleConfigurationError(AutomationSDKError):
 
 class TriggerConfigurationError(AutomationSDKError):
     pass
+
+
+class DockerImageNotFoundError(AutomationSDKError):
+    pass

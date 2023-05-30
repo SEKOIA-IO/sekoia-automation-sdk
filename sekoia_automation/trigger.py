@@ -36,6 +36,7 @@ class Trigger(ModuleItem):
     configuration_model: BaseModel | None = None
 
     TRIGGER_CONFIGURATION_FILE_NAME = "trigger_configuration"
+    TRIGGER_CRITICAL_EXIT_FILE = Path("/tmp/trigger_critical_exit")
 
     # Number of seconds without sent events after which
     # the trigger is considered in error.
@@ -88,6 +89,7 @@ class Trigger(ModuleItem):
         """
         # Exit signal received, asking the processor to stop
         self._stop_event.set()
+        self.stop_monitoring()
 
     @property
     def running(self) -> bool:
@@ -95,6 +97,15 @@ class Trigger(ModuleItem):
         Return if the trigger is still active or not
         """
         return not self._stop_event.is_set()
+
+    @property
+    def is_runnable(self) -> bool:
+        """
+        Ensure the trigger can run.
+
+        This is based on the absence of a specific file.
+        """
+        return not self.TRIGGER_CRITICAL_EXIT_FILE.exists()
 
     @property
     def configuration(self) -> dict | BaseModel | None:
@@ -138,6 +149,11 @@ class Trigger(ModuleItem):
             self._handle_trigger_exception(ex)
 
     def execute(self) -> None:
+        if not self.is_runnable:
+            # If the trigger is not runnable then
+            # we wait until it is stopped by the API
+            self._stop_event.wait()
+            return
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
@@ -249,6 +265,8 @@ class Trigger(ModuleItem):
         # A critical error should stop the process
         # and make it clear that it was its choice to terminate
         if level == "critical":
+            self.stop()
+            self.TRIGGER_CRITICAL_EXIT_FILE.touch(exist_ok=True)
             exit(0)
 
     @abstractmethod

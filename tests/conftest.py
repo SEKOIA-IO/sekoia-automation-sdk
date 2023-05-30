@@ -1,6 +1,6 @@
 from pathlib import Path
 from shutil import rmtree
-from tempfile import mkdtemp, mktemp
+from tempfile import mkdtemp
 from unittest.mock import PropertyMock, patch
 
 import pytest
@@ -71,12 +71,3 @@ def mocked_trigger_logs():
             mock.post("http://sekoia-playbooks/logs")
 
             yield mock
-
-
-@pytest.fixture(autouse=True)
-def mocked_trigger_stopping_file():
-    old = Trigger.TRIGGER_CRITICAL_EXIT_FILE
-    Trigger.TRIGGER_CRITICAL_EXIT_FILE = Path(mktemp())
-    yield
-    Trigger.TRIGGER_CRITICAL_EXIT_FILE.unlink(missing_ok=True)
-    Trigger.TRIGGER_CRITICAL_EXIT_FILE = old

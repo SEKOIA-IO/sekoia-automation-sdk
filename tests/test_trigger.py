@@ -1,6 +1,6 @@
 import datetime
 from pathlib import Path
-from unittest.mock import Mock, PropertyMock, mock_open, patch
+from unittest.mock import PropertyMock, mock_open, patch
 
 # third parties
 import pytest
@@ -262,20 +262,6 @@ def test_trigger_log(mocked_trigger_logs):
     assert log_request["message"] == "test message"
 
 
-def test_trigger_log_critical(mocked_trigger_logs):
-    trigger = DummyTrigger()
-
-    assert mocked_trigger_logs.call_count == 0
-
-    # A critical error should exit the process
-    with pytest.raises(SystemExit):
-        trigger.log("test message", "critical")
-
-    # But still be recoreded
-    assert mocked_trigger_logs.call_count == 1
-    assert trigger.TRIGGER_CRITICAL_EXIT_FILE.exists() is True
-
-
 def test_trigger_log_retry(mocked_trigger_logs):
     trigger = DummyTrigger()
 
@@ -295,34 +281,64 @@ def test_trigger_log_retry(mocked_trigger_logs):
 
 
 @patch.object(Trigger, "_get_secrets_from_server")
-def test_execute_logs_errors(_, mocked_trigger_logs):
-    class TestTrigger(Trigger):
-        def run(self):
-            raise NotImplementedError
-
-    trigger = TestTrigger()
-    with pytest.raises(SystemExit):
-        trigger.execute()
-
-    # 5 errors should have been logger, the last one being considered critical
-    assert mocked_trigger_logs.call_count == 5
-    assert trigger.TRIGGER_CRITICAL_EXIT_FILE.exists() is True
-
-
-@patch.object(Trigger, "_get_secrets_from_server")
 def test_configuration_errors_are_critical(_, mocked_trigger_logs):
     class TestTrigger(Trigger):
+        raised = False
+
         def run(self):
-            raise TriggerConfigurationError
+            if self.raised:
+                raise SystemExit
+            else:
+                self.raised = True
+                raise TriggerConfigurationError
 
     trigger = TestTrigger()
-
     with pytest.raises(SystemExit):
         trigger.execute()
 
     # configuration errors are directly considered to be critical
     assert mocked_trigger_logs.call_count == 1
-    assert trigger.TRIGGER_CRITICAL_EXIT_FILE.exists() is True
+    assert (
+        mocked_trigger_logs.request_history[0].json()["logs"][0]["level"] == "critical"
+    )
+
+
+@patch.object(Trigger, "_get_secrets_from_server")
+def test_too_many_errors_critical_log(_, mocked_trigger_logs):
+    class TestTrigger(Trigger):
+        raised = False
+
+        def run(self):
+            if self.raised:
+                raise SystemExit
+            else:
+                self.raised = True
+                raise ValueError
+
+    trigger = TestTrigger()
+    trigger._error_count = 4
+    with pytest.raises(SystemExit):
+        trigger.execute()
+
+    # 5th error triggers a critical log
+    assert mocked_trigger_logs.call_count == 2
+    assert mocked_trigger_logs.request_history[0].json()["logs"][0]["level"] == "error"
+    assert (
+        mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "critical"
+    )
+
+
+def test_trigger_log_critical_only_once(mocked_trigger_logs):
+    trigger = DummyTrigger()
+    # Make sure we are retrying log registrations
+    assert mocked_trigger_logs.call_count == 0
+    trigger.log("test message", "critical")
+    trigger.log("test message", "critical")
+    assert mocked_trigger_logs.call_count == 2
+    assert (
+        mocked_trigger_logs.request_history[0].json()["logs"][0]["level"] == "critical"
+    )
+    assert mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "error"
 
 
 @patch.object(Module, "has_secrets", return_value=True)
@@ -334,16 +350,14 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
 )
 @patch.object(Trigger, "token", return_value="secure_token")
 def test_get_secrets(_, __, ___):
-    class TestGetSecretsTrigger(Trigger):
-        def run(self):
-            self._error_count = 5
-
-    trigger = TestGetSecretsTrigger()
+    trigger = ErrorTrigger()
+    trigger.ex = SystemExit
 
     with requests_mock.Mocker() as rmock:
         rmock.get("http://sekoia-playbooks/secrets", json={"value": TRIGGER_SECRETS})
 
-        trigger.execute()
+        with pytest.raises(SystemExit):
+            trigger.execute()
 
         assert rmock.call_count == 1
         assert trigger._secrets == TRIGGER_SECRETS
@@ -450,20 +464,3 @@ def test_trigger_send_client_error(mocked_trigger_logs):
         sentry_patch.assert_called()
         assert mocked_trigger_logs.called is True
     assert trigger._error_count == 1
-
-
-def test_critical_exit_not_restarted():
-    class TestTrigger(Trigger):
-        def run(self):
-            raise Exception
-
-    trigger = TestTrigger()
-    trigger.TRIGGER_CRITICAL_EXIT_FILE = Mock()
-    trigger.TRIGGER_CRITICAL_EXIT_FILE.exists.return_value = True
-    trigger._ensure_data_path_set = Mock()
-
-    trigger.stop()
-    trigger.execute()
-
-    assert trigger.TRIGGER_CRITICAL_EXIT_FILE.exists.called is True
-    assert trigger._ensure_data_path_set.called is False

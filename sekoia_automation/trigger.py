@@ -49,6 +49,7 @@ class Trigger(ModuleItem):
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
+        self._startup_time = datetime.utcnow()
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
@@ -301,9 +302,10 @@ class Trigger(ModuleItem):
         ):
             return True
 
+        delta_seconds = delta.total_seconds()
         self.log(
-            message=f"The trigger didn't send events for {delta.seconds} seconds, "
-            f"it will be restarted.",
+            message=f"The trigger didn't send events for {delta_seconds} seconds, "
+            "it will be restarted.",
             level="error",
         )
         return False
@@ -328,8 +330,25 @@ class Trigger(ModuleItem):
 
         # If there was more than 5 errors without any event being sent,
         # log a critical error.
-        if self._error_count == 5:
-            self.log("5 successive uncatched errors", level="critical")
+        if self._is_error_critical():
+            self.log(
+                f"{self._error_count} successive uncatched errors", level="critical"
+            )
+
+    def _is_error_critical(self) -> bool:
+        """
+        Whether the next error should be considered as critical
+        """
+        if self._error_count < 5 or self._critical_log_sent:
+            return False
+
+        delta_since_last_event = (
+            datetime.utcnow() - self._last_events_time
+        ).total_seconds()
+        delta_since_startup = min(
+            datetime.utcnow() - self._startup_time, timedelta(days=5)
+        ).total_seconds()
+        return delta_since_startup / 5 < delta_since_last_event
 
     def _handle_s3_exception(self, ex: ClientError):
         """

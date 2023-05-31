@@ -349,7 +349,7 @@ class Trigger(ModuleItem):
             * 12 hours would exit after 3 hours
             * 1 day would exit after 5 hours
             * 2 days would exit after 10 hours
-            * 5 days would exit after 24 hours
+            * >=5 days would exit after 24 hours
         """
         if self._error_count < 5 or self._critical_log_sent:
             return False

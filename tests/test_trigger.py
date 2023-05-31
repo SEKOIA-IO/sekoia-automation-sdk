@@ -1,4 +1,5 @@
 import datetime
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import PropertyMock, mock_open, patch
 
@@ -464,3 +465,37 @@ def test_trigger_send_client_error(mocked_trigger_logs):
         sentry_patch.assert_called()
         assert mocked_trigger_logs.called is True
     assert trigger._error_count == 1
+
+
+def test_is_error_critical_errors():
+    trigger = DummyTrigger()
+    assert trigger._is_error_critical() is False
+    trigger._error_count = 5
+    assert trigger._is_error_critical() is True
+
+
+def test_is_error_critical_time_since_last_event():
+    trigger = DummyTrigger()
+    trigger._error_count = 5
+
+    # Trigger that has been running for a long time
+    trigger._startup_time = datetime.datetime(year=2021, month=1, day=1)
+    assert trigger._is_error_critical() is False
+    # Time without events is capped to 24 hours
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=23)
+    assert trigger._is_error_critical() is False
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=24)
+    assert trigger._is_error_critical() is True
+
+    # Trigger that just started and already has 5 errors without sending any event
+    trigger = DummyTrigger()
+    trigger._error_count = 5
+    assert trigger._is_error_critical() is True
+
+    # Trigger that has been running for 1 day should exit after 5 hours of errors
+    trigger._startup_time = datetime.datetime.utcnow() - timedelta(days=1)
+    assert trigger._is_error_critical() is False
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=1)
+    assert trigger._is_error_critical() is False
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
+    assert trigger._is_error_critical() is True

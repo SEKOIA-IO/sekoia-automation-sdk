@@ -337,7 +337,19 @@ class Trigger(ModuleItem):
 
     def _is_error_critical(self) -> bool:
         """
-        Whether the next error should be considered as critical
+        Whether the next error should be considered as critical.
+
+        A log can be critical if we got at least 5 consecutive errors
+        and no critical logs have been already sent.
+        Then a graceful period applies. This period depends on the time
+        the trigger has been running.
+
+        A trigger running for:
+            * 1 hour  would exit after 12 minutes
+            * 12 hours would exit after 3 hours
+            * 1 day would exit after 5 hours
+            * 2 days would exit after 10 hours
+            * 5 days would exit after 24 hours
         """
         if self._error_count < 5 or self._critical_log_sent:
             return False
@@ -348,7 +360,7 @@ class Trigger(ModuleItem):
         delta_since_startup = min(
             datetime.utcnow() - self._startup_time, timedelta(days=5)
         ).total_seconds()
-        return delta_since_startup / 5 < delta_since_last_event
+        return delta_since_startup / 5 <= delta_since_last_event
 
     def _handle_s3_exception(self, ex: ClientError):
         """

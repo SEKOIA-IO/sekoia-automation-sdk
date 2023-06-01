@@ -1,7 +1,7 @@
 # natives
 import json
 import logging
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import requests_mock
@@ -433,3 +433,64 @@ def test_action_send_result_conflict(mock_volume):
             action.send_results()
         except Exception as ex:
             assert False, f"'send_results' raised an exception {ex}"
+
+
+@patch.object(Module, "has_secrets", return_value=True)
+@patch.object(Action, "token", return_value="", new_callable=PropertyMock)
+@requests_mock.Mocker(kw="m")
+def test_add_secrets_dict(_, __, **kwargs):
+    callback_url = "https://mock.callback"
+    secret_key = "foo"
+    secrets = {secret_key: "bar"}
+    kwargs["m"].register_uri(
+        "PATCH",
+        callback_url,
+        status_code=200,
+        json={"module_configuration": {"value": secrets}},
+    )
+    action = DummyAction()
+
+    class DummyModule(Module):
+        def __init__(self):
+            super().__init__()
+            self._configuration = {}
+
+    action.module = DummyModule()
+
+    with patch.object(
+        Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
+    ), patch.object(Module, "manifest_secrets", return_value=secret_key):
+        action.set_task_as_running()
+    assert action.module.configuration == secrets
+
+
+@patch.object(Module, "has_secrets", return_value=True)
+@patch.object(Action, "token", return_value="", new_callable=PropertyMock)
+@requests_mock.Mocker(kw="m")
+def test_add_secrets_object(_, __, **kwargs):
+    callback_url = "https://mock.callback"
+    secret_key = "foo"
+    secrets = {secret_key: "bar"}
+    kwargs["m"].register_uri(
+        "PATCH",
+        callback_url,
+        status_code=200,
+        json={"module_configuration": {"value": secrets}},
+    )
+    action = DummyAction()
+
+    class DummyConf:
+        pass
+
+    class DummyModule(Module):
+        def __init__(self):
+            super().__init__()
+            self._configuration = DummyConf()
+
+    action.module = DummyModule()
+
+    with patch.object(
+        Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
+    ), patch.object(Module, "manifest_secrets", return_value=secret_key):
+        action.set_task_as_running()
+    assert getattr(action.module.configuration, secret_key) == secrets[secret_key]

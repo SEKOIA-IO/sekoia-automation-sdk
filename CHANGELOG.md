@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch the metrics exporter when the trigger starts
 - Do not exit on critical
 - Add graceful period before logging a critical error
+- Add command to synchronize the module library
+
+### Fixed
+
+- Fix secret handling for `BaseModel` module configurations 
 
 ## [1.2.0] - 2023-05-10
 

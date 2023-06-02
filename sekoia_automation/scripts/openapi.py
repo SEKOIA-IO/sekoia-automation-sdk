@@ -271,7 +271,7 @@ class {name}(GenericAPIAction):
     def run(self):
         if "info" not in self.swagger or "title" not in self.swagger["info"]:
             print("[bold red][!] Swagger file doesn't have a title[/bold red]")
-            typer.Exit(code=1)
+            raise typer.Exit(code=1)
 
         if self.module_path.exists():
             print("[orange3][!]Module already exists, overriding it[/orange3]")

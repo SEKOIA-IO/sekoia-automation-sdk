@@ -11,26 +11,25 @@ from posixpath import join as urljoin
 from typing import Any
 
 import requests
+import typer
 from requests.auth import HTTPBasicAuth
 from rich import print
-
-from sekoia_automation.exceptions import DockerImageNotFoundError
 
 
 class SyncLibrary:
     def __init__(
         self,
-        symphony_url: str,
+        playbook_url: str,
         api_key: str,
         modules_path: Path,
-        registry_pat: str = "",
-        registry_user: str = "",
+        registry_pat: str | None = None,
+        registry_user: str | None = None,
         module: str = "",
         registry_check: bool = False,
     ):
         self.registry_pat = registry_pat
         self.registry_user = registry_user
-        self.symphony_url = symphony_url
+        self.playbook_url = playbook_url
         self.api_key = api_key
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -46,11 +45,11 @@ class SyncLibrary:
         """Pretty print information on the current sync
 
         Args:
-            created (list): Objects created through Symphony API
+            created (list): Objects created through Playbook API
             updated (list): Objects updated
-            up_to_date (list): Objects that were already up to date
+            up_to_date (list): Objects that were already up-to-date
             errors (list): Errors encountered during sync
-            nb_tabs (int): Cue for vertical alignement
+            nb_tabs (int): Cue for vertical alignment
         """
         tab = "\t"
         if created:
@@ -84,7 +83,7 @@ class SyncLibrary:
 
         for obj in list_objects:
             response = requests.get(
-                urljoin(self.symphony_url, f"{name}s", obj["uuid"]),
+                urljoin(self.playbook_url, f"{name}s", obj["uuid"]),
                 headers=self.headers,
             )
             obj_name = obj["name"]
@@ -97,7 +96,7 @@ class SyncLibrary:
                 data: dict = obj.copy()
                 data.update({"module_uuid": module_uuid})
                 requests.post(
-                    urljoin(self.symphony_url, f"{name}s"),
+                    urljoin(self.playbook_url, f"{name}s"),
                     json=data,
                     headers=self.headers,
                 )
@@ -122,7 +121,7 @@ class SyncLibrary:
                 else:
                     updated.append(f"{obj_name}")
                     requests.patch(
-                        urljoin(self.symphony_url, f"{name}s", obj_uuid),
+                        urljoin(self.playbook_url, f"{name}s", obj_uuid),
                         json=obj,
                         headers=self.headers,
                     )
@@ -145,7 +144,7 @@ class SyncLibrary:
         """
         print(f"Module {module_info['name']}:", end=" ")
         response = requests.get(
-            urljoin(f"{self.symphony_url}", "modules", module_info["uuid"]),
+            urljoin(f"{self.playbook_url}", "modules", module_info["uuid"]),
             headers=self.headers,
         )
         module_uuid: str = module_info["uuid"]
@@ -155,7 +154,7 @@ class SyncLibrary:
 
         elif response.status_code == 404:
             requests.post(
-                urljoin(self.symphony_url, "modules"),
+                urljoin(self.playbook_url, "modules"),
                 json=module_info,
                 headers=self.headers,
             )
@@ -176,7 +175,7 @@ class SyncLibrary:
                 print("Already-Up-To-Date")
             else:
                 requests.patch(
-                    urljoin(self.symphony_url, "modules", module_uuid),
+                    urljoin(self.playbook_url, "modules", module_uuid),
                     json=module_info,
                     headers=self.headers,
                 )
@@ -229,7 +228,7 @@ class SyncLibrary:
             module (dict): Data dict of the parent module
 
         Returns:
-            list: Modified version of the the manifests received as parameter
+            list: Modified version of the manifests received as parameter
         """
         if "docker" in module and "version" in module:
             for manifest in manifests:
@@ -250,20 +249,17 @@ class SyncLibrary:
         svglogo_path = module_path / "logo.svg"
         pnglogo_path = module_path / "logo.png"
 
-        path_to_use: Path | None = None
-
         if svglogo_path.is_file():
             prefix = "data:image/svg+xml;base64,"
             path_to_use = svglogo_path
         elif pnglogo_path.is_file():
             prefix = "data:image/png;base64,"
             path_to_use = pnglogo_path
+        else:
+            return None
 
-        if path_to_use:
-            with path_to_use.open("rb") as f:
-                return f"{prefix}{b64encode(f.read()).decode('utf-8')}"
-
-        return None
+        with path_to_use.open("rb") as f:
+            return f"{prefix}{b64encode(f.read()).decode('utf-8')}"
 
     def check_image_on_registry(
         self, docker_image: str, docker_image_version: str
@@ -271,7 +267,7 @@ class SyncLibrary:
         """Checks if a Docker image exists on a registry
 
         If no registry is specified in the Module's manifest, we use a default value
-        If the docker image name in the Module's manifest begins with a regitry,
+        If the docker image name in the Module's manifest begins with a registry,
         this custom registry is used for the verification instead
         An image is considered to contain the registry path if it contains at least 2 /
         They delimit the path and the pathinfo fields
@@ -286,11 +282,10 @@ class SyncLibrary:
                 to a registry
                   False otherwise
         """
-        if not self.registry_pat or not self.registry_user:
-            return True
+        assert self.registry_user and self.registry_pat
         auth = HTTPBasicAuth(self.registry_user, self.registry_pat)
 
-        if match := re.match(r"(.*?)\/(.*)\/(.*)", docker_image):
+        if match := re.match(r"(.*?)/(.*)/(.*)", docker_image):
             registry_path = match[1]
             registry_pathinfo = match[2]
             image_name = match[3]
@@ -308,6 +303,13 @@ class SyncLibrary:
             },
             auth=auth,
         )
+        if not response.ok:
+            print(
+                f"[bold red][!] Authentication against the docker registry "
+                f"failed with status {response.status_code}"
+            )
+            raise typer.Exit(code=1)
+
         token = response.json()["token"]
 
         response = requests.get(
@@ -322,13 +324,13 @@ class SyncLibrary:
         return response.status_code == 200
 
     def load_module(self, module_path: Path):
-        """Sync a module and its components (triggers, actions) using Symphony API
+        """Sync a module and its components (triggers, actions) using Playbook API
 
         Args:
             module_path (Path): Path to module to be synced
 
         Raises:
-            DockerImageNotFoundError: If the docker image of the module is not available
+            typer.Exit: If the docker image of the module is not available
                 on the registry, or we don't have access to the registry
         """
         manifest_path = module_path / "manifest.json"
@@ -339,10 +341,11 @@ class SyncLibrary:
         if self.registry_check and not self.check_image_on_registry(
             module_info["docker"], module_info["version"]
         ):
-            raise DockerImageNotFoundError(
-                f"Image {module_info['docker']}:{module_info['version']}\
-    not available on registry"
+            print(
+                f"[bold red][!] Image {module_info['docker']}:{module_info['version']} "
+                f"not available on registry"
             )
+            raise typer.Exit(code=1)
 
         triggers = self.set_docker(self.load_triggers(module_path), module_info)
         actions = self.set_docker(self.load_actions(module_path), module_info)
@@ -396,9 +399,15 @@ class SyncLibrary:
         If the class was instanciated with the path to a given module, this method will
         attempt to load this module
 
-        Otherwise it will attempt to load all modules present in the library path
+        Otherwise, it will attempt to load all modules present in the library path
         specified
         """
+        if self.registry_check and not (self.registry_pat and self.registry_user):
+            print(
+                "[bold red][!] Credentials must be provided to check image in registry"
+            )
+            raise typer.Exit(code=1)
+
         if not self.module:
             library_path = self.modules_path.absolute()
             print("Library path: ", library_path)

@@ -137,20 +137,23 @@ def openapi_to_module(
     ).run()
 
 
-@app.command(name="sync-library")
+@app.command(name="synchronize-library")
 def sync_library(
-    symphony_url=typer.Argument(..., help="URL of the Symphony API"),
-    api_key=typer.Argument(..., help="Secret key to connect to the Symphony API"),
-    modules_path: Path = typer.Argument("...", help="Path to the playbook modules"),
-    module: str = typer.Option("", help="Module to deploy"),
-    registry_pat: str = typer.Option("", help="Docker registry personnal access token"),
-    registry_user: str = typer.Option("", help="Docker registry username"),
+    playbook_url=typer.Argument(..., help="URL of the Playbook API"),
+    api_key=typer.Argument(..., help="Secret key to connect to the Playbook API"),
+    modules_path: Path = typer.Argument(".", help="Path to the playbook modules"),
+    module: str = typer.Option("", help="Module to deploy. Default to all modules"),
     check_image_on_registry: bool = typer.Option(
-        False, help="Wether to check registry for existing image"
+        False, help="Whether to check registry for existing image"
     ),
+    registry_pat: str = typer.Option("", help="Docker registry personal access token"),
+    registry_user: str = typer.Option("", help="Docker registry username"),
 ):
+    """
+    Synchronize the module library to Sekoia.io
+    """
     SyncLibrary(
-        symphony_url,
+        playbook_url,
         api_key,
         modules_path,
         registry_pat,

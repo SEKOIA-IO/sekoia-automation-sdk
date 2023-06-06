@@ -17,6 +17,8 @@ from rich import print
 
 
 class SyncLibrary:
+    DOCKER_PREFIX = "automation-module-"
+
     def __init__(
         self,
         playbook_url: str,
@@ -230,10 +232,10 @@ class SyncLibrary:
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        if "docker" in module and "version" in module:
-            for manifest in manifests:
-                if "docker" not in manifest or manifest["docker"] == module["docker"]:
-                    manifest["docker"] = f"{module['docker']}:{module['version']}"
+        module_docker_name = self._get_module_docker_name(module)
+        for manifest in manifests:
+            if "docker" not in manifest or manifest["docker"] == module_docker_name:
+                manifest["docker"] = f"{module_docker_name}:{module['version']}"
 
         return manifests
 
@@ -339,7 +341,7 @@ class SyncLibrary:
             module_info = json.load(fd)
 
         if self.registry_check and not self.check_image_on_registry(
-            module_info["docker"], module_info["version"]
+            self._get_module_docker_name(module_info), module_info["version"]
         ):
             print(
                 f"[bold red][!] Image {module_info['docker']}:{module_info['version']} "
@@ -418,3 +420,10 @@ class SyncLibrary:
             self.load_module(
                 module_path=self.modules_path.joinpath(self.module).absolute(),
             )
+
+    def _get_module_docker_name(self, manifest: dict) -> str:
+        if docker := manifest.get("docker"):
+            return docker
+        if slug := manifest.get("slug"):
+            return f"{self.DOCKER_PREFIX}{slug}"
+        raise ValueError("Impossible to generate image name")

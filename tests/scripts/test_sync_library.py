@@ -334,3 +334,17 @@ def test_load_module_docker_image_not_found():
         mock.return_value = False
         with pytest.raises(typer.Exit):
             lib.load_module(Path("tests/data/sample_module"))
+
+
+def test_get_module_docker_name():
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), None, None)
+
+    manifest = {"docker": "foo", "slug": "bar"}
+    assert lib._get_module_docker_name(manifest) == "foo"
+
+    manifest.pop("docker")
+    assert lib._get_module_docker_name(manifest) == "automation-module-bar"
+
+    manifest.pop("slug")
+    with pytest.raises(ValueError):
+        lib._get_module_docker_name(manifest)

@@ -43,7 +43,7 @@ def test_no_module_success(module, action, trigger, **kwargs):
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER)
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -74,7 +74,7 @@ def test_no_module_404(module, action, trigger, **kwargs):
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=404, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER)
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -105,7 +105,7 @@ def test_no_module_other_code(module, action, trigger, **kwargs):
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=418, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER)
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -128,7 +128,7 @@ def test_with_module(module, action, trigger, **kwargs):
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
     sync_lib = SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER, module="sample_module"
+        SYMPOHNY_URL, API_KEY, Path("tests/data"), module="sample_module"
     )
     sync_lib.execute()
 
@@ -159,8 +159,6 @@ def test_with_module_invalid_name():
         SYMPOHNY_URL,
         API_KEY,
         Path("tests/data"),
-        PAT,
-        USER,
         module="invalid_module_name",
     )
     with pytest.raises(FileNotFoundError):
@@ -176,57 +174,44 @@ def test_registry_check_default_success(module, **kwargs):
         json={"token": API_KEY},
     )
     assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
+        SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_pat=PAT
     ).check_image_on_registry(module["docker"], module["version"])
 
     history = kwargs["m"].request_history
-    assert len(history) == 2
+    assert len(history) == 1
     assert history[0].method == "GET"
-    assert history[0].url.startswith("https://ghcr.io/token")
-    assert history[1].method == "GET"
     assert (
-        history[1].url
-        == f"https://ghcr.io/v2/sekoialab/{module['docker']}/\
+        history[0].url
+        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
 manifests/{module['version']}"
     )
-    assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_default_fail(module, **kwargs):
     kwargs["m"].register_uri(
         "GET",
-        re.compile("https://ghcr.io/token.*"),
-        status_code=200,
-        json={"token": API_KEY},
-    )
-    kwargs["m"].register_uri(
-        "GET",
-        re.compile("https://ghcr.io/v2/sekoialab.*"),
+        re.compile("https://ghcr.io/v2/sekoia-io.*"),
         status_code=404,
-        json={"token": API_KEY},
     )
     assert not SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
+        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
     ).check_image_on_registry(module["docker"], module["version"])
 
     history = kwargs["m"].request_history
-    assert len(history) == 2
+    assert len(history) == 1
     assert history[0].method == "GET"
-    assert history[0].url.startswith("https://ghcr.io/token")
-    assert history[1].method == "GET"
     assert (
-        history[1].url
-        == f"https://ghcr.io/v2/sekoialab/{module['docker']}/\
+        history[0].url
+        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
 manifests/{module['version']}"
     )
-    assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_custom_success(module, **kwargs):
     custom_path = "foo.bar"
-    custom_pathinfo = "v2"
+    custom_pathinfo = "sekoia-io"
     image_name = module["docker"]
     module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
 
@@ -237,53 +222,29 @@ def test_registry_check_custom_success(module, **kwargs):
         json={"token": API_KEY},
     )
     assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
+        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
     ).check_image_on_registry(module["docker"], module["version"])
 
     history = kwargs["m"].request_history
-    assert len(history) == 2
+    assert len(history) == 1
     assert history[0].method == "GET"
-    assert history[0].url.startswith(f"https://{custom_path}/token")
-    assert history[1].method == "GET"
     assert (
-        history[1].url
-        == f"https://{custom_path}/{custom_pathinfo}/{image_name}/\
+        history[0].url
+        == f"https://{custom_path}/v2/{custom_pathinfo}/{image_name}/\
 manifests/{module['version']}"
     )
 
 
 @requests_mock.Mocker(kw="m")
-def test_registry_check_auth_failure(module, **kwargs):
-    custom_path = "foo.bar"
-    custom_pathinfo = "v2"
-    image_name = module["docker"]
-    module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
-
-    kwargs["m"].register_uri("GET", f"https://{custom_path}/token", status_code=403)
-    with pytest.raises(typer.Exit):
-        SyncLibrary(
-            SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
-        ).check_image_on_registry(module["docker"], module["version"])
-
-    history = kwargs["m"].request_history
-    assert len(history) == 1
-    assert history[0].method == "GET"
-    assert history[0].url.startswith(f"https://{custom_path}/token")
-
-
-@requests_mock.Mocker(kw="m")
 def test_registry_check_not_found(module, **kwargs):
     custom_path = "foo.bar"
-    custom_pathinfo = "v2"
+    custom_pathinfo = "sekoia-io"
     image_name = module["docker"]
     module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
 
     kwargs["m"].register_uri(
-        "GET", f"https://{custom_path}/token", status_code=200, json={"token": API_KEY}
-    )
-    kwargs["m"].register_uri(
         "GET",
-        f"https://{custom_path}/v2/sekoia-automation-module-sample/manifests/0.1",
+        f"https://{custom_path}/v2/sekoia-io/sekoia-automation-module-sample/manifests/0.1",
         status_code=404,
     )
     assert (
@@ -294,22 +255,11 @@ def test_registry_check_not_found(module, **kwargs):
     )
 
     history = kwargs["m"].request_history
-    assert len(history) == 2
-    assert history[0].method == "GET"
-    assert history[0].url.startswith(f"https://{custom_path}/token")
-
-
-def test_check_image_no_token():
-    with pytest.raises(typer.Exit):
-        SyncLibrary(
-            SYMPOHNY_URL, API_KEY, Path("tests/data"), None, None, registry_check=True
-        ).execute()
+    assert len(history) == 1
 
 
 def test_get_module_logo():
-    lib = SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), None, None, registry_check=True
-    )
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_check=True)
     path = Path(mkdtemp())
     assert lib.get_module_logo(path) is None
 
@@ -325,9 +275,7 @@ def test_get_module_logo():
 
 
 def test_load_module_docker_image_not_found():
-    lib = SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), None, None, registry_check=True
-    )
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_check=True)
     with patch(
         "sekoia_automation.scripts.sync_library.SyncLibrary.check_image_on_registry"
     ) as mock:
@@ -337,13 +285,16 @@ def test_load_module_docker_image_not_found():
 
 
 def test_get_module_docker_name():
-    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), None, None)
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
 
     manifest = {"docker": "foo", "slug": "bar"}
     assert lib._get_module_docker_name(manifest) == "foo"
 
     manifest.pop("docker")
-    assert lib._get_module_docker_name(manifest) == "automation-module-bar"
+    assert (
+        lib._get_module_docker_name(manifest)
+        == "ghcr.io/sekoia-io/automation-module-bar"
+    )
 
     manifest.pop("slug")
     with pytest.raises(ValueError):

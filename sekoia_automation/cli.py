@@ -150,24 +150,28 @@ def sync_library(
     check_image_on_registry: bool = typer.Option(
         False, help="Whether to check registry for existing image"
     ),
-    registry_pat: str = typer.Option(
-        "", envvar="REGISTRY_PAT", help="Docker registry personal access token"
+    registry: OptionalStr = typer.Option(
+        None, envvar="REGISTRY", help="Docker registry"
     ),
-    registry_user: str = typer.Option(
-        "", envvar="REGISTRY_USER", help="Docker registry username"
+    namespace: OptionalStr = typer.Option(
+        None, envvar="NAMESPACE", help="Docker namespace use by the images"
+    ),
+    registry_pat: OptionalStr = typer.Option(
+        None, envvar="REGISTRY_PAT", help="Docker registry personal access token"
     ),
 ):
     """
     Synchronize the module library to Sekoia.io
     """
     SyncLibrary(
-        playbook_url,
-        api_key,
-        modules_path,
-        registry_pat,
-        registry_user,
-        module,
-        check_image_on_registry,
+        playbook_url=playbook_url,
+        api_key=api_key,
+        modules_path=modules_path,
+        module=module,
+        registry_check=check_image_on_registry,
+        registry=registry,
+        namespace=namespace,
+        registry_pat=registry_pat,
     ).execute()
 
 

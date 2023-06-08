@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - In `synchronize-lib` script add support for slug based docker names
+- In `synchronize-lib` script allow to use environment variable for secrets
 
 ## [1.3.0] - 2023-06-06
 

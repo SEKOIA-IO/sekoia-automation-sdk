@@ -199,3 +199,11 @@ def test_openapi_url_to_module(tmp_path, requests_mock, swagger_path):
     assert module.joinpath("main.py").exists()
     assert len(list(module.glob("action_*"))) > 0
     assert module.joinpath("dashboard_api", "__init__.py").exists()
+
+
+def test_synchronize_library():
+    res: Result = runner.invoke(
+        app,
+        ["synchronize-library", "foo", "bar"],
+    )
+    assert res.exit_code == 0

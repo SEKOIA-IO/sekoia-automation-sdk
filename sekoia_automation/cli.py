@@ -139,15 +139,23 @@ def openapi_to_module(
 
 @app.command(name="synchronize-library")
 def sync_library(
-    playbook_url=typer.Argument(..., help="URL of the Playbook API"),
-    api_key=typer.Argument(..., help="Secret key to connect to the Playbook API"),
-    modules_path: Path = typer.Argument(".", help="Path to the playbook modules"),
+    playbook_url=typer.Argument(
+        ..., envvar="PLAYBOOK_URL", help="URL of the Playbook API"
+    ),
+    api_key=typer.Argument(
+        ..., envvar="PLAYBOOK_API_KEY", help="Secret key to connect to the Playbook API"
+    ),
+    modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
     module: str = typer.Option("", help="Module to deploy. Default to all modules"),
     check_image_on_registry: bool = typer.Option(
         False, help="Whether to check registry for existing image"
     ),
-    registry_pat: str = typer.Option("", help="Docker registry personal access token"),
-    registry_user: str = typer.Option("", help="Docker registry username"),
+    registry_pat: str = typer.Option(
+        "", envvar="REGISTRY_PAT", help="Docker registry personal access token"
+    ),
+    registry_user: str = typer.Option(
+        "", envvar="REGISTRY_USER", help="Docker registry username"
+    ),
 ):
     """
     Synchronize the module library to Sekoia.io

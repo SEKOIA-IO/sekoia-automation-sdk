@@ -139,27 +139,39 @@ def openapi_to_module(
 
 @app.command(name="synchronize-library")
 def sync_library(
-    playbook_url=typer.Argument(..., help="URL of the Playbook API"),
-    api_key=typer.Argument(..., help="Secret key to connect to the Playbook API"),
-    modules_path: Path = typer.Argument(".", help="Path to the playbook modules"),
+    playbook_url=typer.Argument(
+        ..., envvar="PLAYBOOK_URL", help="URL of the Playbook API"
+    ),
+    api_key=typer.Argument(
+        ..., envvar="PLAYBOOK_API_KEY", help="Secret key to connect to the Playbook API"
+    ),
+    modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
     module: str = typer.Option("", help="Module to deploy. Default to all modules"),
     check_image_on_registry: bool = typer.Option(
         False, help="Whether to check registry for existing image"
     ),
-    registry_pat: str = typer.Option("", help="Docker registry personal access token"),
-    registry_user: str = typer.Option("", help="Docker registry username"),
+    registry: OptionalStr = typer.Option(
+        None, envvar="REGISTRY", help="Docker registry"
+    ),
+    namespace: OptionalStr = typer.Option(
+        None, envvar="NAMESPACE", help="Docker namespace use by the images"
+    ),
+    registry_pat: OptionalStr = typer.Option(
+        None, envvar="REGISTRY_PAT", help="Docker registry personal access token"
+    ),
 ):
     """
     Synchronize the module library to Sekoia.io
     """
     SyncLibrary(
-        playbook_url,
-        api_key,
-        modules_path,
-        registry_pat,
-        registry_user,
-        module,
-        check_image_on_registry,
+        playbook_url=playbook_url,
+        api_key=api_key,
+        modules_path=modules_path,
+        module=module,
+        registry_check=check_image_on_registry,
+        registry=registry,
+        namespace=namespace,
+        registry_pat=registry_pat,
     ).execute()
 
 

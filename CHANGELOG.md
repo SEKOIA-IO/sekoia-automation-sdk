@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2023-06-09
+
+### Changed
+
+- In `synchronize-lib` script:
+    - Specify the registry in the image name
+    - Improve checking the existence of the image in the registry 
+
+## [1.3.1] - 2023-06-08
+
 ### Changed
 
 - In `synchronize-lib` script add support for slug based docker names
+- In `synchronize-lib` script allow to use environment variable for secrets
 
 ## [1.3.0] - 2023-06-06
 

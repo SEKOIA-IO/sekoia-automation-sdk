@@ -306,8 +306,6 @@ class SyncLibrary:
             },
         )
 
-        print(response.status_code)
-
         return response.status_code == 200
 
     def load_module(self, module_path: Path):

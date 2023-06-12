@@ -306,6 +306,8 @@ class SyncLibrary:
             },
         )
 
+        print(response.status_code)
+
         return response.status_code == 200
 
     def load_module(self, module_path: Path):
@@ -323,11 +325,12 @@ class SyncLibrary:
         with manifest_path.open() as fd:
             module_info = json.load(fd)
 
+        docker_name = self._get_module_docker_name(module_info)
         if self.registry_check and not self.check_image_on_registry(
-            self._get_module_docker_name(module_info), module_info["version"]
+            docker_name, module_info["version"]
         ):
             print(
-                f"[bold red][!] Image {module_info['docker']}:{module_info['version']} "
+                f"[bold red][!] Image {docker_name}:{module_info['version']} "
                 f"not available on registry"
             )
             raise typer.Exit(code=1)

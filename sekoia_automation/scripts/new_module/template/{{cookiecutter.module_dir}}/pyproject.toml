@@ -4,10 +4,6 @@ version = "0.0"
 description = ""
 authors = []
 
-[[tool.poetry.source]]
-name = "SEKOIA.IO"
-url = "https://delivery.sekoia.io/nexus/repository/pypi-test/simple"
-
 [tool.poetry.dependencies]
 python = ">=3.10,<3.11"
 sekoia-automation-sdk = "^1.0"

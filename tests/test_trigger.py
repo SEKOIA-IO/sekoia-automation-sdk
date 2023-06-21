@@ -1,6 +1,7 @@
 import datetime
 from datetime import timedelta
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import PropertyMock, mock_open, patch
 
 # third parties
@@ -24,7 +25,7 @@ from tests.conftest import TRIGGER_SECRETS
 
 
 class DummyTrigger(Trigger):
-    event: dict = {}
+    event: ClassVar[dict] = {}
 
     def run(self):
         self.send_event("test", self.event)

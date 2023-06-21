@@ -302,7 +302,7 @@ class SyncLibrary:
             f"https://{registry}/v2/{namespace}/{image_name}/manifests/{version}",
             headers={
                 "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                "Accept": "application/vnd.oci.image.index.v1+json",
             },
         )
 

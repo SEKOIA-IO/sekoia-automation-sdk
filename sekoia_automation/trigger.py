@@ -144,7 +144,13 @@ class Trigger(ModuleItem):
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
         while not self._stop_event.is_set():
-            self._execute_once()
+            try:
+                self._execute_once()
+            except Exception:  # pragma: no cover
+                # Exception are handled in `_execute_once` but in case
+                # an error occurred while handling an error we catch everything
+                # i.e. An error occurred while sending logs to Sekoia.io
+                pass
 
     def _rm_tree(self, path: Path):
         """Delete a directory and its children.

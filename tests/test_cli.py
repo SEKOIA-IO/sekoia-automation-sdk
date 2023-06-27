@@ -2,6 +2,8 @@ import json
 import os
 import shutil
 from pathlib import Path
+from subprocess import CompletedProcess
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -207,3 +209,55 @@ def test_synchronize_library():
         ["synchronize-library", "foo", "bar"],
     )
     assert res.exit_code == 0
+
+
+def test_update_sdk_version(tmp_path):
+    module = "MyModule"
+    description = "My Description"
+    res: Result = runner.invoke(
+        app, ["new-module", str(tmp_path)], input=f"{module}\n{description}\n"
+    )
+    assert res.exit_code == 0
+
+    module_path = tmp_path.joinpath(module)
+    with module_path.joinpath("manifest.json").open("r") as fp:
+        major, minor, *_ = json.load(fp)["version"].split(".")
+
+    with patch("sekoia_automation.scripts.update_sdk_version.subprocess") as m:
+        m.run.return_value = CompletedProcess([], returncode=0)
+        res: Result = runner.invoke(
+            app,
+            ["update-sdk-version", "--modules-path", tmp_path],
+        )
+        assert res.exit_code == 0
+
+    with module_path.joinpath("manifest.json").open("r") as fp:
+        new_major, new_minor, *_ = json.load(fp)["version"].split(".")
+    assert major == new_major
+    assert int(minor) + 1 == int(new_minor)
+
+
+def test_update_sdk_version_error(tmp_path):
+    module = "MyModule"
+    description = "My Description"
+    res: Result = runner.invoke(
+        app, ["new-module", str(tmp_path)], input=f"{module}\n{description}\n"
+    )
+    assert res.exit_code == 0
+
+    module_path = tmp_path.joinpath(module)
+    with module_path.joinpath("manifest.json").open("r") as fp:
+        major, minor, *_ = json.load(fp)["version"].split(".")
+
+    with patch("sekoia_automation.scripts.update_sdk_version.subprocess") as m:
+        m.run.return_value = CompletedProcess([], returncode=1)
+        res: Result = runner.invoke(
+            app,
+            ["update-sdk-version", "--modules-path", tmp_path],
+        )
+        assert res.exit_code == 0
+
+    with module_path.joinpath("manifest.json").open("r") as fp:
+        new_major, new_minor, *_ = json.load(fp)["version"].split(".")
+    assert major == new_major
+    assert minor == new_minor

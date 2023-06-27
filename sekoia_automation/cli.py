@@ -11,6 +11,7 @@ from sekoia_automation.scripts.documentation.generate import (
 from sekoia_automation.scripts.files_generator import FilesGenerator
 from sekoia_automation.scripts.openapi import OpenApiToModule
 from sekoia_automation.scripts.sync_library import SyncLibrary
+from sekoia_automation.scripts.update_sdk_version import SDKUpdater
 
 app = typer.Typer(
     help="SEKOIA.IO's automation helper to generate playbook modules",
@@ -173,6 +174,13 @@ def sync_library(
         namespace=namespace,
         registry_pat=registry_pat,
     ).execute()
+
+
+@app.command(name="update-sdk-version")
+def update_sekoia_library(
+    modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
+):
+    SDKUpdater(modules_path=modules_path).update_sdk_version()
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ class SDKUpdater:
         data["version"] = major + "." + str(int(minor) + 1)
 
         with manifest_file.open("w") as fp:
-            json.dump(data, fp)
+            json.dump(data, fp, indent=4)
 
     def _update_requirements(self, module: Path) -> str | None:
         r = subprocess.run(

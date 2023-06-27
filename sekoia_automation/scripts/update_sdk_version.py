@@ -1,9 +1,9 @@
 import json
 import subprocess
-from collections.abc import Iterator
 from pathlib import Path
 
 from rich import print
+from rich.progress import Progress
 
 
 class SDKUpdater:
@@ -11,27 +11,31 @@ class SDKUpdater:
         self._modules_path = modules_path
 
     def update_sdk_version(self):
-        for module in self.get_modules():
-            self.update_module(module)
+        with Progress(transient=True) as progress:
+            modules = self.get_modules()
+            task = progress.add_task("Updating modules", total=len(modules))
+            for module in modules:
+                progress.update(task, description=f"Updating module {module.name}")
+                self.update_module(module)
+                progress.advance(task)
 
     def update_module(self, module: Path):
-        print(f"Updating {module.name}")
         if err := self._update_requirements(module):
             print(
-                f"  [bold red][!] Error while updating the project SDK."
+                f"  [bold red][!] {module.name}: Error while updating the project SDK."
                 f"Error : {err}"
             )
             return
-        print("  [green] Requirements updated")
-        version = self._bump_module_version(module)
-        print(f"  [green] Version in manifest bumped to {version}")
+        self._bump_module_version(module)
 
-    def get_modules(self) -> Iterator[Path]:
-        for module in self._modules_path.absolute().iterdir():
-            if module.is_dir() and module.joinpath("manifest.json").exists():
-                yield module
+    def get_modules(self) -> list[Path]:
+        return [
+            module
+            for module in self._modules_path.absolute().iterdir()
+            if module.is_dir() and module.joinpath("manifest.json").exists()
+        ]
 
-    def _bump_module_version(self, module: Path) -> str:
+    def _bump_module_version(self, module: Path):
         manifest_file = module.joinpath("manifest.json")
         with manifest_file.open("r") as fp:
             data = json.load(fp)
@@ -41,7 +45,6 @@ class SDKUpdater:
 
         with manifest_file.open("w") as fp:
             json.dump(data, fp)
-        return data["version"]
 
     def _update_requirements(self, module: Path) -> str | None:
         r = subprocess.run(

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Script to bump SDK version in all modules
 
+### Fixed
+
+- Fixes retry when pushing events to Sekoia.io
+
 ## [1.3.5] - 2023-06-23
 
 ### Fixed:

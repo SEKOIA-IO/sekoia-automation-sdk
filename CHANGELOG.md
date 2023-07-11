@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Retry to up to 1 hour before discarding events
+
 ## [1.3.6] - 2023-07-11
 
 ### Added

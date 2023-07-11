@@ -11,7 +11,7 @@ import orjson
 import requests
 from pydantic import BaseModel
 from requests import Response
-from tenacity import Retrying, stop_after_attempt, wait_exponential
+from tenacity import Retrying, stop_after_delay, wait_exponential
 
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.trigger import Trigger
@@ -46,7 +46,7 @@ class Connector(Trigger):
 
     def _retry(self):
         return Retrying(
-            stop=stop_after_attempt(5),
+            stop=stop_after_delay(3600),  # 1 hour without being able to send events
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
         )

@@ -73,6 +73,7 @@ class Connector(Trigger):
                         headers={"User-Agent": self.__connector_user_agent},
                         timeout=30,
                     )
+                    res.raise_for_status()
             if res.status_code > 299:
                 self.log(f"Intake rejected events: {res.text}", level="error")
                 res.raise_for_status()

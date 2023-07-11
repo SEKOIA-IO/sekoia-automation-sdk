@@ -1,7 +1,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from tenacity import Retrying
+from tenacity import Retrying, stop_after_attempt, wait_none
 
 from sekoia_automation.connector import Connector
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
@@ -152,8 +152,28 @@ def test_push_events_to_intakes_no_events(test_connector):
 def test_push_events_to_intakes_api_failed(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
     mocked_trigger_logs.post(url, status_code=504)
+    test_connector._retry = lambda: Retrying(
+        reraise=True,
+        stop=stop_after_attempt(1),
+    )
     result = test_connector.push_events_to_intakes(EVENTS)
     assert result == []
+
+
+def test_push_events_to_intakes_api_failed_retried(test_connector, mocked_trigger_logs):
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 504},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
+    )
+    test_connector._retry = lambda: Retrying(
+        reraise=True, stop=stop_after_attempt(5), wait=wait_none()
+    )
+    result = test_connector.push_events_to_intakes(EVENTS)
+    assert result == ["001", "002"]
 
 
 def test_push_events_to_intake_invalid_intake_key(test_connector):

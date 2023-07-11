@@ -74,12 +74,11 @@ class Connector(Trigger):
                         timeout=30,
                     )
                     res.raise_for_status()
-            if res.status_code > 299:
-                self.log(f"Intake rejected events: {res.text}", level="error")
-                res.raise_for_status()
             collect_ids[chunk_index] = res.json().get("event_ids", [])
         except Exception as ex:
-            self.log_exception(ex, message=f"Failed to forward {len(chunk)} events")
+            message = f"Failed to forward {len(chunk)} events"
+            self.log(message=message, level="error")
+            self.log_exception(ex, message=message)
 
     def push_events_to_intakes(self, events: list[str], sync: bool = False) -> list:
         # no event to push

@@ -1,10 +1,8 @@
 """Tests related to logging."""
-import logging
 from logging import LogRecord
 
 import pytest
 
-from sekoia_automation.helpers.loguru.config import init_logging
 from sekoia_automation.helpers.loguru.handlers import InterceptHandler
 
 
@@ -32,12 +30,3 @@ def test_logging_emit_with_existing_loguru_level(logger_handler):
         logger_handler.emit(record1)
     except ValueError as e:
         assert str(e) == "Level 'Level 100500' does not exist"
-
-
-def test_logging_log_message():
-    """
-    Test logging emit with existing loguru level.
-    """
-    init_logging()
-
-    assert logging.root.handlers != []

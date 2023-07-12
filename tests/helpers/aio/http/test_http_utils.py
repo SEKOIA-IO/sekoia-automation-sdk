@@ -32,9 +32,11 @@ async def test_save_response_to_temporary_file(tmp_path, session_faker):
             headers={"Content-Length": f"{len(data)}"},
         )
 
-        session = ClientSession()
-        async with session.get(url) as response:
-            file_path = await save_aiohttp_response(response, temp_dir=str(tmp_path))
+        async with ClientSession() as session:
+            async with session.get(url) as response:
+                file_path = await save_aiohttp_response(
+                    response, temp_dir=str(tmp_path)
+                )
 
     assert os.path.exists(file_path)
 

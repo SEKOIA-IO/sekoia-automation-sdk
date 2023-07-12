@@ -146,7 +146,12 @@ async def test_http_client_get_data(session_faker, http_client, base_url, auth_u
         mocked_responses.get(f"{base_url}/test", payload=get_test_data_response)
 
         test_data = await http_client.get_test_data(url=f"{base_url}/test")
+
         assert test_data == get_test_data_response
+
+        await http_client.token_refresher.close()
+        await http_client.token_refresher._session.close()
+        await http_client._session.close()
 
 
 @pytest.mark.asyncio
@@ -188,3 +193,7 @@ async def test_http_client_get_data_async_limiter(
         end_query_time = time.time()
 
         assert int(end_query_time - start_query_time) == 3
+
+        await http_client.token_refresher.close()
+        await http_client.token_refresher._session.close()
+        await http_client._session.close()

@@ -75,8 +75,7 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         self._token: RefreshedTokenT | None = None
         self._token_refresh_task: Task[None] | None = None
 
-    @classmethod
-    def session(cls) -> ClientSession:
+    def session(self) -> ClientSession:
         """
         Initialize client session.
 
@@ -85,10 +84,10 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         Returns:
             ClientSession:
         """
-        if not cls._session:
-            cls._session = ClientSession()
+        if not self._session:
+            self._session = ClientSession()
 
-        return cls._session
+        return self._session
 
     async def get_token(self) -> RefreshedTokenT:
         """

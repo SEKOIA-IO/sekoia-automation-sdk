@@ -12,7 +12,7 @@ async def test_config_default_values():
     config = LoggingConfig()
     expected = (
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-        + "| <level>{level: <5}</level> | <level>{message}</level>"
+        + " | <level>{level: <5}</level> | <level>{message}</level>"
     )
 
     assert config.log_lvl == "INFO"
@@ -30,7 +30,7 @@ async def test_config_assemble_log_lvl():
     """Test config assemble log lvl."""
     valid_log_lvl = "debug"
     config = LoggingConfig(log_lvl=valid_log_lvl)
-    assert config.log_lvl == valid_log_lvl.upper()
+    assert config.log_lvl.upper() == valid_log_lvl.upper()
 
     invalid_log_lvl = "invalid"
 

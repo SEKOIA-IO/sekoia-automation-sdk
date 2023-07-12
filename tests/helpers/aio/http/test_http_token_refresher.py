@@ -130,19 +130,19 @@ async def test_token_refresher_1(session_faker):
     client_secret = session_faker.word()
     auth_url = session_faker.uri()
 
+    token_refresher = await CustomTokenRefresher.get_instance(
+        client_id,
+        client_secret,
+        auth_url,
+    )
+
+    assert token_refresher == await CustomTokenRefresher.get_instance(
+        client_id,
+        client_secret,
+        auth_url,
+    )
+
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(
-            client_id,
-            client_secret,
-            auth_url,
-        )
-
-        assert token_refresher == await CustomTokenRefresher.get_instance(
-            client_id,
-            client_secret,
-            auth_url,
-        )
-
         mocked_responses.post(auth_url, payload=token_response.dict())
         await token_refresher._refresh_token()
 
@@ -152,6 +152,7 @@ async def test_token_refresher_1(session_faker):
         assert token_refresher._token.token.random_field == token_response.random_field
         assert token_refresher._token.ttl == 60
 
+        await token_refresher._session.close()
         await token_refresher.close()
 
 
@@ -175,13 +176,7 @@ async def test_token_refresher_2(session_faker):
     auth_url = session_faker.uri()
 
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(
-            client_id,
-            client_secret,
-            auth_url,
-        )
-
-        assert token_refresher == await CustomTokenRefresher.get_instance(
+        token_refresher = CustomTokenRefresher(
             client_id,
             client_secret,
             auth_url,
@@ -200,6 +195,7 @@ async def test_token_refresher_2(session_faker):
         )
         assert token_refresher._token.ttl == token_response.get("expires_in")
 
+        await token_refresher._session.close()
         await token_refresher.close()
 
 
@@ -223,13 +219,7 @@ async def test_token_refresher_with_token(session_faker):
     auth_url = session_faker.uri()
 
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(
-            client_id,
-            client_secret,
-            auth_url,
-        )
-
-        assert token_refresher == await CustomTokenRefresher.get_instance(
+        token_refresher = CustomTokenRefresher(
             client_id,
             client_secret,
             auth_url,
@@ -245,3 +235,6 @@ async def test_token_refresher_with_token(session_faker):
                 "random_field"
             )
             assert generated_token.ttl == token_response.get("expires_in")
+
+        await token_refresher._session.close()
+        await token_refresher.close()

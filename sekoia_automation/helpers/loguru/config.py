@@ -59,7 +59,7 @@ def init_logging(log_conf: LoggingConfig = LoggingConfig()) -> None:
 
     This function should be called at application startup in the beginning.
     Example:
-    >>> from sekoia_automation.utils.loguru.config import init_logging
+    >>> from sekoia_automation.helpers.loguru.config import init_logging
     >>> if __name__ == "__main__":
     >>>     init_logging()
     >>> # Other part of application

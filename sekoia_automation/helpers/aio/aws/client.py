@@ -57,7 +57,7 @@ class AwsClient(Generic[AwsConfigurationT]):
     """
 
     _configuration: AwsConfigurationT | None = None
-    _credentialsProvider: _CredentialsProvider | None = None
+    _credentials_provider: _CredentialsProvider | None = None
 
     def __init__(self, configuration: AwsConfigurationT | None = None) -> None:
         """
@@ -90,7 +90,11 @@ class AwsClient(Generic[AwsConfigurationT]):
 
         return session
 
-    def get_client(self, client_name: str, region_name: str | None = None) -> ClientCreatorContext:
+    def get_client(
+        self,
+        client_name: str,
+        region_name: str | None = None
+    ) -> ClientCreatorContext:
         """
         Get AWS client.
 
@@ -107,7 +111,9 @@ class AwsClient(Generic[AwsConfigurationT]):
 
         if not _region_name:
             raise ValueError(
-                "Region name is required. Please specify it in the configuration or pass it as an argument."
+                "Region name is required. You should specify it."
             )
 
-        return self.get_session.create_client(client_name, region_name=self._configuration.aws_region)
+        return self.get_session.create_client(
+            client_name, region_name=self._configuration.aws_region,
+        )

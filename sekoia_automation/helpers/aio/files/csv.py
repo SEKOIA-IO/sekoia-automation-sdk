@@ -1,6 +1,7 @@
 """Useful functions for working with csv files."""
 
-from typing import AsyncGenerator, Any, Dict
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import aiocsv
 import aiofiles
@@ -8,7 +9,7 @@ import aiofiles
 
 async def csv_file_as_rows(
     file_path: str, encoding: str = "utf-8", delimiter: str = ","
-) -> AsyncGenerator[Dict[str, Any], None]:
+) -> AsyncGenerator[dict[str, Any], None]:
     """
     Read csv file as rows.
 

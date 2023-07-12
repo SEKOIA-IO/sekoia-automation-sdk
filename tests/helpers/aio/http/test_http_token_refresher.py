@@ -2,12 +2,16 @@
 import asyncio
 import time
 from asyncio import Lock
+from typing import ClassVar
 
 import pytest
 from aioresponses import aioresponses
 from pydantic import BaseModel
 
-from sekoia_automation.helpers.aio.http.token_refresher import GenericTokenRefresher, RefreshedToken
+from sekoia_automation.helpers.aio.http.token_refresher import (
+    GenericTokenRefresher,
+    RefreshedToken,
+)
 
 
 class CustomTokenResponse(BaseModel):
@@ -25,10 +29,12 @@ class CustomTokenRefresher(GenericTokenRefresher):
     Contains some additional feature like default ttl and singleton impl.
     """
 
-    _instances: dict[str, "CustomTokenRefresher"] = {}
-    _locks: dict[str, Lock] = {}
+    _instances: ClassVar[dict[str, "CustomTokenRefresher"]] = {}
+    _locks: ClassVar[dict[str, Lock]] = {}
 
-    def __init__(self, client_id: str, client_secret: str, auth_url: str, ttl: int = 60):
+    def __init__(
+        self, client_id: str, client_secret: str, auth_url: str, ttl: int = 60,
+    ) -> None:
         """
         Initialize CustomTokenRefresher.
 
@@ -45,13 +51,15 @@ class CustomTokenRefresher(GenericTokenRefresher):
         self.ttl = ttl
 
     @classmethod
-    async def get_instance(cls, client_id: str, client_secret: str, auth_url: str) -> "CustomTokenRefresher":
+    async def get_instance(
+        cls, client_id: str, client_secret: str, auth_url: str,
+    ) -> "CustomTokenRefresher":
         """
         Get instance of CustomTokenRefresher.
 
-        Totally safe to use in async environment.
-        Use lock to prevent multiple instances creation.
-        Get instance from cls._instances if it already exists based on client_id, client_secret and auth_url.
+        Totally safe to use in async environment. Use lock to prevent multiple
+        instances creation. Get instance from cls._instances if it already exists
+        based on client_id, client_secret and auth_url.
 
         Args:
             client_id: str
@@ -116,9 +124,13 @@ async def test_token_refresher_1(session_faker):
     auth_url = session_faker.uri()
 
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        token_refresher = await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
-        assert token_refresher == await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        assert token_refresher == await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
         mocked_responses.post(auth_url, payload=token_response.dict())
         await token_refresher._refresh_token()
@@ -152,17 +164,27 @@ async def test_token_refresher_2(session_faker):
     auth_url = session_faker.uri()
 
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        token_refresher = await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
-        assert token_refresher == await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        assert token_refresher == await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
         mocked_responses.post(auth_url, payload=token_response)
         await token_refresher._refresh_token()
 
         assert token_refresher._token is not None
-        assert token_refresher._token.token.access_token == token_response.get("access_token")
+        assert (
+            token_refresher._token.token.access_token ==
+            token_response.get("access_token")
+        )
         assert token_refresher._token.token.signature == token_response.get("signature")
-        assert token_refresher._token.token.random_field == token_response.get("random_field")
+        assert (
+            token_refresher._token.token.random_field ==
+            token_response.get("random_field")
+        )
         assert token_refresher._token.ttl == token_response.get("expires_in")
 
         await token_refresher.close()
@@ -188,13 +210,21 @@ async def test_token_refresher_with_token(session_faker):
     auth_url = session_faker.uri()
 
     with aioresponses() as mocked_responses:
-        token_refresher = await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        token_refresher = await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
-        assert token_refresher == await CustomTokenRefresher.get_instance(client_id, client_secret, auth_url)
+        assert token_refresher == await CustomTokenRefresher.get_instance(
+            client_id, client_secret, auth_url,
+        )
 
         mocked_responses.post(auth_url, payload=token_response)
         async with token_refresher.with_access_token() as generated_token:
-            assert generated_token.token.access_token == token_response.get("access_token")
+            assert (
+                generated_token.token.access_token == token_response.get("access_token")
+            )
             assert generated_token.token.signature == token_response.get("signature")
-            assert generated_token.token.random_field == token_response.get("random_field")
+            assert (
+                generated_token.token.random_field == token_response.get("random_field")
+            )
             assert generated_token.ttl == token_response.get("expires_in")

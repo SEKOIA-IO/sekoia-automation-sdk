@@ -6,7 +6,10 @@ from aioresponses import aioresponses
 from pydantic import BaseModel
 
 from sekoia_automation.helpers.aio.http.http_client import HttpClient
-from sekoia_automation.helpers.aio.http.token_refresher import GenericTokenRefresher, RefreshedToken
+from sekoia_automation.helpers.aio.http.token_refresher import (
+    GenericTokenRefresher,
+    RefreshedToken,
+)
 
 
 class TokenResponse(BaseModel):
@@ -45,7 +48,9 @@ class TokenRefresher(GenericTokenRefresher):
 class CustomHttpClient(HttpClient):
     """Complete test implementation of HttpClient with TokenRefresher."""
 
-    def __init__(self, client_id: str, client_secret: str, auth_url: str, base_url: str):
+    def __init__(
+        self, client_id: str, client_secret: str, auth_url: str, base_url: str,
+    ) -> None:
         """Initialize CustomHttpClient."""
         super().__init__()
         self.base_url = base_url
@@ -68,8 +73,10 @@ class CustomHttpClient(HttpClient):
         async with self.token_refresher.with_access_token() as access_token:
             async with self.session() as session:
                 async with session.get(
-                        url=url,
-                        headers={"Authorization": f"Bearer {access_token.token.access_token}"}
+                    url=url,
+                    headers={
+                        "Authorization": f"Bearer {access_token.token.access_token}"
+                    }
                 ) as response:
                     return await response.json()
 
@@ -132,14 +139,16 @@ async def test_http_client_get_data(session_faker, http_client, base_url, auth_u
 
     with aioresponses() as mocked_responses:
         mocked_responses.post(auth_url, payload=token_response.dict())
-        mocked_responses.get("{0}/test".format(base_url), payload=get_test_data_response)
+        mocked_responses.get(f"{base_url}/test", payload=get_test_data_response)
 
-        test_data = await http_client.get_test_data(url="{0}/test".format(base_url))
+        test_data = await http_client.get_test_data(url=f"{base_url}/test")
         assert test_data == get_test_data_response
 
 
 @pytest.mark.asyncio
-async def test_http_client_get_data_async_limiter(session_faker, http_client, base_url, auth_url):
+async def test_http_client_get_data_async_limiter(
+    session_faker, http_client, base_url, auth_url,
+):
     """
     Test http_client get data with async_limiter.
 
@@ -162,12 +171,12 @@ async def test_http_client_get_data_async_limiter(session_faker, http_client, ba
     with aioresponses() as mocked_responses:
         start_query_time = time.time()
         mocked_responses.post(auth_url, payload=token_response.dict())
-        mocked_responses.get("{0}/test".format(base_url), payload=get_test_data_response)
-        await http_client.get_test_data(url="{0}/test".format(base_url))
+        mocked_responses.get(f"{base_url}/test", payload=get_test_data_response)
+        await http_client.get_test_data(url=f"{base_url}/test")
 
         mocked_responses.post(auth_url, payload=token_response.dict())
-        mocked_responses.get("{0}/test".format(base_url), payload=get_test_data_response)
-        await http_client.get_test_data(url="{0}/test".format(base_url))
+        mocked_responses.get(f"{base_url}/test", payload=get_test_data_response)
+        await http_client.get_test_data(url=f"{base_url}/test")
 
         end_query_time = time.time()
 

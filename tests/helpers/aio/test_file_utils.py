@@ -5,8 +5,8 @@ import os
 
 import pytest
 
-from sekoia_automation.helpers.aio.files.utils import delete_file
 from sekoia_automation.helpers.aio.files.csv import csv_file_as_rows
+from sekoia_automation.helpers.aio.files.utils import delete_file
 
 
 @pytest.fixture
@@ -21,9 +21,12 @@ def csv_content(session_faker) -> str:
     number_of_rows = session_faker.random.randint(1, 50)
 
     columns = [session_faker.word().upper() for _ in range(number_of_columns)]
-    rows = [",".join([session_faker.word() for _ in range(number_of_columns)]) for _ in range(number_of_rows)]
+    rows = [
+        ",".join([session_faker.word() for _ in range(number_of_columns)])
+        for _ in range(number_of_rows)
+    ]
 
-    return "\n".join([",".join(columns)] + rows)
+    return "\n".join([",".join(columns), *rows])
 
 
 @pytest.fixture

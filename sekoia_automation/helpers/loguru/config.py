@@ -31,6 +31,7 @@ class LoggingConfig(BaseModel):
         ],
     )
 
+    @classmethod
     @validator("log_lvl", pre=True)
     def assemble_log_lvl(cls, log_lvl: str) -> str:
         """
@@ -47,7 +48,7 @@ class LoggingConfig(BaseModel):
         """
         upper_str = log_lvl.upper()
         if isinstance(logging.getLevelName(upper_str), str):
-            raise ValueError("Incorrect log lvl variable {0}".format(log_lvl))
+            raise ValueError(f"Incorrect log lvl variable {log_lvl}")
 
         return upper_str
 

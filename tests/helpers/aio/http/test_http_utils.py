@@ -19,10 +19,14 @@ async def test_save_response_to_temporary_file(tmp_path, session_faker):
         tmp_path: Path
         session_faker: Faker
     """
-    data = session_faker.json(data_columns={"test": ["name", "name", "name"]}, num_rows=1000)
+    data = session_faker.json(
+        data_columns={"test": ["name", "name", "name"]}, num_rows=1000,
+    )
     with aioresponses() as mocked_responses:
         url = session_faker.uri()
-        mocked_responses.get(url=url, status=200, body=data, headers={"Content-Length": "{0}".format(len(data))})
+        mocked_responses.get(
+            url=url, status=200, body=data, headers={"Content-Length": f"{len(data)}"},
+        )
 
         session = ClientSession()
         async with session.get(url) as response:

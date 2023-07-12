@@ -2,9 +2,10 @@
 
 import asyncio
 import time
-from asyncio import Lock, Task
+from asyncio import Task
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, TypeVar, Generic, Optional
+from typing import Generic, TypeVar
 
 from aiohttp import ClientSession
 from pydantic import BaseModel
@@ -42,13 +43,11 @@ class RefreshedToken(GenericModel, Generic[HttpTokenT]):
 RefreshedTokenT = TypeVar("RefreshedTokenT", bound=RefreshedToken)
 
 
-class GenericTokenRefresher(object):
+class GenericTokenRefresher:
     """
     Contains access token refresher logic.
 
     Example of usage:
-    >>> from sekoia_automation.helpers.aio.http.token_refresher import GenericTokenRefresher
-    >>>
     >>> # Define schema for token response from server
     >>> class HttpToken(BaseModel):
     >>>     access_token: str
@@ -74,7 +73,7 @@ class GenericTokenRefresher(object):
         """Initialize GenericTokenRefresher."""
 
         self._token: RefreshedTokenT | None = None
-        self._token_refresh_task: Optional[Task[None]] = None
+        self._token_refresh_task: Task[None] | None = None
 
     @classmethod
     def session(cls) -> ClientSession:
@@ -100,7 +99,9 @@ class GenericTokenRefresher(object):
         Returns:
             RefreshedTokenT: instance of RefreshedToken
         """
-        raise NotImplementedError("You should implement `get_token` method in child class")
+        raise NotImplementedError(
+            "You should implement `get_token` method in child class"
+        )
 
     async def _refresh_token(self) -> None:
         """

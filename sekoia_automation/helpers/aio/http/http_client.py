@@ -1,13 +1,13 @@
 """HttpClient with ratelimiter."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
 
 
-class HttpClient(object):
+class HttpClient:
     """
     Http client with optional rate limiting.
 

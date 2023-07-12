@@ -38,7 +38,7 @@ class HttpClient:
         self,
         max_rate: float | None = None,
         time_period: float | None = None,
-        rate_limiter: AsyncLimiter | None = None
+        rate_limiter: AsyncLimiter | None = None,
     ):
         """
         Initialize HttpClient.

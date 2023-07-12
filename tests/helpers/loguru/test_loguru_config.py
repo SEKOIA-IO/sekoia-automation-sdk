@@ -10,8 +10,10 @@ from sekoia_automation.helpers.loguru.config import LoggingConfig
 async def test_config_default_values():
     """Test config default init."""
     config = LoggingConfig()
-    expected = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>" + \
-               "| <level>{level: <5}</level> | <level>{message}</level>"
+    expected = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+        + "| <level>{level: <5}</level> | <level>{message}</level>"
+    )
 
     assert config.log_lvl == "INFO"
     assert config.log_file == "logs/{time:YYYY-MM-DD}.log"

@@ -70,7 +70,8 @@ class AwsClient(Generic[AwsConfigurationT]):
 
         if self._configuration:
             self._credentials_provider = _CredentialsProvider(
-                configuration.aws_access_key_id, configuration.aws_secret_access_key
+                self._configuration.aws_access_key_id,
+                self._configuration.aws_secret_access_key,
             )
 
     @cached_property
@@ -91,9 +92,7 @@ class AwsClient(Generic[AwsConfigurationT]):
         return session
 
     def get_client(
-        self,
-        client_name: str,
-        region_name: str | None = None
+        self, client_name: str, region_name: str | None = None
     ) -> ClientCreatorContext:
         """
         Get AWS client.
@@ -110,10 +109,9 @@ class AwsClient(Generic[AwsConfigurationT]):
             _region_name = self._configuration.aws_region
 
         if not _region_name:
-            raise ValueError(
-                "Region name is required. You should specify it."
-            )
+            raise ValueError("Region name is required. You should specify it.")
 
         return self.get_session.create_client(
-            client_name, region_name=self._configuration.aws_region,
+            client_name,
+            region_name=_region_name,
         )

@@ -17,7 +17,7 @@ def aws_configuration():
     return AwsConfiguration(
         aws_access_key_id="ACCESS_KEY",
         aws_secret_access_key="SECRET_KEY",
-        aws_region="us-east-1"
+        aws_region="us-east-1",
     )
 
 
@@ -49,11 +49,15 @@ async def test_aws_client_get_session(aws_configuration):
     assert isinstance(session, AioSession)
 
     assert (
-       session.get_component("credential_provider")
-       .get_provider('_sekoia_credentials_provider') == client._credentials_provider
+        session.get_component("credential_provider").get_provider(
+            "_sekoia_credentials_provider"
+        )
+        == client._credentials_provider
     )
 
     assert (
-        session.get_component("credential_provider")
-        ._get_provider_offset('_sekoia_credentials_provider') == 0
+        session.get_component("credential_provider")._get_provider_offset(
+            "_sekoia_credentials_provider"
+        )
+        == 0
     )

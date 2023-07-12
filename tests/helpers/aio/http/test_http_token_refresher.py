@@ -33,7 +33,11 @@ class CustomTokenRefresher(GenericTokenRefresher):
     _locks: ClassVar[dict[str, Lock]] = {}
 
     def __init__(
-        self, client_id: str, client_secret: str, auth_url: str, ttl: int = 60,
+        self,
+        client_id: str,
+        client_secret: str,
+        auth_url: str,
+        ttl: int = 60,
     ) -> None:
         """
         Initialize CustomTokenRefresher.
@@ -52,7 +56,10 @@ class CustomTokenRefresher(GenericTokenRefresher):
 
     @classmethod
     async def get_instance(
-        cls, client_id: str, client_secret: str, auth_url: str,
+        cls,
+        client_id: str,
+        client_secret: str,
+        auth_url: str,
     ) -> "CustomTokenRefresher":
         """
         Get instance of CustomTokenRefresher.
@@ -125,11 +132,15 @@ async def test_token_refresher_1(session_faker):
 
     with aioresponses() as mocked_responses:
         token_refresher = await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         assert token_refresher == await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         mocked_responses.post(auth_url, payload=token_response.dict())
@@ -165,25 +176,27 @@ async def test_token_refresher_2(session_faker):
 
     with aioresponses() as mocked_responses:
         token_refresher = await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         assert token_refresher == await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         mocked_responses.post(auth_url, payload=token_response)
         await token_refresher._refresh_token()
 
         assert token_refresher._token is not None
-        assert (
-            token_refresher._token.token.access_token ==
-            token_response.get("access_token")
+        assert token_refresher._token.token.access_token == token_response.get(
+            "access_token"
         )
         assert token_refresher._token.token.signature == token_response.get("signature")
-        assert (
-            token_refresher._token.token.random_field ==
-            token_response.get("random_field")
+        assert token_refresher._token.token.random_field == token_response.get(
+            "random_field"
         )
         assert token_refresher._token.ttl == token_response.get("expires_in")
 
@@ -211,20 +224,24 @@ async def test_token_refresher_with_token(session_faker):
 
     with aioresponses() as mocked_responses:
         token_refresher = await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         assert token_refresher == await CustomTokenRefresher.get_instance(
-            client_id, client_secret, auth_url,
+            client_id,
+            client_secret,
+            auth_url,
         )
 
         mocked_responses.post(auth_url, payload=token_response)
         async with token_refresher.with_access_token() as generated_token:
-            assert (
-                generated_token.token.access_token == token_response.get("access_token")
+            assert generated_token.token.access_token == token_response.get(
+                "access_token"
             )
             assert generated_token.token.signature == token_response.get("signature")
-            assert (
-                generated_token.token.random_field == token_response.get("random_field")
+            assert generated_token.token.random_field == token_response.get(
+                "random_field"
             )
             assert generated_token.ttl == token_response.get("expires_in")

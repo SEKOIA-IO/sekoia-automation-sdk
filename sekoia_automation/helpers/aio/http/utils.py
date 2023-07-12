@@ -3,9 +3,7 @@ from aiohttp import ClientResponse
 
 
 async def save_aiohttp_response(
-    response: ClientResponse,
-    chunk_size: int = 1024,
-    temp_dir: str = "/tmp"
+    response: ClientResponse, chunk_size: int = 1024, temp_dir: str = "/tmp"
 ) -> str:
     """
     Save aiohttp response to temp file.
@@ -19,7 +17,9 @@ async def save_aiohttp_response(
         str: path to temp file
     """
     async with aiofiles.tempfile.NamedTemporaryFile(
-        "wb", delete=False, dir=temp_dir,
+        "wb",
+        delete=False,
+        dir=temp_dir,
     ) as file:
         while True:
             chunk = await response.content.read(chunk_size)
@@ -28,6 +28,4 @@ async def save_aiohttp_response(
 
             await file.write(chunk)
 
-        file_name: str = file.name
-
-        return file_name
+        return str(file.name)

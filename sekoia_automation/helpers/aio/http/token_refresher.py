@@ -43,7 +43,7 @@ class RefreshedToken(GenericModel, Generic[HttpTokenT]):
 RefreshedTokenT = TypeVar("RefreshedTokenT", bound=RefreshedToken)
 
 
-class GenericTokenRefresher:
+class GenericTokenRefresher(Generic[RefreshedTokenT]):
     """
     Contains access token refresher logic.
 

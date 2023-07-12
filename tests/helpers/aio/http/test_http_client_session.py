@@ -49,7 +49,11 @@ class CustomHttpClient(HttpClient):
     """Complete test implementation of HttpClient with TokenRefresher."""
 
     def __init__(
-        self, client_id: str, client_secret: str, auth_url: str, base_url: str,
+        self,
+        client_id: str,
+        client_secret: str,
+        auth_url: str,
+        base_url: str,
     ) -> None:
         """Initialize CustomHttpClient."""
         super().__init__()
@@ -76,7 +80,7 @@ class CustomHttpClient(HttpClient):
                     url=url,
                     headers={
                         "Authorization": f"Bearer {access_token.token.access_token}"
-                    }
+                    },
                 ) as response:
                     return await response.json()
 
@@ -147,7 +151,10 @@ async def test_http_client_get_data(session_faker, http_client, base_url, auth_u
 
 @pytest.mark.asyncio
 async def test_http_client_get_data_async_limiter(
-    session_faker, http_client, base_url, auth_url,
+    session_faker,
+    http_client,
+    base_url,
+    auth_url,
 ):
     """
     Test http_client get data with async_limiter.

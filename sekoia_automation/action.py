@@ -208,11 +208,7 @@ class Action(ModuleItem):
                 for k, v in response.json()["module_configuration"]["value"].items()
                 if k in self.module.manifest_secrets()
             }
-            if isinstance(self.module.configuration, dict):
-                self.module.configuration |= secrets
-            else:
-                for key, value in secrets.items():
-                    setattr(self.module.configuration, key, value)
+            self.module.set_secrets(secrets)
         else:
             self._send_request(data, verb="PATCH")
 

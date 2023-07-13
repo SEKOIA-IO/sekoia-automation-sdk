@@ -22,6 +22,7 @@ from sekoia_automation.exceptions import (
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 from tests.conftest import TRIGGER_SECRETS
+from tests.data.sample_module.sample import SampleModule
 
 
 class DummyTrigger(Trigger):
@@ -295,7 +296,9 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
                 raise TriggerConfigurationError
 
     trigger = TestTrigger()
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit), patch.object(
+        Module, "load_config", return_value={}
+    ):
         trigger.execute()
 
     # configuration errors are directly considered to be critical
@@ -319,7 +322,9 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._error_count = 4
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit), patch.object(
+        Module, "load_config", return_value={}
+    ):
         trigger.execute()
 
     # 5th error triggers a critical log
@@ -352,10 +357,18 @@ def test_trigger_log_critical_only_once(mocked_trigger_logs):
 )
 @patch.object(Trigger, "token", return_value="secure_token")
 def test_get_secrets(_, __, ___):
-    trigger = ErrorTrigger()
+    trigger = ErrorTrigger(SampleModule())
     trigger.ex = SystemExit
 
-    with requests_mock.Mocker() as rmock:
+    with requests_mock.Mocker() as rmock, patch.object(
+        Module,
+        "load_config",
+        return_value={
+            "module_field": "foo",
+            "api_key": "encrypted",
+            "password": "secret",
+        },
+    ):
         rmock.get("http://sekoia-playbooks/secrets", json={"value": TRIGGER_SECRETS})
 
         with pytest.raises(SystemExit):

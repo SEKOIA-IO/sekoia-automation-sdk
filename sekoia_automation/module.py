@@ -187,6 +187,16 @@ class Module:
                 secrets[secret_key] = config_dict[secret_key]
         return secrets
 
+    def set_secrets(self, secrets):
+        """
+        Add the secret to the configurqtion
+        """
+        if isinstance(self.configuration, dict):
+            self.configuration |= secrets
+        else:
+            for key, value in secrets.items():
+                setattr(self.configuration, key, value)
+
     @property
     def community_uuid(self) -> str | None:
         if self._community_uuid is None:

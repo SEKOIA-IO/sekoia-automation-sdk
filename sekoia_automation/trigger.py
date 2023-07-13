@@ -143,6 +143,7 @@ class Trigger(ModuleItem):
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
+        self.module.set_secrets(self._secrets)
         while not self._stop_event.is_set():
             try:
                 self._execute_once()

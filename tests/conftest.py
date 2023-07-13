@@ -24,7 +24,7 @@ def storage():
 FAKE_URL = "http://sekoia-playbooks/endpoint"
 DEFAULT_ARGUMENTS = {"key1": "value1"}
 MANIFEST_WITH_SECRETS = {"configuration": {"secrets": ["a value"]}}
-TRIGGER_SECRETS = {"foo": "bar"}
+TRIGGER_SECRETS = {"api_key": "bar", "password": "baz"}
 
 
 @pytest.fixture

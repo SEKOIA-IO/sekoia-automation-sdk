@@ -14,7 +14,7 @@ from sekoia_automation.scripts.sync_library import SyncLibrary
 from sekoia_automation.scripts.update_sdk_version import SDKUpdater
 
 app = typer.Typer(
-    help="SEKOIA.IO's automation helper to generate playbook modules",
+    help="Sekoia.io's automation helper to generate playbook modules",
     rich_markup_mode="markdown",
 )
 OptionalPath = Optional[Path]  # noqa: UP007
@@ -111,7 +111,7 @@ def generate_documentation(
     Generate modules documentation.
 
     This script generates modules documentation and add it to
-    SEKOIA.IO's documentation repository.
+    Sekoia.io's documentation repository.
 
     If a module is provided only the documentation for this module will be generated
     """

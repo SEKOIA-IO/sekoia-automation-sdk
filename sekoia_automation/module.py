@@ -398,14 +398,14 @@ class ModuleItem(ABC):
                     else 500
                 )
                 raise SendEventError(
-                    "Impossible to send event to SEKOIA.IO API", status_code=status_code
+                    "Impossible to send event to Sekoia.io API", status_code=status_code
                 )
             if (
                 isinstance(exception.response, Response)
                 and 400 <= exception.response.status_code < 500
             ):
                 raise SendEventError(
-                    "Impossible to send event to SEKOIA.IO API",
+                    "Impossible to send event to Sekoia.io API",
                     status_code=exception.response.status_code,
                 )
             return self._send_request(data, verb, attempt + 1)

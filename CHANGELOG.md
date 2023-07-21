@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - In `synchronize-lib` script:
     - Specify the registry in the image name
-    - Improve checking the existence of the image in the registry 
+    - Improve checking the existence of the image in the registry
 
 ## [1.3.1] - 2023-06-08
 
@@ -75,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix secret handling for `BaseModel` module configurations 
+- Fix secret handling for `BaseModel` module configurations
 
 ## [1.2.0] - 2023-05-10
 
@@ -117,7 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Don't retry requests to SEKOIA.IO with a status code of 4xx and ignore 409 errors
+- Don't retry requests to Sekoia.io with a status code of 4xx and ignore 409 errors
 
 ### Fixed
 

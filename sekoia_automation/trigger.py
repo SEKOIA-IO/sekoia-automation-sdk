@@ -197,7 +197,7 @@ class Trigger(ModuleItem):
         directory: str | None = None,
         remove_directory: bool = False,
     ):
-        """Send a normalized event to SEKOIA.IO so that it triggers a playbook run."""
+        """Send a normalized event to Sekoia.io so that it triggers a playbook run."""
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
@@ -216,7 +216,7 @@ class Trigger(ModuleItem):
         directory: str | None = None,
         remove_directory: bool = False,
     ):
-        """Send an event to SEKOIA.IO so that it triggers playbook runs.
+        """Send an event to Sekoia.io so that it triggers playbook runs.
 
         Makes sure `results_model` is used to validate/coerce the event if present
         """

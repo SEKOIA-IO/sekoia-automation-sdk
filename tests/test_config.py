@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 
 import pytest
@@ -31,4 +32,9 @@ def test_load_config_env(monkeypatch):
 
 def test_load_config_env_json(monkeypatch):
     monkeypatch.setenv("FOO", '{"foo": "bar"}')
+    assert load_config("foo", type_="json") == {"foo": "bar"}
+
+
+def test_load_config_env_json_encoded(monkeypatch):
+    monkeypatch.setenv("FOO", base64.b64encode(b'{"foo": "bar"}').decode())
     assert load_config("foo", type_="json") == {"foo": "bar"}

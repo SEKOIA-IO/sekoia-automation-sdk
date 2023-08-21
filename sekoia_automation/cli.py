@@ -17,8 +17,8 @@ app = typer.Typer(
     help="Sekoia.io's automation helper to generate playbook modules",
     rich_markup_mode="markdown",
 )
-OptionalPath = Optional[Path]  # noqa: UP007
-OptionalStr = Optional[str]  # noqa: UP007
+OptionalPath = Optional[Path]
+OptionalStr = Optional[str]
 
 
 @app.command(name="generate-files-from-code")

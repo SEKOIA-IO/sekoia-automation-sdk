@@ -1,8 +1,16 @@
+import base64
 import json
 import os
 from pathlib import Path
 
 VOLUME_PATH = "/symphony"
+
+
+def _json_load(value: str):
+    try:
+        return json.loads(value)
+    except ValueError:
+        return json.loads(base64.b64decode(value))
 
 
 def load_config(name: str, type_: str = "str", non_exist_ok=False):
@@ -14,7 +22,7 @@ def load_config(name: str, type_: str = "str", non_exist_ok=False):
             return fd.read()
 
     if value := os.environ.get(name.upper()):
-        return json.loads(value) if type_ == "json" else value
+        return _json_load(value) if type_ == "json" else value
     if non_exist_ok:
         return None
     raise FileNotFoundError(f"{path} does not exists.")

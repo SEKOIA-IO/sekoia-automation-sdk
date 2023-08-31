@@ -51,12 +51,12 @@ jobs:
 
       - name: Install dependencies
         id: install-dependencies
-        run: poetry install
+        run: poetry install --extras=all
 
       - name: Execute Python tests
         id: execute-tests
         run: |
-          poetry run python -m pytest --junit-xml=junit.xml --cov-report term --cov-report xml:coverage.xml --cov=sekoia_automation tests
+          poetry run python -m pytest --junit-xml=junit.xml --cov-report term --cov-report xml:coverage.xml --cov=sekoia_automation .
 
       - name: Upload Test Results
         if: always()

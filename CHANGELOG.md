@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2023-08-31
+
+### Added
+
+- Add new wrappers to work with aio libraries such as aiohttp, aiobotocore, etc.
+- New AsyncConnector that contains async implementation of push events
+
 ## [1.3.9] - 2023-08-21
 
 ### Added

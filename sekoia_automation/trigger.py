@@ -143,6 +143,7 @@ class Trigger(ModuleItem):
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
+        self.module.set_secrets(self._secrets)
         while not self._stop_event.is_set():
             try:
                 self._execute_once()
@@ -196,7 +197,7 @@ class Trigger(ModuleItem):
         directory: str | None = None,
         remove_directory: bool = False,
     ):
-        """Send a normalized event to SEKOIA.IO so that it triggers a playbook run."""
+        """Send a normalized event to Sekoia.io so that it triggers a playbook run."""
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
@@ -215,7 +216,7 @@ class Trigger(ModuleItem):
         directory: str | None = None,
         remove_directory: bool = False,
     ):
-        """Send an event to SEKOIA.IO so that it triggers playbook runs.
+        """Send an event to Sekoia.io so that it triggers playbook runs.
 
         Makes sure `results_model` is used to validate/coerce the event if present
         """

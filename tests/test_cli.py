@@ -94,13 +94,13 @@ def test_generate_documentation(tmp_path):
         manifest = yaml.load(fp, Loader=Loader)
 
     assert (
-        manifest["nav"][0]["SEKOIA.IO XDR"][0]["Features"][0]["Automate"][0][
+        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
             "Actions Library"
         ][0]["Test Module"]
         == "xdr/features/automate/library/test-module.md"
     )
     assert (
-        manifest["nav"][1]["SEKOIA.IO TIP"][0]["Features"][0]["Automate"][0][
+        manifest["nav"][1]["Sekoia.io TIP"][0]["Features"][0]["Automate"][0][
             "Actions Library"
         ][0]["Test Module"]
         == "tip/features/automate/library/test-module.md"
@@ -136,14 +136,14 @@ def test_generate_documentation_specific_module(tmp_path):
 
     # Make sure we didn't remove other modules
     assert (
-        manifest["nav"][0]["SEKOIA.IO XDR"][0]["Features"][0]["Automate"][0][
+        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
             "Actions Library"
-        ][0]["SEKOIA.IO"]
+        ][0]["Sekoia.io"]
         == "xdr/features/automate/library/sekoia-io.md"
     )
     # And our module has been added
     assert (
-        manifest["nav"][0]["SEKOIA.IO XDR"][0]["Features"][0]["Automate"][0][
+        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
             "Actions Library"
         ][1]["Test Module"]
         == "xdr/features/automate/library/test-module.md"

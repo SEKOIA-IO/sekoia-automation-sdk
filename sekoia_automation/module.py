@@ -187,6 +187,16 @@ class Module:
                 secrets[secret_key] = config_dict[secret_key]
         return secrets
 
+    def set_secrets(self, secrets):
+        """
+        Add the secret to the configurqtion
+        """
+        if isinstance(self.configuration, dict):
+            self.configuration |= secrets
+        else:
+            for key, value in secrets.items():
+                setattr(self.configuration, key, value)
+
     @property
     def community_uuid(self) -> str | None:
         if self._community_uuid is None:
@@ -388,14 +398,14 @@ class ModuleItem(ABC):
                     else 500
                 )
                 raise SendEventError(
-                    "Impossible to send event to SEKOIA.IO API", status_code=status_code
+                    "Impossible to send event to Sekoia.io API", status_code=status_code
                 )
             if (
                 isinstance(exception.response, Response)
                 and 400 <= exception.response.status_code < 500
             ):
                 raise SendEventError(
-                    "Impossible to send event to SEKOIA.IO API",
+                    "Impossible to send event to Sekoia.io API",
                     status_code=exception.response.status_code,
                 )
             return self._send_request(data, verb, attempt + 1)

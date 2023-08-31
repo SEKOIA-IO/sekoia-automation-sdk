@@ -1,12 +1,12 @@
 nav:
-- SEKOIA.IO XDR:
+- Sekoia.io XDR:
   - Features:
     - Automate:
       - Actions Library:
-        - SEKOIA.IO: xdr/features/automate/library/sekoia-io.md
-- SEKOIA.IO TIP:
+        - Sekoia.io: xdr/features/automate/library/sekoia-io.md
+- Sekoia.io TIP:
   - Features:
     - Automate:
       - Actions Library:
-        - SEKOIA.IO: tip/features/automate/library/sekoia-io.md
+        - Sekoia.io: tip/features/automate/library/sekoia-io.md
 site_name: Test

@@ -164,8 +164,8 @@ class DocumentationGenerator:
             mkdocs_conf = yaml.safe_load(fd)
 
             root_menu_items = {
-                f"SEKOIA.IO XDR/{self.MKDOCS_SUB_NAV}": "xdr/features/automate/library",
-                f"SEKOIA.IO TIP/{self.MKDOCS_SUB_NAV}": "tip/features/automate/library",
+                f"Sekoia.io XDR/{self.MKDOCS_SUB_NAV}": "xdr/features/automate/library",
+                f"Sekoia.io TIP/{self.MKDOCS_SUB_NAV}": "tip/features/automate/library",
             }
             append_only = True if self.module else False
             for root, directory in root_menu_items.items():

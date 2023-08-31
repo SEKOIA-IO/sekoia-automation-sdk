@@ -1,12 +1,12 @@
-"""Tests for file sekoia_automation.helpers.aio.files module."""
+"""Tests for file `sekoia_automation.aio.helpers.files` module."""
 
 import csv
 import os
 
 import pytest
 
-from sekoia_automation.helpers.aio.files.csv import csv_file_as_rows
-from sekoia_automation.helpers.aio.files.utils import delete_file
+from sekoia_automation.aio.helpers.files.csv import csv_file_as_rows
+from sekoia_automation.aio.helpers.files.utils import delete_file
 
 
 @pytest.fixture

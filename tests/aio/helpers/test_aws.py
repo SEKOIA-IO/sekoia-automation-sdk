@@ -1,9 +1,9 @@
-"""Tests related to sekoia_automation.helpers.aio.aws module."""
+"""Tests related to `sekoia_automation.aio.helpers.aws` module."""
 
 import pytest
 from aiobotocore.session import AioSession
 
-from sekoia_automation.helpers.aio.aws.client import AwsClient, AwsConfiguration
+from sekoia_automation.aio.helpers.aws.client import AwsClient, AwsConfiguration
 
 
 @pytest.fixture

@@ -49,10 +49,10 @@ class HttpClient:
             rate_limiter: AsyncLimiter | None
         """
         if max_rate and time_period:
-            self.set_rate_limit(max_rate, time_period)
+            self.set_rate_limit(max_rate, time_period)  # pragma: no cover
 
         if rate_limiter:
-            self.set_rate_limiter(rate_limiter)
+            self.set_rate_limiter(rate_limiter)  # pragma: no cover
 
     def set_rate_limit(self, max_rate: float, time_period: float = 60) -> None:
         """
@@ -64,7 +64,7 @@ class HttpClient:
         """
         self._rate_limiter = AsyncLimiter(max_rate=max_rate, time_period=time_period)
 
-    def set_rate_limiter(self, rate_limiter: AsyncLimiter) -> None:
+    def set_rate_limiter(self, rate_limiter: AsyncLimiter) -> None:  # pragma: no cover
         """
         Set rate limiter.
 

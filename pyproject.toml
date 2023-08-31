@@ -44,26 +44,55 @@ PyYAML = "^6.0"
 Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
 prometheus-client = "^0.16.0"
+aiohttp = { version = "^3.8.4", optional = true }
+aiolimiter = { version = "^1.1.0", optional = true }
+aiobotocore = { version = "^2.5.2", optional = true }
+aiofiles = { version = "^23.1.0", optional = true }
+aiocsv = { version = "^1.2.4", optional = true }
+loguru = { version = "^0.7.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"
 pylint = "*"
 pytest = "*"
 pytest-cov = "*"
+pytest-asyncio = "*"
+pytest-xdist = "*"
+pytest-env = "*"
 requests-mock = "^1.9"
-aiohttp = "^3.8.4"
-aiofiles = "^23.1.0"
-aiocsv = "^1.2.4"
-loguru = "^0.7.0"
-aiolimiter = "^1.1.0"
-aiobotocore = "^2.5.2"
-pytest-asyncio = "^0.21.0"
 faker = "^19.0.0"
 aioresponses = "^0.7.4"
 types-aiofiles = "^23.1.0.4"
 types-requests = "^2.31.0.1"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
+pre-commit = "^3.3.3"
+
+[tool.poetry.extras]
+all = [
+    "aiohttp",
+    "aiolimiter",
+    "aiobotocore",
+    "aiofiles",
+    "aiocsv",
+    "loguru",
+]
+async-aws = [
+    "aiobotocore",
+]
+async-http = [
+    "aiohttp",
+    "aiolimiter",
+    "aiofiles",
+]
+async-files = [
+    "aiofiles",
+    "aiocsv"
+]
+logging = [
+    "loguru"
+]
+
 
 [tool.poetry.group.lint.dependencies]
 ruff = "*"
@@ -76,7 +105,15 @@ force-exclude = "tests/expectations/sample_module/main.py|sekoia_automation/scri
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra"
+addopts = '''
+    --asyncio-mode=auto
+    --cache-clear
+    --cov=sekoia_automation
+    --cov-report=html
+    --cov-report=term-missing:skip-covered
+    --cov-fail-under=90
+    -ra
+'''
 testpaths = [
     "tests",
 ]
@@ -85,6 +122,7 @@ testpaths = [
 select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
 exclude = [
     "tests/expectations/sample_module/main.py",
+    "tests/aio/",
     "sekoia_automation/scripts/new_module/template/"
 ]
 
@@ -95,5 +133,8 @@ exclude = [
 python_version = "3.11"
 ignore_missing_imports = true
 show_column_numbers = true
-exclude = "sekoia_automation/scripts/new_module/template/"
+exclude = [
+    "sekoia_automation/scripts/new_module/template/",
+    "tests/"
+]
 disable_error_code = "annotation-unchecked"

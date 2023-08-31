@@ -1,6 +1,7 @@
 import json
 import signal
 from abc import abstractmethod
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -63,12 +64,13 @@ class Trigger(ModuleItem):
         self._exporter = None
 
     def _get_secrets_from_server(self) -> dict[str, Any]:
-        """Calls the API to fetch this trigger's secrets
+        """
+        Calls the API to fetch this trigger's secrets.
 
-        If self.module has no secrets configured, we don't do anything
+        If `self.module` has no secrets configured, we don't do anything.
 
-        :return: A dict mapping the configuration's secrets to their value
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]:
         """
         secrets = {}
         if self.module.has_secrets():
@@ -84,11 +86,10 @@ class Trigger(ModuleItem):
                 self._log_request_error(exception)
         return secrets
 
-    def stop(self, *args, **kwargs):  # noqa: ARG002
+    def stop(self, *args, **kwargs) -> None:  # noqa: ARG002
         """
         Engage the trigger exit
         """
-        # Exit signal received, asking the processor to stop
         self._stop_event.set()
 
     @property
@@ -109,6 +110,12 @@ class Trigger(ModuleItem):
 
     @configuration.setter
     def configuration(self, configuration: dict) -> None:
+        """
+        Set the trigger configuration.
+
+        Args:
+            configuration: dict
+        """
         try:
             self._configuration = get_as_model(
                 get_annotation_for(self.__class__, "configuration"), configuration
@@ -153,10 +160,12 @@ class Trigger(ModuleItem):
                 # i.e. An error occurred while sending logs to Sekoia.io
                 pass
 
-    def _rm_tree(self, path: Path):
-        """Delete a directory and its children.
+    def _rm_tree(self, path: Path) -> None:
+        """
+        Delete a directory and its children.
 
-        :param Path path: The directory to delete
+        Args:
+            path: Path: The directory to delete
         """
         # iter over children
         for child in path.iterdir():
@@ -172,8 +181,22 @@ class Trigger(ModuleItem):
             path.rmdir()
 
     @contextmanager
-    def _ensure_directory(self, directory: str | None, remove_directory: bool = False):
-        """Make sure the directory exists."""
+    def _ensure_directory(
+        self, directory: str | None = None, remove_directory: bool = False
+    ) -> Generator[str | None, None, None]:
+        """
+        Make sure the directory exists.
+
+        Args:
+            directory: str | None
+            remove_directory: bool
+
+        Raises:
+            InvalidDirectoryError: If the directory doesn't exist
+
+        Returns:
+            Generator[str | None, None, None]:
+        """
         if directory:
             # This will work for both relative and absolute path
             directory_path = self.data_path.joinpath(directory)
@@ -196,8 +219,16 @@ class Trigger(ModuleItem):
         event: dict,
         directory: str | None = None,
         remove_directory: bool = False,
-    ):
-        """Send a normalized event to Sekoia.io so that it triggers a playbook run."""
+    ) -> None:
+        """
+        Send a normalized event to Sekoia.io so that it triggers a playbook run.
+
+        Args:
+            event_name: str
+            event: dict
+            directory: str | None
+            remove_directory: bool
+        """
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
@@ -215,10 +246,17 @@ class Trigger(ModuleItem):
         event: dict,
         directory: str | None = None,
         remove_directory: bool = False,
-    ):
-        """Send an event to Sekoia.io so that it triggers playbook runs.
+    ) -> None:
+        """
+        Send an event to Sekoia.io so that it triggers playbook runs.
 
         Makes sure `results_model` is used to validate/coerce the event if present
+
+        Args:
+            event_name: str
+            event: dict
+            directory: str | None
+            remove_directory: bool
         """
         return self.send_normalized_event(
             event_name,
@@ -263,7 +301,8 @@ class Trigger(ModuleItem):
 
     @abstractmethod
     def run(self) -> None:
-        """Method that each trigger should implement to contain its logic.
+        """
+        Method that each trigger should implement to contain its logic.
 
         Should usually be an infinite loop, calling send_event when relevant.
         """
@@ -318,9 +357,7 @@ class Trigger(ModuleItem):
         return False
 
     def liveness_context(self) -> dict:
-        """
-        Context returned when the health endpoint is requested
-        """
+        """Context returned when the health endpoint is requested."""
         return {
             "last_events_time": self._last_events_time.isoformat(),
             "seconds_without_events_threshold": self.seconds_without_events,

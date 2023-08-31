@@ -1,4 +1,4 @@
-"""Tests for sekoia_automation.helpers.aio.http.utils."""
+"""Tests for `sekoia_automation.aio.helpers.http.utils`."""
 import os
 
 import aiofiles
@@ -6,8 +6,8 @@ import pytest
 from aiohttp import ClientSession
 from aioresponses import aioresponses
 
-from sekoia_automation.helpers.aio.files.utils import delete_file
-from sekoia_automation.helpers.aio.http.utils import save_aiohttp_response
+from sekoia_automation.aio.helpers.files.utils import delete_file
+from sekoia_automation.aio.helpers.http.utils import save_aiohttp_response
 
 
 @pytest.mark.asyncio

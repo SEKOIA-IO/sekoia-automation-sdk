@@ -1,4 +1,4 @@
-"""Tests for sekoia_automation.helpers.aio.http.token_refresher."""
+"""Tests for `sekoia_automation.aio.helpers.http.token_refresher`."""
 import asyncio
 import time
 from asyncio import Lock
@@ -8,7 +8,7 @@ import pytest
 from aioresponses import aioresponses
 from pydantic import BaseModel
 
-from sekoia_automation.helpers.aio.http.token_refresher import (
+from sekoia_automation.aio.helpers.http.token_refresher import (
     GenericTokenRefresher,
     RefreshedToken,
 )

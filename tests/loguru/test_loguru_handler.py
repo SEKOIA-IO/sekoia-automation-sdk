@@ -4,8 +4,8 @@ from logging import LogRecord
 
 import pytest
 
-from sekoia_automation.helpers.loguru.config import init_logging
-from sekoia_automation.helpers.loguru.handlers import InterceptHandler
+from sekoia_automation.loguru.config import init_logging
+from sekoia_automation.loguru.handlers import InterceptHandler
 
 
 @pytest.fixture
@@ -18,7 +18,8 @@ def logger_handler() -> InterceptHandler:
     return InterceptHandler()
 
 
-def test_logging_emit_with_existing_loguru_level(logger_handler):
+@pytest.mark.asyncio
+async def test_logging_emit_with_existing_loguru_level(logger_handler):
     """
     Test logging emit with existing loguru level.
     Args:
@@ -34,7 +35,8 @@ def test_logging_emit_with_existing_loguru_level(logger_handler):
         assert str(e) == "Level 'Level 100500' does not exist"
 
 
-def test_logging_log_message():
+@pytest.mark.asyncio
+async def test_logging_log_message():
     """
     Test logging emit with existing loguru level.
     """

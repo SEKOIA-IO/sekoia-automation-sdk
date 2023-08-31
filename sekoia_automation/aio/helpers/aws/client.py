@@ -92,7 +92,9 @@ class AwsClient(Generic[AwsConfigurationT]):
         return session
 
     def get_client(
-        self, client_name: str, region_name: str | None = None
+        self,
+        client_name: str,
+        region_name: str | None = None,
     ) -> ClientCreatorContext:
         """
         Get AWS client.
@@ -105,7 +107,7 @@ class AwsClient(Generic[AwsConfigurationT]):
             ClientCreatorContext:
         """
         _region_name = region_name
-        if not region_name and self._configuration:
+        if not region_name and self._configuration is not None:
             _region_name = self._configuration.aws_region
 
         if not _region_name:

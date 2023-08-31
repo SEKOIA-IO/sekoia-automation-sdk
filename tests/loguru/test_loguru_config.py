@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from sekoia_automation.helpers.loguru.config import LoggingConfig
+from sekoia_automation.loguru.config import LoggingConfig
 
 
 @pytest.mark.asyncio

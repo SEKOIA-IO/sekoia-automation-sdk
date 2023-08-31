@@ -1,7 +1,7 @@
 """Formatters tests."""
 import pytest
 
-from sekoia_automation.helpers.loguru.formatters import format_record
+from sekoia_automation.loguru.formatters import format_record
 
 
 @pytest.mark.asyncio

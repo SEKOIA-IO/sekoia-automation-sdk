@@ -1,4 +1,5 @@
 import uuid
+from abc import ABC
 from collections.abc import Generator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
@@ -27,7 +28,7 @@ class DefaultConnectorConfiguration(BaseModel):
     chunk_size: int = 1000
 
 
-class Connector(Trigger):
+class Connector(Trigger, ABC):
     configuration: DefaultConnectorConfiguration
 
     seconds_without_events = 3600
@@ -52,7 +53,7 @@ class Connector(Trigger):
         )
 
     @cached_property
-    def __connector_user_agent(self):
+    def _connector_user_agent(self) -> str:
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
     def _send_chunk(
@@ -70,7 +71,7 @@ class Connector(Trigger):
                     res: Response = requests.post(
                         batch_api,
                         json=request_body,
-                        headers={"User-Agent": self.__connector_user_agent},
+                        headers={"User-Agent": self._connector_user_agent},
                         timeout=30,
                     )
                     res.raise_for_status()
@@ -80,7 +81,19 @@ class Connector(Trigger):
             self.log(message=message, level="error")
             self.log_exception(ex, message=message)
 
-    def push_events_to_intakes(self, events: list[str], sync: bool = False) -> list:
+    def push_events_to_intakes(
+        self, events: list[str], sync: bool = False
+    ) -> list[str]:
+        """
+        Push events to intakes.
+
+        Args:
+            events: list[str]
+            sync: bool
+
+        Returns:
+            list[str]
+        """
         # no event to push
         if not events:
             return []
@@ -127,7 +140,18 @@ class Connector(Trigger):
         event_name: str,
         to_file: bool = True,
         records_var_name: str = "records",
-    ):
+    ) -> None:
+        """
+        Sends records to the intake.
+
+        Optionally persists events to file.
+
+        Args:
+            records: list
+            event_name: str
+            to_file: bool
+            records_var_name: str
+        """
         if not to_file:
             self.send_event(event={records_var_name: records}, event_name=event_name)
             return
@@ -153,12 +177,19 @@ class Connector(Trigger):
         )
 
     def _chunk_events(
-        self, events: Sequence, chunk_size: int
+        self,
+        events: Sequence,
+        chunk_size: int,
     ) -> Generator[list[Any], None, None]:
-        """Group events by chunk.
+        """
+        Group events by chunk.
 
-        :param sequence events: The events to group
-        :param int chunk_size: The size of the chunk
+        Args:
+            sequence events: Sequence: The events to group
+            chunk_size: int: The size of the chunk
+
+        Returns:
+            Generator[list[Any], None, None]:
         """
         chunk: list[Any] = []
         chunk_bytes: int = 0
@@ -196,14 +227,15 @@ class Connector(Trigger):
                 "were discarded (length > 64kb)"
             )
 
-    def forward_events(self, events):
+    def forward_events(self, events) -> None:
         try:
             chunks = self._chunk_events(events, self.configuration.chunk_size)
+            _name = self.name or ""  # mypy complains about NoneType in annotation
             for records in chunks:
                 self.log(message=f"Forwarding {len(records)} records", level="info")
                 self.send_records(
                     records=list(records),
-                    event_name=f"{self.name.lower().replace(' ', '-')}_{time()!s}",
+                    event_name=f"{_name.lower().replace(' ', '-')}_{time()!s}",
                 )
         except Exception as ex:
             self.log_exception(ex, message="Failed to forward events")

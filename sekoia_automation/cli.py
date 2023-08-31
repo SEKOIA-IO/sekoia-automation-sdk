@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 import typer
 from cookiecutter.main import cookiecutter
@@ -16,8 +17,8 @@ app = typer.Typer(
     help="Sekoia.io's automation helper to generate playbook modules",
     rich_markup_mode="markdown",
 )
-OptionalPath = Path | None
-OptionalStr = str | None
+OptionalPath = Optional[Path]
+OptionalStr = Optional[str]
 
 
 @app.command(name="generate-files-from-code")

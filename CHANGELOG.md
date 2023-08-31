@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- On critical error wait until the pod is killed instead of keep running
+
+### Changed
+
+- Increase time to wait without events before restarting the pod
+
 ## [1.3.9] - 2023-08-21
 
 ### Added

@@ -296,6 +296,7 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
                 raise TriggerConfigurationError
 
     trigger = TestTrigger()
+    trigger._STOP_EVENT_WAIT = 0.1
     with pytest.raises(SystemExit), patch.object(
         Module, "load_config", return_value={}
     ):
@@ -322,6 +323,7 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._error_count = 4
+    trigger._STOP_EVENT_WAIT = 0.1
     with pytest.raises(SystemExit), patch.object(
         Module, "load_config", return_value={}
     ):

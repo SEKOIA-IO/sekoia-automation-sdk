@@ -44,6 +44,9 @@ class Trigger(ModuleItem):
     LIVENESS_PORT_FILE_NAME = "liveness_port"
     METRICS_PORT_FILE_NAME = "metrics_port"
 
+    # Time to wait for stop event to be received
+    _STOP_EVENT_WAIT = 120
+
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
         self._configuration: dict | BaseModel | None = None
@@ -138,6 +141,10 @@ class Trigger(ModuleItem):
             self._handle_send_event_exception(ex)
         except Exception as ex:
             self._handle_trigger_exception(ex)
+        if self._critical_log_sent:
+            # Prevent the trigger from running
+            # and creating other errors until it is stopped
+            self._stop_event.wait(self._STOP_EVENT_WAIT)
 
     def execute(self) -> None:
         self._ensure_data_path_set()

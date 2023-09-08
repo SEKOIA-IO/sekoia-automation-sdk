@@ -1,4 +1,5 @@
 import datetime
+import time
 from datetime import timedelta
 from pathlib import Path
 from typing import ClassVar
@@ -254,6 +255,7 @@ def test_trigger_configuration_as_model():
 
 def test_trigger_log(mocked_trigger_logs):
     trigger = DummyTrigger()
+    trigger.LOGS_MAX_BATCH_SIZE = 0
 
     assert mocked_trigger_logs.call_count == 0
 
@@ -263,6 +265,51 @@ def test_trigger_log(mocked_trigger_logs):
     assert log_request["date"] is not None
     assert log_request["level"] == "info"
     assert log_request["message"] == "test message"
+
+
+def test_trigger_log_severity(mocked_trigger_logs):
+    trigger = DummyTrigger()
+
+    assert mocked_trigger_logs.call_count == 0
+
+    trigger.log("test message", "info")
+    assert mocked_trigger_logs.call_count == 0
+    trigger.log("error message", "error")
+    assert mocked_trigger_logs.call_count == 1
+
+    log = mocked_trigger_logs.last_request.json()["logs"][0]
+    assert log["date"] is not None
+    assert log["level"] == "info"
+    assert log["message"] == "test message"
+
+    log = mocked_trigger_logs.last_request.json()["logs"][1]
+    assert log["level"] == "error"
+
+
+def test_trigger_log_batch_full(mocked_trigger_logs):
+    trigger = DummyTrigger()
+
+    for _ in range(trigger.LOGS_MAX_BATCH_SIZE):
+        assert mocked_trigger_logs.call_count == 0
+        trigger.log("test message", "info")
+
+    assert mocked_trigger_logs.call_count == 1
+    logs = mocked_trigger_logs.last_request.json()["logs"]
+    assert len(logs) == trigger.LOGS_MAX_BATCH_SIZE
+
+
+def test_trigger_log_time_elapsed(mocked_trigger_logs):
+    trigger = DummyTrigger()
+    trigger.LOGS_MAX_DELTA = timedelta(milliseconds=1)
+
+    trigger.log("test message", "info")
+    assert mocked_trigger_logs.call_count == 0
+    time.sleep(trigger.LOGS_MAX_DELTA.total_seconds())
+    trigger.log("error message", "info")
+    assert mocked_trigger_logs.call_count == 1
+
+    logs = mocked_trigger_logs.last_request.json()["logs"]
+    assert len(logs) == 2
 
 
 def test_trigger_log_retry(mocked_trigger_logs):
@@ -277,7 +324,7 @@ def test_trigger_log_retry(mocked_trigger_logs):
 
     # Make sure we are retrying log registrations
     assert mocked_trigger_logs.call_count == 0
-    trigger.log.retry.wait = wait_none()
+    trigger._send_logs_to_api.retry.wait = wait_none()
     trigger.log("test message", "error")
 
     assert mocked_trigger_logs.call_count == 2
@@ -296,7 +343,7 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
                 raise TriggerConfigurationError
 
     trigger = TestTrigger()
-    trigger._STOP_EVENT_WAIT = 0.1
+    trigger._STOP_EVENT_WAIT = 0.001
     with pytest.raises(SystemExit), patch.object(
         Module, "load_config", return_value={}
     ):
@@ -323,7 +370,7 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._error_count = 4
-    trigger._STOP_EVENT_WAIT = 0.1
+    trigger._STOP_EVENT_WAIT = 0.001
     with pytest.raises(SystemExit), patch.object(
         Module, "load_config", return_value={}
     ):

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Increase time to wait without events before restarting the pod
+- Send logs by batch
 
 ## [1.3.9] - 2023-08-21
 

@@ -70,6 +70,12 @@ class Trigger(ModuleItem):
         self._liveness_server = None
         self._exporter = None
 
+    @retry(
+        reraise=True,
+        wait=wait_exponential(max=10),
+        stop=stop_after_attempt(10),
+        retry_error_callback=capture_retry_error,
+    )
     def _get_secrets_from_server(self) -> dict[str, Any]:
         """Calls the API to fetch this trigger's secrets
 
@@ -278,6 +284,7 @@ class Trigger(ModuleItem):
             self._critical_log_sent = True
 
     @retry(
+        reraise=True,
         wait=wait_exponential(max=10),
         stop=stop_after_attempt(10),
         retry_error_callback=capture_retry_error,

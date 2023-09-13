@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2023-09-13
+
+### Added
+
+- Add retry when accessing the storage
+
 ## [1.4.0] - 2023-09-09
 
 ### Added

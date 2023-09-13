@@ -103,6 +103,7 @@ def test_send_event_4xx_error(mocked_trigger_logs):
 
 def test_send_event_too_many_failures(mocked_trigger_logs):
     trigger = DummyTrigger()
+    trigger._http_error_base_sleep = 0
 
     mocked_trigger_logs.post(
         "http://sekoia-playbooks/callback",

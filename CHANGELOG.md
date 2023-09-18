@@ -7,12 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.0] - 2023-08-31
-
 ### Added
 
 - Add new wrappers to work with aio libraries such as aiohttp, aiobotocore, etc.
 - New AsyncConnector that contains async implementation of push events
+
+## [1.4.1] - 2023-09-13
+
+### Added
+
+- Add retry when accessing the storage
+
+## [1.4.0] - 2023-09-09
+
+### Added
+
+- On critical error wait until the pod is killed instead of keep running
+
+### Changed
+
+- Increase time to wait without events before restarting the pod
+- Send logs by batch
 
 ## [1.3.9] - 2023-08-21
 

@@ -7,14 +7,22 @@ import boto3
 import orjson
 from botocore.config import Config
 from s3path import S3Path, register_configuration_parameter
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sekoia_automation import constants
 from sekoia_automation.config import VOLUME_PATH, load_config
+from sekoia_automation.utils import capture_retry_error
 
 FilePath = Path | str
 
 
 @lru_cache
+@retry(
+    reraise=True,
+    wait=wait_exponential(max=6),
+    stop=stop_after_attempt(10),
+    retry_error_callback=capture_retry_error,
+)
 def get_s3_data_path() -> Path:
     ca_path, cert_path, key_path = _get_tls_client_credentials()
     config = Config()
@@ -133,6 +141,12 @@ class PersistentJSON:
 
         self._data: dict = {}
 
+    @retry(
+        reraise=True,
+        wait=wait_exponential(max=6),
+        stop=stop_after_attempt(10),
+        retry_error_callback=capture_retry_error,
+    )
     def load(self):
         if not self._data and self._filepath.is_file():
             with self._filepath.open("r") as fd:
@@ -142,16 +156,31 @@ class PersistentJSON:
                     # The content is not valid json
                     self._data = {}
 
+    @retry(
+        reraise=True,
+        wait=wait_exponential(max=6),
+        stop=stop_after_attempt(10),
+        retry_error_callback=capture_retry_error,
+    )
+    def dump(self):
+        with self._filepath.open("w") as out:
+            out.write(orjson.dumps(self._data).decode("utf-8"))
+
     def __enter__(self):
         self.load()
 
         return self._data
 
     def __exit__(self, _, __, ___):
-        with self._filepath.open("w") as out:
-            out.write(orjson.dumps(self._data).decode("utf-8"))
+        self.dump()
 
 
+@retry(
+    reraise=True,
+    wait=wait_exponential(max=6),
+    stop=stop_after_attempt(10),
+    retry_error_callback=capture_retry_error,
+)
 def temp_directory(data_path: Path | None = None) -> str:
     """Create a temporary directory inside data storage.
 
@@ -166,6 +195,12 @@ def temp_directory(data_path: Path | None = None) -> str:
     return name
 
 
+@retry(
+    reraise=True,
+    wait=wait_exponential(max=6),
+    stop=stop_after_attempt(10),
+    retry_error_callback=capture_retry_error,
+)
 def write(
     filename: str,
     content: dict | str,

@@ -45,6 +45,12 @@ class Trigger(ModuleItem):
     LIVENESS_PORT_FILE_NAME = "liveness_port"
     METRICS_PORT_FILE_NAME = "metrics_port"
 
+    LOGS_MAX_BATCH_SIZE = 50
+    LOGS_MAX_DELTA = timedelta(seconds=5)
+
+    # Time to wait for stop event to be received
+    _STOP_EVENT_WAIT = 120
+
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
         self._configuration: dict | BaseModel | None = None
@@ -55,6 +61,8 @@ class Trigger(ModuleItem):
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
         self._critical_log_sent = False
+        self._logs: list[dict] = []
+        self._first_log_time: datetime | None = None
 
         # Register signal to terminate thread
         signal.signal(signal.SIGINT, self.stop)
@@ -63,6 +71,12 @@ class Trigger(ModuleItem):
         self._liveness_server = None
         self._exporter = None
 
+    @retry(
+        reraise=True,
+        wait=wait_exponential(max=10),
+        stop=stop_after_attempt(10),
+        retry_error_callback=capture_retry_error,
+    )
     def _get_secrets_from_server(self) -> dict[str, Any]:
         """
         Calls the API to fetch this trigger's secrets.
@@ -145,20 +159,28 @@ class Trigger(ModuleItem):
             self._handle_send_event_exception(ex)
         except Exception as ex:
             self._handle_trigger_exception(ex)
+        if self._critical_log_sent:
+            # Prevent the trigger from running
+            # and creating other errors until it is stopped
+            self._stop_event.wait(self._STOP_EVENT_WAIT)
 
     def execute(self) -> None:
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
         self.module.set_secrets(self._secrets)
-        while not self._stop_event.is_set():
-            try:
-                self._execute_once()
-            except Exception:  # pragma: no cover
-                # Exception are handled in `_execute_once` but in case
-                # an error occurred while handling an error we catch everything
-                # i.e. An error occurred while sending logs to Sekoia.io
-                pass
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    self._execute_once()
+                except Exception:  # pragma: no cover
+                    # Exception are handled in `_execute_once` but in case
+                    # an error occurred while handling an error we catch everything
+                    # i.e. An error occurred while sending logs to Sekoia.io
+                    pass
+        finally:
+            # Send remaining logs if any
+            self._send_logs_to_api()
 
     def _rm_tree(self, path: Path) -> None:
         """
@@ -271,33 +293,50 @@ class Trigger(ModuleItem):
 
     # Try to send the log record to the API
     # If it can't be done, give up after 10 attempts and capture the logging error
-    @retry(
-        wait=wait_exponential(max=10),
-        stop=stop_after_attempt(10),
-        retry_error_callback=capture_retry_error,
-    )
+
     def log(self, message: str, level: str = "info", *args, **kwargs) -> None:
         if level == "critical" and self._critical_log_sent:
             #  Prevent sending multiple critical errors
             level = "error"
-        data = {
-            "logs": [
-                {
-                    "date": datetime.utcnow().isoformat(),
-                    "level": level,
-                    "message": message,
-                }
-            ]
-        }
+
+        super().log(message, level, *args, **kwargs)
+
+        self._logs.append(
+            {
+                "date": datetime.utcnow().isoformat(),
+                "level": level,
+                "message": message,
+            }
+        )
+        if self._first_log_time is None:
+            self._first_log_time = datetime.utcnow()
+
+        if (
+            level in ["error", "critical"]  # Don't wait for error or critical logs
+            or len(self._logs) >= self.LOGS_MAX_BATCH_SIZE  # batch is full
+            or datetime.utcnow() - self._first_log_time >= self.LOGS_MAX_DELTA
+        ):
+            self._send_logs_to_api()
+
+        if level == "critical":
+            self._critical_log_sent = True
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(max=10),
+        stop=stop_after_attempt(10),
+        retry_error_callback=capture_retry_error,
+    )
+    def _send_logs_to_api(self):
+        if not self._logs:
+            return
+        data = {"logs": self._logs}
         response = requests.request(
             "POST", self._log_url, json=data, headers=self._headers, timeout=30
         )
         response.raise_for_status()
-
-        super().log(message, level, *args, **kwargs)
-
-        if level == "critical":
-            self._critical_log_sent = True
+        self._logs = []
+        self._first_log_time = None
 
     @abstractmethod
     def run(self) -> None:

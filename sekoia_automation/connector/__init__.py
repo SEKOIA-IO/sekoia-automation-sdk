@@ -31,7 +31,7 @@ class DefaultConnectorConfiguration(BaseModel):
 class Connector(Trigger, ABC):
     configuration: DefaultConnectorConfiguration
 
-    seconds_without_events = 3600
+    seconds_without_events = 3600 * 6
 
     def __init__(self, *args, **kwargs):
         executor_max_worker = kwargs.pop("executor_max_worker", 4)

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2023-09-19
+
 ### Added
 
 - Add new wrappers to work with aio libraries such as aiohttp, aiobotocore, etc.

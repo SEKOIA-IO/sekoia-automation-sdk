@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import requests
 import sentry_sdk
+from botocore.exceptions import ClientError
 from pydantic import BaseModel
 from requests import HTTPError, Response
 
@@ -350,8 +351,14 @@ class ModuleItem(ABC):
             try:
                 self._data_path = get_data_path()
             except Exception as e:
+                if (
+                    isinstance(e, ClientError)
+                    and e.response.get("Error", {}).get("Code") == "403"
+                ):
+                    self.log("Access denied to the object storage", level="critical")
+                    raise
                 self.log_exception(e)
-                self.log("Impossible to get the data path", level="critical")
+                self.log("Impossible access the object storage", level="critical")
                 raise
 
     def log(

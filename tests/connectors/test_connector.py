@@ -57,11 +57,13 @@ def test_send_records(test_connector):
 
 
 def test_chunk_events(test_connector):
-    chunks = test_connector._chunk_events(events=EVENTS, chunk_size=1)
-    chunk_number = 0
-    for chunk in chunks:
-        assert "".join(chunk) in EVENTS
-        chunk_number += 1
+    with patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4):  # len("foo") + 1
+        chunks = test_connector._chunk_events(events=EVENTS)
+        chunk_number = 0
+
+        for chunk in chunks:
+            assert "".join(chunk) in EVENTS
+            chunk_number += 1
 
     assert chunk_number == 2
 
@@ -72,7 +74,7 @@ def test_chunk_events_exceed_size(test_connector):
     )
     events_b = ["b"]
     events = events_a + events_b
-    chunks = list(test_connector._chunk_events(events=events, chunk_size=10000))
+    chunks = list(test_connector._chunk_events(events=events))
     assert len(chunks) == 2
     assert chunks == [events_a, events_b]
 
@@ -82,7 +84,7 @@ def test_chunk_events_discard_too_long_message(test_connector):
     event_b = "b" * (EVENT_BYTES_MAX_SIZE + 1)
     event_c = "c"
     events = [event_a, event_b, event_c]
-    chunks = list(test_connector._chunk_events(events=events, chunk_size=10000))
+    chunks = list(test_connector._chunk_events(events=events))
     assert len(chunks) == 1
     assert chunks == [[event_a, event_c]]
     assert test_connector.log.called
@@ -99,7 +101,6 @@ def test_push_event_to_intake_with_2_events(test_connector, mocked_trigger_logs)
 
 def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
-    test_connector.configuration.chunk_size = 1
     mocked_trigger_logs.post(
         url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
     )
@@ -112,7 +113,9 @@ def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     mocked_trigger_logs.post(
         url, json={"event_ids": ["004"]}, additional_matcher=match_events("oof")
     )
-    result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
+    with patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4):  # len("foo") + 1
+        result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
+
     assert result is not None
     assert len(result) == 4
     assert mocked_trigger_logs.call_count == 4
@@ -124,7 +127,6 @@ def test_push_event_to_intake_with_chunks_executor_stopped(
 ):
     test_connector.stop()
     url = "https://intake.sekoia.io/batch"
-    test_connector.configuration.chunk_size = 1
     mocked_trigger_logs.post(
         url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
     )
@@ -137,7 +139,8 @@ def test_push_event_to_intake_with_chunks_executor_stopped(
     mocked_trigger_logs.post(
         url, json={"event_ids": ["004"]}, additional_matcher=match_events("oof")
     )
-    result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
+    with patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4):  # len("foo") + 1
+        result = test_connector.push_events_to_intakes(["foo", "bar", "baz", "oof"])
     assert result is not None
     assert len(result) == 4
     assert mocked_trigger_logs.call_count == 4

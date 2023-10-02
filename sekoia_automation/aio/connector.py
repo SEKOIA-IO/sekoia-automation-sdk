@@ -102,7 +102,7 @@ class AsyncConnector(Connector, ABC):
 
         result_ids = []
 
-        chunks = self._chunk_events(events, self.configuration.chunk_size)
+        chunks = self._chunk_events(events)
 
         async with self.session() as session:
             for chunk_index, chunk in enumerate(chunks):

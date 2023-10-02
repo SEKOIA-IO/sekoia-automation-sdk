@@ -140,8 +140,6 @@ async def test_async_connector_push_multiple_events(
         async_connector: DummyAsyncConnector
         faker: Faker
     """
-    async_connector.configuration.chunk_size = 1
-
     events = [
         faker.json(
             data_columns={
@@ -158,7 +156,9 @@ async def test_async_connector_push_multiple_events(
 
     request_url = urljoin(async_connector.configuration.intake_server, "/batch")
 
-    with aioresponses() as mocked_responses:
+    with aioresponses() as mocked_responses, patch(
+        "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128
+    ):
         for _ in range(100):
             mocked_responses.post(
                 request_url,
@@ -182,8 +182,6 @@ async def test_async_connector_raise_error(
         async_connector: DummyAsyncConnector
         faker: Faker
     """
-    async_connector.configuration.chunk_size = 1
-
     events = [
         faker.json(
             data_columns={
@@ -202,7 +200,9 @@ async def test_async_connector_raise_error(
 
     request_url = urljoin(async_connector.configuration.intake_server, "/batch")
 
-    with aioresponses() as mocked_responses:
+    with aioresponses() as mocked_responses, patch(
+        "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128
+    ):
         for _ in range(2):
             mocked_responses.post(
                 request_url,

@@ -1,3 +1,4 @@
+import os
 import uuid
 from abc import ABC
 from collections.abc import Generator, Sequence
@@ -25,7 +26,6 @@ from sekoia_automation.trigger import Trigger
 class DefaultConnectorConfiguration(BaseModel):
     intake_server: str = "https://intake.sekoia.io"
     intake_key: str
-    chunk_size: int = 1000
 
 
 class Connector(Trigger, ABC):
@@ -101,14 +101,14 @@ class Connector(Trigger, ABC):
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
-        intake_host = self.configuration.intake_server
+        intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
         batch_api = urljoin(intake_host, "/batch")
 
         # Dict to collect event_ids for the API
         collect_ids: dict[int, list] = {}
 
         # pushing the events
-        chunks = self._chunk_events(events, self.configuration.chunk_size)
+        chunks = self._chunk_events(events)
 
         # if requested, or if the executor is down
         if sync or not self.running:
@@ -176,17 +176,12 @@ class Connector(Trigger, ABC):
             remove_directory=True,
         )
 
-    def _chunk_events(
-        self,
-        events: Sequence,
-        chunk_size: int,
-    ) -> Generator[list[Any], None, None]:
+    def _chunk_events(self, events: Sequence) -> Generator[list[Any], None, None]:
         """
         Group events by chunk.
 
         Args:
             sequence events: Sequence: The events to group
-            chunk_size: int: The size of the chunk
 
         Returns:
             Generator[list[Any], None, None]:
@@ -202,10 +197,7 @@ class Connector(Trigger, ABC):
                 continue
 
             # if the chunk is full
-            if (
-                len(chunk) >= chunk_size
-                or chunk_bytes + len(event) > CHUNK_BYTES_MAX_SIZE
-            ):
+            if chunk_bytes + len(event) > CHUNK_BYTES_MAX_SIZE:
                 # yield the current chunk and create a new one
                 yield chunk
                 chunk = []
@@ -229,7 +221,7 @@ class Connector(Trigger, ABC):
 
     def forward_events(self, events) -> None:
         try:
-            chunks = self._chunk_events(events, self.configuration.chunk_size)
+            chunks = self._chunk_events(events)
             _name = self.name or ""  # mypy complains about NoneType in annotation
             for records in chunks:
                 self.log(message=f"Forwarding {len(records)} records", level="info")

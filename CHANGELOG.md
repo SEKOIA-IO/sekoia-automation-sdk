@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2023-10-02
+
+### Changed
+
+- Remove `chunk_size` parameter from configuration
+- Try to take Intake URL from an environment var first  
+
 ### Changed
 
 - Improve error message when it is not possible to access the data storage

@@ -1,3 +1,4 @@
+import os
 import uuid
 from abc import ABC
 from collections.abc import Generator, Sequence
@@ -100,7 +101,7 @@ class Connector(Trigger, ABC):
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
-        intake_host = self.configuration.intake_server
+        intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
         batch_api = urljoin(intake_host, "/batch")
 
         # Dict to collect event_ids for the API

@@ -71,6 +71,7 @@ def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None
         * ca.crt
     """
     volume = Path(VOLUME_PATH)
+    volume.mkdir(parents=True, exist_ok=True)
 
     ca_path = None
     if ca_cert := load_config("ca_cert", non_exist_ok=True):

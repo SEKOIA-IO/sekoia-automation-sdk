@@ -63,6 +63,18 @@ def config_storage():
 
 
 @pytest.fixture
+def tls_storage():
+    old_tls_storage = config.TLS_VOLUME_PATH
+    config.TLS_VOLUME_PATH = mkdtemp()
+    storage_module.TLS_VOLUME_PATH = config.TLS_VOLUME_PATH
+
+    yield Path(config.TLS_VOLUME_PATH)
+
+    rmtree(config.TLS_VOLUME_PATH)
+    config.TLS_VOLUME_PATH = old_tls_storage
+
+
+@pytest.fixture
 def mocked_trigger_logs():
     with patch.object(
         Trigger,

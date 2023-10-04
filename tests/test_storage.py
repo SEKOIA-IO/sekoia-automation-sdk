@@ -136,21 +136,21 @@ def test_get_tls_client_credentials_not_set():
     assert key is None
 
 
-def test_get_tls_client_credentials(config_storage):
+def test_get_tls_client_credentials(tls_storage):
     mocked = dict(CA_CERT="foo", CLIENT_CERT="bar", CLIENT_KEY="baz")
     with mock.patch.dict(os.environ, mocked):
         ca, cert, key = _get_tls_client_credentials()
-        assert ca == Path(config_storage).joinpath("ca.crt")
+        assert ca == Path(tls_storage).joinpath("ca.crt")
         assert Path(ca).exists()
 
-        assert cert == Path(config_storage).joinpath("client.crt")
+        assert cert == Path(tls_storage).joinpath("client.crt")
         assert Path(cert).exists()
 
-        assert key == Path(config_storage).joinpath("client.key")
+        assert key == Path(tls_storage).joinpath("client.key")
         assert Path(key).exists()
 
 
-def test_get_s3_data_path(config_storage):
+def test_get_s3_data_path(tls_storage):
     mocked = dict(
         AWS_BUCKET_NAME="bucket",
         AWS_ACCESS_KEY_ID="access_key",
@@ -169,10 +169,10 @@ def test_get_s3_data_path(config_storage):
         config: Config | None = first_call.kwargs.pop("config", None)
         assert config is not None
         assert config.client_cert == (
-            Path(config_storage).joinpath("client.crt"),
-            Path(config_storage).joinpath("client.key"),
+            Path(tls_storage).joinpath("client.crt"),
+            Path(tls_storage).joinpath("client.key"),
         )
         assert first_call.kwargs == {
             "endpoint_url": "https://aws-fake_url.com",
-            "verify": Path(config_storage).joinpath("ca.crt"),
+            "verify": Path(tls_storage).joinpath("ca.crt"),
         }

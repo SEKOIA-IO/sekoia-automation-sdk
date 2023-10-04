@@ -20,7 +20,7 @@ FilePath = Path | str
 @retry(
     reraise=True,
     wait=wait_exponential(max=6),
-    stop=stop_after_attempt(1),
+    stop=stop_after_attempt(10),
     retry_error_callback=capture_retry_error,
 )
 def get_s3_data_path() -> Path:

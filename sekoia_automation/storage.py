@@ -20,7 +20,7 @@ FilePath = Path | str
 @retry(
     reraise=True,
     wait=wait_exponential(max=6),
-    stop=stop_after_attempt(10),
+    stop=stop_after_attempt(1),
     retry_error_callback=capture_retry_error,
 )
 def get_s3_data_path() -> Path:
@@ -71,6 +71,7 @@ def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None
         * ca.crt
     """
     volume = Path(VOLUME_PATH)
+    volume.mkdir(parents=True, exist_ok=True)
 
     ca_path = None
     if ca_cert := load_config("ca_cert", non_exist_ok=True):

@@ -54,6 +54,20 @@ def test_callback_url():
     mock.assert_called_with(trigger.CALLBACK_URL_FILE_NAME)
 
 
+def test_secrets_url():
+    trigger = DummyTrigger()
+    with patch.object(Module, "load_config", return_value="secrets") as mock:
+        assert trigger.secrets_url == "secrets"
+    mock.assert_called_with(trigger.SECRETS_URL_FILE_NAME)
+
+
+def test_logs_url():
+    trigger = DummyTrigger()
+    with patch.object(Module, "load_config", return_value="logs") as mock:
+        assert trigger.logs_url == "logs"
+    mock.assert_called_with(trigger.LOGS_URL_FILE_NAME)
+
+
 def test_trigger_configuration():
     trigger = DummyTrigger()
     with patch.object(
@@ -401,9 +415,9 @@ def test_trigger_log_critical_only_once(mocked_trigger_logs):
 @patch.object(Module, "has_secrets", return_value=True)
 @patch.object(
     Trigger,
-    "callback_url",
+    "secrets_url",
     new_callable=PropertyMock,
-    return_value="http://sekoia-playbooks/callback",
+    return_value="http://sekoia-playbooks/secrets",
 )
 @patch.object(Trigger, "token", return_value="secure_token")
 def test_get_secrets(_, __, ___):

@@ -4,7 +4,6 @@ from abc import abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
@@ -90,7 +89,7 @@ class Trigger(ModuleItem):
         if self.module.has_secrets():
             try:
                 response = requests.get(
-                    self.callback_url.replace("/callback", "/secrets"),
+                    self.secrets_url,
                     headers=self._headers,
                     timeout=30,
                 )
@@ -287,10 +286,6 @@ class Trigger(ModuleItem):
             remove_directory,
         )
 
-    @cached_property
-    def _log_url(self):
-        return self.callback_url.replace("/callback", "/logs")
-
     # Try to send the log record to the API
     # If it can't be done, give up after 10 attempts and capture the logging error
 
@@ -332,7 +327,7 @@ class Trigger(ModuleItem):
             return
         data = {"logs": self._logs}
         response = requests.request(
-            "POST", self._log_url, json=data, headers=self._headers, timeout=30
+            "POST", self.logs_url, json=data, headers=self._headers, timeout=30
         )
         response.raise_for_status()
         self._logs = []

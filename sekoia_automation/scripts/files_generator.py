@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from rich import print
 
 from sekoia_automation.action import Action
+from sekoia_automation.connector import Connector
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for
@@ -70,6 +71,7 @@ class FilesGenerator:
         self.generate_main(module, actions, triggers)
         self.generate_action_manifests(actions)
         self.generate_trigger_manifests(triggers)
+        self.generate_connector_manifests(triggers)
         self.update_module_manifest(module)
 
         sys.path = _old_path
@@ -157,6 +159,33 @@ class FilesGenerator:
                 manifest["results"] = trigger.results_model.schema()
 
             if configuration_model := get_annotation_for(trigger, "configuration"):
+                manifest["arguments"] = configuration_model.schema()
+
+            with filepath.open("w") as out:
+                out.write(json.dumps(manifest, indent=2))
+
+            print(f"[green][+][/green] Generated {filepath}")
+
+    def generate_connector_manifests(self, connectors: set[type[Connector]]):
+        for connector in connectors:
+            name = connector.name or connector.__name__
+            filepath = (
+                self.base_path / f"connector_{name.lower().replace(' ', '_')}.json"
+            )
+
+            manifest: dict[str, str | dict | None] = {
+                "name": name,
+                "description": connector.description,
+                "uuid": str(uuid5(self.module_uuid, name)),
+                "docker_parameters": connector.__name__,
+                "arguments": {},
+                "results": {},
+            }
+
+            if connector.results_model:
+                manifest["results"] = connector.results_model.schema()
+
+            if configuration_model := get_annotation_for(connector, "configuration"):
                 manifest["arguments"] = configuration_model.schema()
 
             with filepath.open("w") as out:

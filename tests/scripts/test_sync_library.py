@@ -37,8 +37,15 @@ def trigger():
         return trigger
 
 
+@pytest.fixture
+def connector():
+    with open("tests/data/sample_module/connector_test.json") as f:
+        connector = json.load(f)
+        return connector
+
+
 @requests_mock.Mocker(kw="m")
-def test_no_module_success(module, action, trigger, **kwargs):
+def test_no_module_success(module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
@@ -47,7 +54,7 @@ def test_no_module_success(module, action, trigger, **kwargs):
     sync_lib.execute()
 
     history = kwargs["m"].request_history
-    assert len(history) == 6
+    assert len(history) == 8
     assert history[0].method == "GET"
     assert history[0].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
@@ -66,10 +73,16 @@ def test_no_module_success(module, action, trigger, **kwargs):
     assert history[5].method == "PATCH"
     assert history[5].url == f"{SYMPOHNY_URL}/actions/{action['uuid']}"
     assert history[5].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[6].method == "GET"
+    assert history[6].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[6].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[7].method == "PATCH"
+    assert history[7].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[7].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_404(module, action, trigger, **kwargs):
+def test_no_module_404(module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=404, json={}
     )
@@ -78,7 +91,7 @@ def test_no_module_404(module, action, trigger, **kwargs):
     sync_lib.execute()
 
     history = kwargs["m"].request_history
-    assert len(history) == 6
+    assert len(history) == 8
     assert history[0].method == "GET"
     assert history[0].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
@@ -97,10 +110,16 @@ def test_no_module_404(module, action, trigger, **kwargs):
     assert history[5].method == "POST"
     assert history[5].url == f"{SYMPOHNY_URL}/actions"
     assert history[5].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[6].method == "GET"
+    assert history[6].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[6].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[7].method == "POST"
+    assert history[7].url == f"{SYMPOHNY_URL}/connectors"
+    assert history[7].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_other_code(module, action, trigger, **kwargs):
+def test_no_module_other_code(module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=418, json={}
     )
@@ -109,7 +128,7 @@ def test_no_module_other_code(module, action, trigger, **kwargs):
     sync_lib.execute()
 
     history = kwargs["m"].request_history
-    assert len(history) == 3
+    assert len(history) == 4
     assert history[0].method == "GET"
     assert history[0].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
@@ -119,10 +138,13 @@ def test_no_module_other_code(module, action, trigger, **kwargs):
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/actions/{action['uuid']}"
     assert history[2].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[3].method == "GET"
+    assert history[3].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[3].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 @requests_mock.Mocker(kw="m")
-def test_with_module(module, action, trigger, **kwargs):
+def test_with_module(module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
@@ -133,7 +155,7 @@ def test_with_module(module, action, trigger, **kwargs):
     sync_lib.execute()
 
     history = kwargs["m"].request_history
-    assert len(history) == 6
+    assert len(history) == 8
     assert history[0].method == "GET"
     assert history[0].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
@@ -152,6 +174,12 @@ def test_with_module(module, action, trigger, **kwargs):
     assert history[5].method == "PATCH"
     assert history[5].url == f"{SYMPOHNY_URL}/actions/{action['uuid']}"
     assert history[5].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[6].method == "GET"
+    assert history[6].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[6].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert history[7].method == "PATCH"
+    assert history[7].url == f"{SYMPOHNY_URL}/connectors/{connector['uuid']}"
+    assert history[7].headers["Authorization"] == f"Bearer {API_KEY}"
 
 
 def test_with_module_invalid_name():

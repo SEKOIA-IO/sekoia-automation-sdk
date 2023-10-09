@@ -11,12 +11,24 @@ from urllib.parse import urljoin
 
 import orjson
 import requests
+import sentry_sdk
 from pydantic import BaseModel
 from requests import Response
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import (
+    Retrying,
+    stop_after_delay,
+    wait_exponential,
+)
 
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
+from sekoia_automation.exceptions import (
+    TriggerConfigurationError,
+)
 from sekoia_automation.trigger import Trigger
+from sekoia_automation.utils import (
+    get_annotation_for,
+    get_as_model,
+)
 
 # Connector are a kind of trigger that fetch events from remote sources.
 # We should add the content of push_events_to_intakes
@@ -29,9 +41,42 @@ class DefaultConnectorConfiguration(BaseModel):
 
 
 class Connector(Trigger, ABC):
+    CONNECTOR_CONFIGURATION_FILE_NAME = "connector-configuration"
+    seconds_without_events = 3600 * 6
+
+    # Required for Pydantic to correctly type the configuration object
     configuration: DefaultConnectorConfiguration
 
-    seconds_without_events = 3600 * 6
+    @property  # type: ignore[override, no-redef]
+    def configuration(self) -> DefaultConnectorConfiguration:
+        if self._configuration is None:
+            try:
+                self.configuration = self.module.load_config(
+                    self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
+                )
+            except FileNotFoundError:
+                return super().configuration  # type: ignore[return-value]
+        return self._configuration  # type: ignore[return-value]
+
+    @configuration.setter
+    def configuration(self, configuration: dict) -> None:
+        """
+        Set the connector configuration.
+
+        Args:
+            configuration: dict
+        """
+        try:
+            self._configuration = get_as_model(
+                get_annotation_for(self.__class__, "configuration"), configuration
+            )
+        except Exception as e:
+            raise TriggerConfigurationError(str(e))
+
+        if isinstance(self._configuration, BaseModel):
+            sentry_sdk.set_context(
+                "connector_configuration", self._configuration.dict()
+            )
 
     def __init__(self, *args, **kwargs):
         executor_max_worker = kwargs.pop("executor_max_worker", 4)
@@ -64,7 +109,10 @@ class Connector(Trigger, ABC):
         collect_ids: dict[int, list[str]],
     ):
         try:
-            request_body = {"intake_key": self.configuration.intake_key, "jsons": chunk}
+            request_body = {
+                "intake_key": self.configuration.intake_key,
+                "jsons": chunk,
+            }
 
             for attempt in self._retry():
                 with attempt:

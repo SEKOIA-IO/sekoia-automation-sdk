@@ -78,10 +78,22 @@ def tls_storage():
 def mocked_trigger_logs():
     with patch.object(
         Trigger,
+        "logs_url",
+        new_callable=PropertyMock,
+        return_value="http://sekoia-playbooks/logs",
+    ), patch.object(
+        Trigger,
+        "secrets_url",
+        new_callable=PropertyMock,
+        return_value="http://sekoia-playbooks/secrets",
+    ), patch.object(
+        Trigger,
         "callback_url",
         new_callable=PropertyMock,
         return_value="http://sekoia-playbooks/callback",
-    ), patch.object(Trigger, "token", return_value="secure_token"):
+    ), patch.object(
+        Trigger, "token", return_value="secure_token"
+    ):
         with requests_mock.Mocker() as mock:
             mock.post("http://sekoia-playbooks/logs")
 

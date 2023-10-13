@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 from abc import ABC, abstractmethod
+from functools import cached_property
 from pathlib import Path
 from typing import Any, cast
 
@@ -32,6 +33,7 @@ class Module:
     PLAYBOOK_RUN_UUID_FILE_NAME = "playbook_run_uuid"
     NODE_RUN_UUID_FILE_NAME = "node_run_uuid"
     TRIGGER_CONFIGURATION_UUID_FILE_NAME = "trigger_configuration_uuid"
+    CONNECTOR_CONFIGURATION_UUID_FILE_NAME = "connector_configuration_uuid"
 
     SENTRY_FILE_NAME = "sentry_dsn"
     ENVIRONMENT_FILE_NAME = "environment"
@@ -46,6 +48,7 @@ class Module:
         self._playbook_run_uuid: str | None = None
         self._node_run_uuid: str | None = None
         self._trigger_configuration_uuid: str | None = None
+        self._connector_configuration_uuid: str | None = None
         self._name = None
         self.init_sentry()
 
@@ -247,6 +250,15 @@ class Module:
 
         return self._trigger_configuration_uuid
 
+    @property
+    def connector_configuration_uuid(self) -> str | None:
+        if self._connector_configuration_uuid is None:
+            self._connector_configuration_uuid = self.load_config(
+                self.CONNECTOR_CONFIGURATION_UUID_FILE_NAME, non_exist_ok=True
+            )
+
+        return self._connector_configuration_uuid
+
     def load_config(self, file_name: str, type_: str = "str", non_exist_ok=False):
         return load_config(file_name, type_, non_exist_ok=non_exist_ok)
 
@@ -287,6 +299,10 @@ class Module:
                 sentry_sdk.set_tag(
                     "trigger_configuration_uuid", self.trigger_configuration_uuid
                 )
+            if self.connector_configuration_uuid:
+                sentry_sdk.set_tag(
+                    "connector_configuration_uuid", self.connector_configuration_uuid
+                )
 
     def _load_sentry_dsn(self) -> str | None:
         try:
@@ -304,6 +320,8 @@ class Module:
 class ModuleItem(ABC):
     TOKEN_FILE_NAME = "token"
     CALLBACK_URL_FILE_NAME = "url_callback"
+    SECRETS_URL_FILE_NAME = "url_secrets"
+    LOGS_URL_FILE_NAME = "url_logs"
 
     name: str | None = None
     description: str | None = None
@@ -315,7 +333,6 @@ class ModuleItem(ABC):
         self.module: Module = module or Module()
 
         self._token: str | None = None
-        self._callback_url: str | None = None
 
         # Name may be set by the action/trigger class or the module during the register
         # Worse case we use the class name
@@ -384,12 +401,23 @@ class ModuleItem(ABC):
                 scope.set_extra(key, value)
             sentry_sdk.capture_exception(exception)
 
-    @property
+    @cached_property
     def callback_url(self) -> str:
-        if self._callback_url is None:
-            self._callback_url = self.module.load_config(self.CALLBACK_URL_FILE_NAME)
+        return self.module.load_config(self.CALLBACK_URL_FILE_NAME)
 
-        return self._callback_url
+    @cached_property
+    def logs_url(self) -> str:
+        try:
+            return self.module.load_config(self.LOGS_URL_FILE_NAME)
+        except FileNotFoundError:
+            return self.callback_url.replace("/callback", "/logs")
+
+    @cached_property
+    def secrets_url(self) -> str:
+        try:
+            return self.module.load_config(self.SECRETS_URL_FILE_NAME)
+        except FileNotFoundError:
+            return self.callback_url.replace("/callback", "/secrets")
 
     @property
     def _headers(self) -> dict[str, str]:

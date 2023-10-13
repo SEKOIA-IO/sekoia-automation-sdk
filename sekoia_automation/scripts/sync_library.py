@@ -227,6 +227,27 @@ class SyncLibrary:
 
         return triggers
 
+    def load_connectors(self, module_path: Path) -> list:
+        """Load JSON files representing the connectors linked to a module
+
+        Args:
+            module_path (Path): Path of the parent module
+
+        Returns:
+            list: List of connectors related to the parent module
+        """
+        connectors = []
+
+        for filename in module_path.iterdir():
+            if filename.name.endswith(".json") and filename.name.startswith(
+                "connector_"
+            ):
+                connector_path = module_path / filename
+                with connector_path.open() as fd:
+                    connectors.append(json.load(fd))
+
+        return connectors
+
     def set_docker(self, manifests: list, module: dict) -> list:
         """Loops over the Docker name of objets linked to a module and adds the Docker
         version if missing
@@ -334,6 +355,7 @@ class SyncLibrary:
             raise typer.Exit(code=1)
 
         triggers = self.set_docker(self.load_triggers(module_path), module_info)
+        connectors = self.set_docker(self.load_connectors(module_path), module_info)
         actions = self.set_docker(self.load_actions(module_path), module_info)
 
         module_uuid: str = module_info["uuid"]
@@ -358,6 +380,14 @@ class SyncLibrary:
                 module_uuid=module_uuid,
                 list_objects=actions,
                 name="action",
+            )
+            print()
+        if connectors:
+            self.sync_list(
+                module_name=module_name,
+                module_uuid=module_uuid,
+                list_objects=connectors,
+                name="connector",
             )
             print()
 

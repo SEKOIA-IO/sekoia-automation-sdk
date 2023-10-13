@@ -1,11 +1,13 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 from tenacity import Retrying, stop_after_attempt, wait_none
 
-from sekoia_automation.connector import Connector
+from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.module import Module
+from sekoia_automation.trigger import Trigger
 from tests.utils import match_events
 
 EVENTS = ["foo", "bar"]
@@ -194,3 +196,27 @@ def test_query_exception_api(test_connector, requests_mock):
     )
     test_connector._retry = lambda: Retrying(reraise=True)
     assert test_connector.push_events_to_intakes(EVENTS) == ["001", "002"]
+
+
+def test_connector_configuration(test_connector):
+    test_connector._configuration = None
+    config = DefaultConnectorConfiguration(intake_key="foo")
+    with patch.object(
+        Module, "load_config", return_value=config
+    ) as mock_load_config, patch("sentry_sdk.set_context") as mock_set_sentry_context:
+        assert test_connector.configuration == config
+        mock_set_sentry_context.assert_called_with(
+            "connector_configuration", config.dict()
+        )
+        mock_load_config.assert_called_with(
+            test_connector.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
+        )
+
+
+def test_connector_configuration_file_not_found(test_connector):
+    test_connector._configuration = None
+    config = "foo"
+    with patch.object(
+        Trigger, "configuration", new_callable=PropertyMock, return_value=config
+    ):
+        assert test_connector.configuration == config

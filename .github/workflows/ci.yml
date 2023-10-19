@@ -24,7 +24,7 @@ jobs:
       - name: Run Ruff
         run: |
           poetry run pip install ruff
-          poetry run ruff check --format=github .
+          poetry run ruff check --output-format=github .
 
       - uses: psf/black@stable
 

@@ -1,0 +1,25 @@
+{
+  "name": "Sample Connector",
+  "description": "My Sample Connector Description",
+  "uuid": "4721e6af-a6b0-5785-9860-b33d0f218435",
+  "docker_parameters": "SampleConnector",
+  "arguments": {
+    "title": "DefaultConnectorConfiguration",
+    "type": "object",
+    "properties": {
+      "intake_server": {
+        "title": "Intake Server",
+        "default": "https://intake.sekoia.io",
+        "type": "string"
+      },
+      "intake_key": {
+        "title": "Intake Key",
+        "type": "string"
+      }
+    },
+    "required": [
+      "intake_key"
+    ]
+  },
+  "results": {}
+}

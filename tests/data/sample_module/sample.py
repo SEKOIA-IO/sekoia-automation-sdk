@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from sekoia_automation.action import Action
+from sekoia_automation.connector import Connector
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 
@@ -46,4 +47,13 @@ class SampleAction(Action):
     results_model = Results
 
     def run(self, arguments: SampleArguments):
+        raise NotImplementedError
+
+
+class SampleConnector(Connector):
+    module: SampleModule
+    name = "Sample Connector"
+    description = "My Sample Connector Description"
+
+    def run(self):
         raise NotImplementedError

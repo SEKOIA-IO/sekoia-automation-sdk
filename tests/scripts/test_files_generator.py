@@ -69,6 +69,12 @@ def test_files_generator(sample_module):
     actual, expected = get_actual_and_expected(sample_module, "manifest.json")
     assert actual == expected
 
+    # A manifest should have been generated for the connector
+    actual, expected = get_actual_and_expected(
+        sample_module, "connector_sample_connector.json"
+    )
+    assert actual == expected
+
 
 def test_files_generator_wrong_module_path():
     with pytest.raises(click.exceptions.Exit):

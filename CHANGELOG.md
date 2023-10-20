@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added support for Connectors
+- In script to generate new modules lock requirements
+
+### Fixed
+
+- In script to generate new modules fix module import for modules with spaces
 
 ## [1.5.2] - 2023-10-04
 

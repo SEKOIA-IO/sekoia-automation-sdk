@@ -32,6 +32,7 @@ class FilesGenerator:
         modules: set[type[Module]],
         actions: set[type[Action]],
         triggers: set[type[Trigger]],
+        connectors: set[type[Connector]],
     ):
         module = import_module(name)
 
@@ -39,6 +40,8 @@ class FilesGenerator:
             if not isabstract(obj):
                 if issubclass(obj, Action):
                     actions.add(obj)
+                elif issubclass(obj, Connector):
+                    connectors.add(obj)
                 elif issubclass(obj, Trigger):
                     triggers.add(obj)
                 elif issubclass(obj, Module) and obj != Module:
@@ -58,10 +61,11 @@ class FilesGenerator:
         modules = set()
         actions = set()
         triggers = set()
+        connectors = set()
 
         for _, name, ispkg in walk_packages([self.base_path.as_posix()]):
             if not ispkg and not (name == "tests" or name.startswith("tests.")):
-                self.inspect_module(name, modules, actions, triggers)
+                self.inspect_module(name, modules, actions, triggers, connectors)
 
         if len(modules) != 1:
             print("[bold red][!] Found 0 or more than 1 module, aborting[/bold red]")
@@ -71,7 +75,7 @@ class FilesGenerator:
         self.generate_main(module, actions, triggers)
         self.generate_action_manifests(actions)
         self.generate_trigger_manifests(triggers)
-        self.generate_connector_manifests(triggers)
+        self.generate_connector_manifests(connectors)
         self.update_module_manifest(module)
 
         sys.path = _old_path

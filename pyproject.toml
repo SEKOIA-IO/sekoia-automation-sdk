@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.6.0"
+version = "1.7.0"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -51,6 +51,8 @@ aiobotocore = { version = "^2.5.2", optional = true }
 aiofiles = { version = "^23.1.0", optional = true }
 aiocsv = { version = "^1.2.4", optional = true }
 loguru = { version = "^0.7.0", optional = true }
+ciso8601 = "^2.3.1"
+xxhash = "^3.4.1"
 
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"

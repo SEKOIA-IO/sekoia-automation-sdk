@@ -99,7 +99,10 @@ class Connector(Trigger, ABC):
 
     @cached_property
     def _connector_user_agent(self) -> str:
-        return f"sekoiaio-connector-{self.configuration.intake_key}"
+        return "sekoiaio-connector/{}-{}".format(
+            self.module.manifest.get("slug", ""),
+            self.module.manifest.get("version", ""),
+        )
 
     def _send_chunk(
         self,

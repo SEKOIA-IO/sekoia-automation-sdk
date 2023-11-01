@@ -141,18 +141,15 @@ def decrypt_event():
 
 @pytest.fixture
 def decrypt_event_aggregations():
-    return {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["event"]["action"] == "Decrypt"),
-                build_hash_str_func=lambda e: (
-                    f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
-                    f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
-                ),
-                ttl=30,
-            )
-        ]
-    }
+    return [
+        Fingerprint(
+            build_fingerprint_func=lambda e: (
+                f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
+                f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
+            ),
+            ttl=30,
+        )
+    ]
 
 
 def test_aggregation_twice(decrypt_event, decrypt_event_aggregations):
@@ -161,35 +158,16 @@ def test_aggregation_twice(decrypt_event, decrypt_event_aggregations):
     assert len(aggregator.aggregations) == 1
 
     assert aggregator.aggregate(decrypt_event) is None
-    assert aggregator.aggregations["7e2f1188fce423df"].count == 1
+    assert aggregator.aggregations["6bb4b9d111c1b711"].count == 1
 
 
-def test_fingerprint_condition_return_false(decrypt_event):
-    aggregation_definitions = {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["event"]["action"] == "Invalid"),
-                build_hash_str_func=lambda e: f"{e['aws']['cloudtrail']}",
-                ttl=30,
-            )
-        ]
-    }
-
-    aggregator = EventAggregator(aggregation_definitions=aggregation_definitions)
-    assert aggregator.aggregate(decrypt_event) == decrypt_event
-    assert len(aggregator.aggregations) == 0
-
-
-def test_fingerprint_condition_raises_error(decrypt_event):
-    aggregation_definitions = {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["unknown-field"] == "Invalid"),
-                build_hash_str_func=lambda e: f"{e['aws']['cloudtrail']}",
-                ttl=30,
-            )
-        ]
-    }
+def test_fingerprint_build_func_raise_exception(decrypt_event):
+    aggregation_definitions = [
+        Fingerprint(
+            build_fingerprint_func=lambda e: f"{e['unknown']['cloudtrail']}",
+            ttl=30,
+        )
+    ]
 
     aggregator = EventAggregator(aggregation_definitions=aggregation_definitions)
     assert aggregator.aggregate(decrypt_event) == decrypt_event
@@ -197,24 +175,22 @@ def test_fingerprint_condition_raises_error(decrypt_event):
 
 
 def test_support_erroneous_events():
-    aggregator = EventAggregator(aggregation_definitions={})
+    aggregator = EventAggregator(aggregation_definitions=[])
     assert aggregator.aggregate({}) == {}
     assert len(aggregator.aggregations) == 0
 
 
 def test_flush_on_ttl(decrypt_event):
-    aggregation_definitions = {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["event"]["action"] == "Decrypt"),
-                build_hash_str_func=lambda e: (
-                    f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
-                    f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
-                ),
-                ttl=2,
-            )
-        ]
-    }
+    aggregation_definitions = [
+        Fingerprint(
+            build_fingerprint_func=lambda e: (
+                f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
+                f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
+            ),
+            ttl=2,
+        )
+    ]
+
     magic = MagicMock()
     aggregator = EventAggregator(aggregation_definitions=aggregation_definitions)
     aggregator.start_flush_on_ttl(on_flush_func=magic, delay=0.5)
@@ -226,18 +202,15 @@ def test_flush_on_ttl(decrypt_event):
 
 
 def test_flush_on_ttl_support_per_fingerprint_ttl(decrypt_event):
-    aggregation_definitions = {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["event"]["action"] == "Decrypt"),
-                build_hash_str_func=lambda e: (
-                    f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
-                    f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
-                ),
-                ttl=2,
-            )
-        ]
-    }
+    aggregation_definitions = [
+        Fingerprint(
+            build_fingerprint_func=lambda e: (
+                f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
+                f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
+            ),
+            ttl=2,
+        )
+    ]
     magic = MagicMock()
     aggregator = EventAggregator(aggregation_definitions=aggregation_definitions)
     aggregator.start_flush_on_ttl(on_flush_func=magic, delay=0.5)
@@ -249,18 +222,15 @@ def test_flush_on_ttl_support_per_fingerprint_ttl(decrypt_event):
 
 
 def test_flush_on_stop(decrypt_event):
-    aggregation_definitions = {
-        "d3a813ac-f9b5-451c-a602-a5994544d9ed": [
-            Fingerprint(
-                condition_func=lambda e: (e["event"]["action"] == "Decrypt"),
-                build_hash_str_func=lambda e: (
-                    f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
-                    f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
-                ),
-                ttl=100,
-            )
-        ]
-    }
+    aggregation_definitions = [
+        Fingerprint(
+            build_fingerprint_func=lambda e: (
+                f"{e['aws']['cloudtrail']['userIdentity']['arn']}:"
+                f"{e['aws']['cloudtrail']['resources'][0]['ARN']}"
+            ),
+            ttl=100,
+        )
+    ]
     magic = MagicMock()
     aggregator = EventAggregator(aggregation_definitions=aggregation_definitions)
     aggregator.start_flush_on_ttl(on_flush_func=magic, delay=0.5)

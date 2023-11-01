@@ -4,14 +4,13 @@ import threading
 import time
 from typing import Callable, Tuple
 
-import xxhash as xxhash
+import xxhash
 from ciso8601 import parse_datetime_as_naive
 from pydantic import BaseModel
 
 
 class Fingerprint(BaseModel):
-    condition_func: Callable[[dict], bool]
-    build_hash_str_func: Callable[[dict], str]
+    build_fingerprint_func: Callable[[dict], str | None]
     ttl: int
 
 
@@ -25,6 +24,7 @@ class Aggregation(BaseModel):
 
     def get_aggregated_event(self):
         aggregated_event = copy.deepcopy(self.event)
+        aggregated_event.setdefault("sekoiaio", {})
         aggregated_event["sekoiaio"]["repeat"] = {
             "start": self.start.isoformat(),
             "end": self.end.isoformat(),
@@ -36,7 +36,6 @@ class Aggregation(BaseModel):
 
 class EventAggregatorTTLThread(threading.Thread):
     f_must_stop: bool  # thread will stop if this flag is active
-    ttl: int  # ttl value
     on_flush_func: Callable[
         [dict], None
     ]  # function to be call when aggregation is flushed
@@ -70,8 +69,9 @@ class EventAggregatorTTLThread(threading.Thread):
 class EventAggregator:
     ttl_thread: EventAggregatorTTLThread | None
     lock: threading.Lock
+    aggregation_definitions: list[Fingerprint]
 
-    def __init__(self, aggregation_definitions: dict[str, list[Fingerprint]]):
+    def __init__(self, aggregation_definitions: list[Fingerprint]):
         self.aggregation_definitions = aggregation_definitions
         self.aggregations: dict[str, Aggregation] = dict()
         self.lock = threading.Lock()
@@ -89,7 +89,9 @@ class EventAggregator:
 
     def stop(self):
         """
-        This method is only meant to stop the ttl thread
+        Stops the ttl thread (if it runs)
+
+        It is a blocking function.
         """
         if self.ttl_thread:
             self.ttl_thread.stop()
@@ -130,25 +132,25 @@ class EventAggregator:
 
         return aggregated_events
 
-    def get_hash(self, event: dict) -> Tuple[str, int] | None:
+    def get_fingerprint_hash(self, event: dict) -> Tuple[str, int] | None:
         """
         Returns the hash to fingerprint the specified event and its ttl
         """
-        event_dialect_uuid = event["sekoiaio"]["intake"]["dialect_uuid"]
-
-        for fingerprint in self.aggregation_definitions.get(event_dialect_uuid, []):
-            if fingerprint.condition_func(event):
-                return (
-                    xxhash.xxh64(
-                        f"{event_dialect_uuid};{fingerprint.build_hash_str_func(event)}"
-                    ).hexdigest(),
-                    fingerprint.ttl,
-                )
+        for fingerprint in self.aggregation_definitions:
+            # building fingerprint may raise an exception
+            # noinspection PyBroadException
+            try:
+                fingerprint_str = fingerprint.build_fingerprint_func(event)
+                if fingerprint_str:
+                    return xxhash.xxh3_64_hexdigest(fingerprint_str), fingerprint.ttl
+            except Exception:
+                pass
         return None
 
     def aggregate(self, event: dict) -> dict | None:
+        # noinspection PyBroadException
         try:
-            fingerprint_and_ttl = self.get_hash(event)
+            fingerprint_and_ttl = self.get_fingerprint_hash(event)
             # if no hash can be computed, we don't aggregate and forward the event
             if not fingerprint_and_ttl:
                 return event

@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
 from datetime import datetime, time
 from functools import cached_property
+from os.path import join as urljoin
 from typing import Any
-from urllib.parse import urljoin
 
 import orjson
 import requests
@@ -150,7 +150,7 @@ class Connector(Trigger, ABC):
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
         intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
-        batch_api = urljoin(intake_host, "/batch")
+        batch_api = urljoin(intake_host, "batch")
 
         # Dict to collect event_ids for the API
         collect_ids: dict[int, list] = {}

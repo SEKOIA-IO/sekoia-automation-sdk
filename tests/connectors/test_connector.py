@@ -1,3 +1,4 @@
+import os
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -122,6 +123,27 @@ def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     assert len(result) == 4
     assert mocked_trigger_logs.call_count == 4
     assert result == ["001", "002", "003", "004"]
+
+
+def test_push_event_to_intake_custom_url(test_connector, mocked_trigger_logs):
+    url = "https://fra2.app.sekoia.io/v1/intake-http/batch"
+    batch_mock = mocked_trigger_logs.post(
+        url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
+    )
+    # With trailing slash
+    with patch.dict(
+        os.environ, {"INTAKE_URL": "https://fra2.app.sekoia.io/v1/intake-http/"}
+    ):
+        test_connector.push_events_to_intakes(["foo"])
+        assert batch_mock.call_count == 1
+
+    # Without trailing slash
+    mocked_trigger_logs.reset_mock()
+    with patch.dict(
+        os.environ, {"INTAKE_URL": "https://fra2.app.sekoia.io/v1/intake-http"}
+    ):
+        test_connector.push_events_to_intakes(["foo"])
+        assert batch_mock.call_count == 1
 
 
 def test_push_event_to_intake_with_chunks_executor_stopped(

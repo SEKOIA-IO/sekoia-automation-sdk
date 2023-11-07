@@ -102,7 +102,7 @@ class Connector(Trigger, ABC):
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
     @cached_property
-    def _http_default_headers(self) -> dict[str, str]:
+    def http_default_headers(self) -> dict[str, str]:
         """
         Contains dict of predefined headers.
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.2] - 2023-11-06
+
+### Fixed
+
+- Fix json_argument fonction when url arg is empty or None
+
+## [1.6.1] - 2023-11-06
+
 ### Fixed
 
 - Fixes batch url computation

@@ -36,6 +36,17 @@ def test_connector(storage, mocked_trigger_logs):
         test_connector.stop()
 
 
+def test_check_http_default_headers(test_connector):
+    test_connector.module._manifest = {
+        "slug": "dummyslug",
+        "version": "dummyversion",
+    }
+
+    assert test_connector.http_default_headers == {
+        "User-Agent": "sekoiaio-connector/dummyslug-dummyversion"
+    }
+
+
 def test_forward_events(test_connector):
     test_connector.forward_events(events=EVENTS)
     test_connector.send_event.assert_called_once()

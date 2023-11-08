@@ -101,6 +101,23 @@ class Connector(Trigger, ABC):
     def _connector_user_agent(self) -> str:
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
+    @cached_property
+    def http_default_headers(self) -> dict[str, str]:
+        """
+        Contains dict of predefined headers.
+
+        This headers might be used by connector in requests to third party services.
+
+        Returns:
+            dict[str, str]:
+        """
+        return {
+            "User-Agent": "sekoiaio-connector/{}-{}".format(
+                self.module.manifest.get("slug"),
+                self.module.manifest.get("version"),
+            ),
+        }
+
     def _send_chunk(
         self,
         batch_api: str,

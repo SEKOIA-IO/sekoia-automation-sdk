@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add property to connector with `User-Agent` header to third party services
+- Forward exceptions to the API
 
 ## [1.6.2] - 2023-11-06
 

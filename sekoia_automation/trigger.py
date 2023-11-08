@@ -147,7 +147,7 @@ class Trigger(ModuleItem):
         # Configuration errors are considered to be critical
         except (TriggerConfigurationError, ModuleConfigurationError) as e:
             self.log_exception(e)
-            self.log(str(e), "critical")
+            self.log("Configuration error", "critical")
         except (ConnectionError, HTTPClientError) as ex:
             # Error while communicating with the S3 storage
             # Don't increment the error count because this is an internal issue
@@ -286,15 +286,19 @@ class Trigger(ModuleItem):
             remove_directory,
         )
 
-    # Try to send the log record to the API
-    # If it can't be done, give up after 10 attempts and capture the logging error
+    def log_exception(self, exception: Exception, **kwargs):
+        super().log_exception(exception, **kwargs)
+        # Send error to the API
+        message = kwargs.get("message", "An exception occurred")
+        self.log(f"{message}\n{exception}", level="error", propagate=False)
 
     def log(self, message: str, level: str = "info", *args, **kwargs) -> None:
         if level == "critical" and self._critical_log_sent:
             #  Prevent sending multiple critical errors
             level = "error"
 
-        super().log(message, level, *args, **kwargs)
+        if kwargs.pop("propagate", True):
+            super().log(message, level, *args, **kwargs)
 
         self._logs.append(
             {
@@ -402,9 +406,6 @@ class Trigger(ModuleItem):
         self.log_exception(e)
         # Increase the consecutive error count
         self._error_count += 1
-
-        # Make sure the error is recorded and available to the user
-        self.log(str(e), level="error")
 
         # If there was more than 5 errors without any event being sent,
         # log a critical error.

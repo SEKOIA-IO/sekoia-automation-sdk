@@ -135,7 +135,7 @@ def test_trigger_execute(mocked_trigger_logs):
 
     trigger = TestTrigger()
 
-    with patch("sentry_sdk.capture_message") as sentry_patch:
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
 
@@ -365,9 +365,10 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
         trigger.execute()
 
     # configuration errors are directly considered to be critical
-    assert mocked_trigger_logs.call_count == 1
+    assert mocked_trigger_logs.call_count == 2
+    assert mocked_trigger_logs.request_history[0].json()["logs"][0]["level"] == "error"
     assert (
-        mocked_trigger_logs.request_history[0].json()["logs"][0]["level"] == "critical"
+        mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "critical"
     )
 
 
@@ -478,31 +479,34 @@ def test_trigger_liveness_not_found(monitored_trigger):
     assert res.status_code == 404
 
 
-def test_trigger_s3_connection_error():
+def test_trigger_s3_connection_error(mocked_trigger_logs):
     trigger = ErrorTrigger()
     trigger.ex = ConnectionError(error="Err")
 
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
     assert trigger._error_count == 0
 
 
-def test_trigger_s3_server_error_int():
+def test_trigger_s3_server_error_int(mocked_trigger_logs):
     trigger = ErrorTrigger()
     trigger.ex = ClientError({"Error": {"Code": 500}}, "foo")
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
     assert trigger._error_count == 0
 
 
-def test_trigger_s3_server_error_str():
+def test_trigger_s3_server_error_str(mocked_trigger_logs):
     trigger = ErrorTrigger()
     trigger.ex = ClientError({"Error": {"Code": "ServiceUnavailable"}}, "foo")
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
     assert trigger._error_count == 0
 
 
@@ -513,6 +517,7 @@ def test_trigger_s3_client_error_int(mocked_trigger_logs):
         trigger._execute_once()
         sentry_patch.assert_called()
         assert mocked_trigger_logs.called is True
+        assert mocked_trigger_logs.call_count == 1
     assert trigger._error_count == 1
 
 
@@ -526,12 +531,13 @@ def test_trigger_s3_client_error_str(mocked_trigger_logs):
     assert trigger._error_count == 1
 
 
-def test_trigger_send_server_error():
+def test_trigger_send_server_error(mocked_trigger_logs):
     trigger = ErrorTrigger()
     trigger.ex = SendEventError("Server error", 500)
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
+        assert mocked_trigger_logs.called is True
     assert trigger._error_count == 0
 
 

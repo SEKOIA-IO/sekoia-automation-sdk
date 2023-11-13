@@ -439,6 +439,9 @@ class Trigger(ModuleItem):
         delta_since_startup = min(
             datetime.utcnow() - self._startup_time, timedelta(days=5)
         ).total_seconds()
+        if delta_since_startup < 1800:
+            # Graceful 30 minutes period at startup
+            return False
         return delta_since_startup / 5 <= delta_since_last_event
 
     def _handle_s3_exception(self, ex: ClientError):

@@ -386,6 +386,8 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._error_count = 4
+    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
     trigger._STOP_EVENT_WAIT = 0.001
     with pytest.raises(SystemExit), patch.object(
         Module, "load_config", return_value={}
@@ -555,6 +557,9 @@ def test_is_error_critical_errors():
     trigger = DummyTrigger()
     assert trigger._is_error_critical() is False
     trigger._error_count = 5
+    assert trigger._is_error_critical() is False
+    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=9)
     assert trigger._is_error_critical() is True
 
 
@@ -574,9 +579,13 @@ def test_is_error_critical_time_since_last_event():
     # Trigger that just started and already has 5 errors without sending any event
     trigger = DummyTrigger()
     trigger._error_count = 5
+    assert trigger._is_error_critical() is False
+    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
+    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
     assert trigger._is_error_critical() is True
 
     # Trigger that has been running for 1 day should exit after 5 hours of errors
+    trigger._last_events_time = datetime.datetime.utcnow()
     trigger._startup_time = datetime.datetime.utcnow() - timedelta(days=1)
     assert trigger._is_error_critical() is False
     trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=1)

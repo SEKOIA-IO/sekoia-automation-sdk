@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix the initializer arguments for AsyncConnector
+
 ## [1.8.0] - 2023-11-13
 
 ### Added

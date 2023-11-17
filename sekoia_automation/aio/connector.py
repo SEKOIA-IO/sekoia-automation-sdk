@@ -4,8 +4,8 @@ from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from urllib.parse import urljoin
 from pathlib import Path
+from urllib.parse import urljoin
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter

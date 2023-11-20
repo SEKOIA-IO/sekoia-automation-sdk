@@ -58,6 +58,7 @@ def new_module(
     overwrite_if_exists: bool = typer.Option(
         False, help="Overwrite the output directory if it exists"
     ),
+    skip_hooks: bool = typer.Option(False, help="Skip hooks"),
 ):
     """
     Generate a new empty playbook module.
@@ -96,6 +97,7 @@ def new_module(
             "module_description": description,
             "module_dir": module_name,
         },
+        accept_hooks=not skip_hooks,
     )
 
 

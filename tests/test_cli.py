@@ -25,7 +25,9 @@ def test_new_module(tmp_path):
     module = "My Module"
     description = "My Description"
     res: Result = runner.invoke(
-        app, ["new-module", str(tmp_path)], input=f"{module}\n{description}\n"
+        app,
+        ["new-module", str(tmp_path), "--skip-hooks"],
+        input=f"{module}\n{description}\n",
     )
     assert res.exit_code == 0
 
@@ -215,7 +217,9 @@ def test_update_sdk_version(tmp_path):
     module = "MyModule"
     description = "My Description"
     res: Result = runner.invoke(
-        app, ["new-module", str(tmp_path)], input=f"{module}\n{description}\n"
+        app,
+        ["new-module", str(tmp_path), "--skip-hooks"],
+        input=f"{module}\n{description}\n",
     )
     assert res.exit_code == 0
 
@@ -241,7 +245,9 @@ def test_update_sdk_version_error(tmp_path):
     module = "MyModule"
     description = "My Description"
     res: Result = runner.invoke(
-        app, ["new-module", str(tmp_path)], input=f"{module}\n{description}\n"
+        app,
+        ["new-module", str(tmp_path), "--skip-hooks"],
+        input=f"{module}\n{description}\n",
     )
     assert res.exit_code == 0
 

@@ -4,12 +4,14 @@ from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urljoin
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
 
 from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
+from sekoia_automation.module import Module
 
 
 class AsyncConnector(Connector, ABC):
@@ -22,16 +24,25 @@ class AsyncConnector(Connector, ABC):
     _session: ClientSession | None = None
     _rate_limiter: AsyncLimiter | None = None
 
-    def __init__(self, event_loop: AbstractEventLoop | None = None, *args, **kwargs):
+    def __init__(
+        self,
+        module: Module | None = None,
+        data_path: Path | None = None,
+        event_loop: AbstractEventLoop | None = None,
+        *args,
+        **kwargs,
+    ):
         """
         Initialize AsyncConnector.
 
         Optionally accepts event_loop to use, otherwise will use default event loop.
 
         Args:
+            module: Module | None
+            data_path: Path | None
             event_loop: AbstractEventLoop | None
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(module=module, data_path=data_path, *args, **kwargs)
 
         self._event_loop = event_loop or get_event_loop()
 

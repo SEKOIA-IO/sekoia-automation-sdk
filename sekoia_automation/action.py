@@ -12,7 +12,7 @@ import orjson
 import requests
 import sentry_sdk
 from pydantic import validate_arguments
-from requests import Response, Timeout
+from requests import RequestException, Response
 from tenacity import (
     RetryError,
     Retrying,
@@ -334,9 +334,9 @@ class GenericAPIAction(Action):
 
         try:
             for attempt in Retrying(
-                stop=stop_after_attempt(5),
+                stop=stop_after_attempt(10),
                 wait=self._wait_param(),
-                retry=retry_if_exception_type(Timeout),
+                retry=retry_if_exception_type((RequestException, OSError)),
             ):
                 with attempt:
                     response: Response = requests.request(

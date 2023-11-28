@@ -319,7 +319,7 @@ def test_generic_api_action(storage):
         results: dict = action.run(arguments)
 
         assert results is None
-        assert mock.call_count == 5
+        assert mock.call_count == 10
 
     # Makes sure `*_path` have been recursively replaced
     action = init_action()

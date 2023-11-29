@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Changed
+
+- Thread to push logs at regular interval
+
 ## [1.8.2] - 2023-11-28
 
 ## Changed

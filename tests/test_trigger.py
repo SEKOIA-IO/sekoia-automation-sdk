@@ -314,17 +314,18 @@ def test_trigger_log_batch_full(mocked_trigger_logs):
 
 
 def test_trigger_log_time_elapsed(mocked_trigger_logs):
+    DummyTrigger.LOGS_MAX_DELTA = 0.01
     trigger = DummyTrigger()
-    trigger.LOGS_MAX_DELTA = timedelta(milliseconds=1)
+    trigger._logs_timer.start()
 
     trigger.log("test message", "info")
     assert mocked_trigger_logs.call_count == 0
-    time.sleep(trigger.LOGS_MAX_DELTA.total_seconds())
-    trigger.log("error message", "info")
+    time.sleep(trigger.LOGS_MAX_DELTA * 1.5)
     assert mocked_trigger_logs.call_count == 1
 
     logs = mocked_trigger_logs.last_request.json()["logs"]
-    assert len(logs) == 2
+    assert len(logs) == 1
+    trigger.stop()
 
 
 def test_trigger_log_retry(mocked_trigger_logs):
@@ -370,6 +371,7 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
     assert (
         mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "critical"
     )
+    trigger.stop()
 
 
 @patch.object(Trigger, "_get_secrets_from_server")
@@ -400,6 +402,7 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
     assert (
         mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "critical"
     )
+    trigger.stop()
 
 
 def test_trigger_log_critical_only_once(mocked_trigger_logs):
@@ -443,6 +446,7 @@ def test_get_secrets(_, __, ___):
 
         assert rmock.call_count == 1
         assert trigger._secrets == TRIGGER_SECRETS
+        trigger.stop()
 
 
 @pytest.fixture()

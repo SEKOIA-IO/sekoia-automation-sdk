@@ -24,6 +24,7 @@ from sekoia_automation.exceptions import (
 )
 from sekoia_automation.metrics import PrometheusExporterThread, make_exporter
 from sekoia_automation.module import Module, ModuleItem
+from sekoia_automation.timer import RepeatedTimer
 from sekoia_automation.utils import (
     capture_retry_error,
     get_annotation_for,
@@ -45,7 +46,7 @@ class Trigger(ModuleItem):
     METRICS_PORT_FILE_NAME = "metrics_port"
 
     LOGS_MAX_BATCH_SIZE = 50
-    LOGS_MAX_DELTA = timedelta(seconds=5)
+    LOGS_MAX_DELTA = 5  # seconds
 
     # Time to wait for stop event to be received
     _STOP_EVENT_WAIT = 120
@@ -61,7 +62,8 @@ class Trigger(ModuleItem):
         self._stop_event = Event()
         self._critical_log_sent = False
         self._logs: list[dict] = []
-        self._first_log_time: datetime | None = None
+
+        self._logs_timer = RepeatedTimer(self.LOGS_MAX_DELTA, self._send_logs_to_api)
 
         # Register signal to terminate thread
         signal.signal(signal.SIGINT, self.stop)
@@ -104,6 +106,7 @@ class Trigger(ModuleItem):
         Engage the trigger exit
         """
         self._stop_event.set()
+        self._logs_timer.stop()
 
     @property
     def running(self) -> bool:
@@ -168,6 +171,7 @@ class Trigger(ModuleItem):
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
         self.module.set_secrets(self._secrets)
+        self._logs_timer.start()
         try:
             while not self._stop_event.is_set():
                 try:
@@ -307,13 +311,9 @@ class Trigger(ModuleItem):
                 "message": message,
             }
         )
-        if self._first_log_time is None:
-            self._first_log_time = datetime.utcnow()
-
         if (
             level in ["error", "critical"]  # Don't wait for error or critical logs
             or len(self._logs) >= self.LOGS_MAX_BATCH_SIZE  # batch is full
-            or datetime.utcnow() - self._first_log_time >= self.LOGS_MAX_DELTA
         ):
             self._send_logs_to_api()
 
@@ -329,13 +329,19 @@ class Trigger(ModuleItem):
     def _send_logs_to_api(self):
         if not self._logs:
             return
-        data = {"logs": self._logs}
-        response = requests.request(
-            "POST", self.logs_url, json=data, headers=self._headers, timeout=30
-        )
-        response.raise_for_status()
+        # Clear self._logs, so we won't lose logs that are added while sending
+        logs = self._logs
         self._logs = []
-        self._first_log_time = None
+        try:
+            data = {"logs": logs}
+            response = requests.request(
+                "POST", self.logs_url, json=data, headers=self._headers, timeout=30
+            )
+            response.raise_for_status()
+        except Exception:
+            # If the request failed, we add the logs back to the list
+            self._logs.extend(logs)
+            raise
 
     @abstractmethod
     def run(self) -> None:

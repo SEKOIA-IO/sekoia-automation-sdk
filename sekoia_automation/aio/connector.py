@@ -107,7 +107,7 @@ class AsyncConnector(Connector, ABC):
             list[str]:
         """
         self._last_events_time = datetime.utcnow()
-        batch_api = urljoin(self.configuration.intake_server, "/batch")
+        batch_api = urljoin(self.configuration.intake_server, "batch")
 
         self.log(f"Push {len(events)} events to intakes")
 

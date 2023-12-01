@@ -115,7 +115,7 @@ async def test_async_connector_push_single_event(
 
     single_event_id = faker.uuid4()
 
-    request_url = urljoin(async_connector.configuration.intake_server, "/batch")
+    request_url = urljoin(async_connector.configuration.intake_server, "batch")
 
     with aioresponses() as mocked_responses:
         mocked_responses.post(
@@ -154,7 +154,7 @@ async def test_async_connector_push_multiple_events(
 
     single_event_id = faker.uuid4()
 
-    request_url = urljoin(async_connector.configuration.intake_server, "/batch")
+    request_url = urljoin(async_connector.configuration.intake_server, "batch")
 
     with aioresponses() as mocked_responses, patch(
         "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128
@@ -198,7 +198,7 @@ async def test_async_connector_raise_error(
         stop=stop_after_attempt(1),
     )
 
-    request_url = urljoin(async_connector.configuration.intake_server, "/batch")
+    request_url = urljoin(async_connector.configuration.intake_server, "batch")
 
     with aioresponses() as mocked_responses, patch(
         "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128

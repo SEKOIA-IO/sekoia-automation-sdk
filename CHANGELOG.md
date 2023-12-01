@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Thread to push logs at regular interval
 
+## [1.8.3] - 2023-12-01
+
+## Fixed
+
+- Remove redundant slash in URL path
+
 ## [1.8.2] - 2023-11-28
 
 ## Changed

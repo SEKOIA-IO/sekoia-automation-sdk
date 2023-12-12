@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2023-12-12
+
+## Added
+
+- Add heartbeat in triggers 
+  The heartbeat allows to mark the trigger as not alive if no heartbeat was received for a certain amount of time.
+  To support this feature triggers must:
+    - Set the `last_heartbeat_threshold` class attribute to a value greater than 0
+    - Call periodically `self.heartbeat()` to update the last heartbeat date
+
 ## [1.9.0] - 2023-12-01
 
 ## Changed

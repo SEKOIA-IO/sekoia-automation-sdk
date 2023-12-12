@@ -480,6 +480,22 @@ def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
     assert data["error_count"] is not None
 
 
+def test_trigger_liveness_heartbeat_error(monitored_trigger, mocked_trigger_logs):
+    monitored_trigger.last_heartbeat_threshold = 1
+    monitored_trigger._last_heartbeat = datetime.datetime.utcnow() - datetime.timedelta(
+        seconds=60
+    )
+    mocked_trigger_logs.register_uri(
+        "GET", "http://127.0.0.1:8000/health", real_http=True
+    )
+    res = requests.get("http://127.0.0.1:8000/health")
+    assert res.status_code == 500
+    data = res.json()
+    assert data["last_heartbeat_threshold"] == 1
+    assert data["last_heartbeat"] is not None
+    assert data["error_count"] is not None
+
+
 def test_trigger_liveness_not_found(monitored_trigger):
     res = requests.get("http://127.0.0.1:8000/wrong")
     assert res.status_code == 404

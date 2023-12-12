@@ -42,6 +42,9 @@ class Trigger(ModuleItem):
     # the trigger is considered in error.
     # 0 means that the trigger is never considered in error
     seconds_without_events = 0
+    # Limit in seconds since the last heartbeat to consider the trigger in error.
+    # 0 means that the trigger is never considered in error
+    last_heartbeat_threshold = 0
     LIVENESS_PORT_FILE_NAME = "liveness_port"
     METRICS_PORT_FILE_NAME = "metrics_port"
 
@@ -56,6 +59,7 @@ class Trigger(ModuleItem):
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
+        self._last_heartbeat = datetime.utcnow()
         self._startup_time = datetime.utcnow()
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
@@ -184,6 +188,12 @@ class Trigger(ModuleItem):
         finally:
             # Send remaining logs if any
             self._send_logs_to_api()
+
+    def heartbeat(self):
+        """
+        Mark the trigger as alive.
+        """
+        self._last_heartbeat = datetime.utcnow()
 
     def _rm_tree(self, path: Path) -> None:
         """
@@ -384,8 +394,16 @@ class Trigger(ModuleItem):
         Return whether the trigger appears to be alive.
 
         This is based on the date of the last sent events
-        compared to the `seconds_without_events` threshold.
+        compared to the `seconds_without_events` threshold
+        or to the last heartbeat the trigger produced
         """
+        if not self._events_alive():
+            return False
+        if not self._heartbeat_alive():
+            return False
+        return True
+
+    def _events_alive(self) -> bool:
         delta = datetime.utcnow() - self._last_events_time
         if self.seconds_without_events <= 0 or delta < timedelta(
             seconds=self.seconds_without_events
@@ -400,11 +418,28 @@ class Trigger(ModuleItem):
         )
         return False
 
+    def _heartbeat_alive(self) -> bool:
+        heartbeat_delta = datetime.utcnow() - self._last_heartbeat
+        if self.last_heartbeat_threshold <= 0 or heartbeat_delta < timedelta(
+            seconds=self.last_heartbeat_threshold
+        ):
+            return True
+
+        delta_seconds = heartbeat_delta.total_seconds()
+        self.log(
+            message=f"The trigger didn't produce heartbeat for {delta_seconds} seconds,"
+            " it will be restarted.",
+            level="error",
+        )
+        return False
+
     def liveness_context(self) -> dict:
         """Context returned when the health endpoint is requested."""
         return {
             "last_events_time": self._last_events_time.isoformat(),
+            "last_heartbeat": self._last_heartbeat.isoformat(),
             "seconds_without_events_threshold": self.seconds_without_events,
+            "last_heartbeat_threshold": self.last_heartbeat_threshold,
             "error_count": self._error_count,
         }
 

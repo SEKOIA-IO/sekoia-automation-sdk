@@ -109,21 +109,12 @@ class AsyncConnector(Connector, ABC):
         self._last_events_time = datetime.utcnow()
         batch_api = urljoin(self.configuration.intake_server, "batch")
 
-        self.log(f"Push {len(events)} events to intakes")
-
         result_ids = []
 
         chunks = self._chunk_events(events)
 
         async with self.session() as session:
             for chunk_index, chunk in enumerate(chunks):
-                self.log(
-                    "Start to push chunk {} with data count {} to intakes".format(
-                        chunk_index,
-                        len(chunk),
-                    )
-                )
-
                 request_body = {
                     "intake_key": self.configuration.intake_key,
                     "jsons": chunk,
@@ -141,16 +132,11 @@ class AsyncConnector(Connector, ABC):
                                 error_message = f"Chunk {chunk_index} error: {error}"
                                 exception = RuntimeError(error_message)
 
-                                self.log(message=error_message, level="error")
                                 self.log_exception(exception)
 
                                 raise exception
 
                             result = await response.json()
-
-                            self.log(
-                                f"Successfully pushed chunk {chunk_index} to intakes"
-                            )
 
                             result_ids.extend(result.get("event_ids", []))
 

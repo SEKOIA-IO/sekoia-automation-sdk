@@ -11,9 +11,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sekoia_automation import constants
 from sekoia_automation.config import TLS_VOLUME_PATH, load_config
-from sekoia_automation.utils import capture_retry_error
+from sekoia_automation.utils import capture_retry_error, chunks
 
 FilePath = Path | str
+UPLOAD_CHUNK_SIZE = 1024 * 1024 * 50  # 50MB
 
 
 @lru_cache
@@ -164,8 +165,10 @@ class PersistentJSON:
         retry_error_callback=capture_retry_error,
     )
     def dump(self):
-        with self._filepath.open("w") as out:
-            out.write(orjson.dumps(self._data).decode("utf-8"))
+        with self._filepath.open("wb") as out:
+            data = orjson.dumps(self._data)
+            for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
+                out.write(chunk)
 
     def __enter__(self):
         self.load()
@@ -228,10 +231,12 @@ def write(
 
     filepath = directory.joinpath(filename)
 
-    with filepath.open("w") as out:
-        if isinstance(content, str):
-            out.write(content)
-        else:
-            out.write(orjson.dumps(content).decode("utf-8"))
+    if isinstance(content, str):
+        data = content.encode("utf-8")
+    else:
+        data = orjson.dumps(content)
+    with filepath.open("wb") as out:
+        for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
+            out.write(chunk)
 
     return filepath.relative_to(data_path)

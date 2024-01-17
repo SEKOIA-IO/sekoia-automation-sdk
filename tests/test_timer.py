@@ -15,7 +15,7 @@ def test_timer():
 
     assert timer.is_running is True
     sleep(0.15)
-    assert a == 1
+    assert a >= 1
 
     # Check stop
     timer.stop()

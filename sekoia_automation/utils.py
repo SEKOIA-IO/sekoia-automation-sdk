@@ -1,5 +1,6 @@
 from functools import wraps
 from inspect import get_annotations, getmro
+from typing import Sequence
 
 import sentry_sdk
 from pydantic import BaseModel
@@ -49,3 +50,9 @@ def get_annotation_for(cls: type, attribute: str) -> type[BaseModel] | None:
 def capture_retry_error(retry_state: RetryCallState):
     if retry_state.outcome:
         sentry_sdk.capture_exception(retry_state.outcome.result())
+
+
+def chunks(iterable: Sequence, chunk_size: int):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(iterable), chunk_size):
+        yield iterable[i : i + chunk_size]

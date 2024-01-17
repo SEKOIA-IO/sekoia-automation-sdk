@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - remove redundant logs for connectors
+- Upload files by chunks to support files bigger than 100MB
+
 
 ## [1.10.0] - 2023-12-12
 
-## Added
+### Added
 
 - Add heartbeat in triggers 
   The heartbeat allows to mark the trigger as not alive if no heartbeat was received for a certain amount of time.
@@ -23,17 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.9.0] - 2023-12-01
 
-## Changed
+### Changed
 
 - Thread to push logs at regular interval
 
-## Fixed
+### Fixed
 
 - Remove redundant slash in URL path
 
 ## [1.8.2] - 2023-11-28
 
-## Changed
+### Changed
 
 - Improve retry for generic actions
 

@@ -79,12 +79,10 @@ def test_action_results_with_secrets_update(mock_volume):
     with requests_mock.Mocker() as rmock:
         rmock.patch(FAKE_URL, json={"module_configuration": {"value": secret}})
 
-        with patch.object(
-            Module, "manifest_secrets", return_value=["a_key"]
-        ), patch.object(
-            Module, "manifest_required_properties", return_value=[]
-        ), patch.object(
-            Module, "has_secrets", return_value=True
+        with (
+            patch.object(Module, "manifest_secrets", return_value=["a_key"]),
+            patch.object(Module, "manifest_required_properties", return_value=[]),
+            patch.object(Module, "has_secrets", return_value=True),
         ):
             action.execute()
 
@@ -128,9 +126,10 @@ def test_exception_handler(mock_volume):
         def run(self, arguments):
             raise NotImplementedError
 
-    with requests_mock.Mocker() as rmock, patch(
-        "sentry_sdk.capture_exception"
-    ) as sentry_patch:
+    with (
+        requests_mock.Mocker() as rmock,
+        patch("sentry_sdk.capture_exception") as sentry_patch,
+    ):
         rmock.patch(FAKE_URL)
 
         action = TestAction()
@@ -457,9 +456,12 @@ def test_add_secrets_dict(_, __, **kwargs):
 
     action.module = DummyModule()
 
-    with patch.object(
-        Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
-    ), patch.object(Module, "manifest_secrets", return_value=secret_key):
+    with (
+        patch.object(
+            Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
+        ),
+        patch.object(Module, "manifest_secrets", return_value=secret_key),
+    ):
         action.set_task_as_running()
     assert action.module.configuration == secrets
 
@@ -489,8 +491,11 @@ def test_add_secrets_object(_, __, **kwargs):
 
     action.module = DummyModule()
 
-    with patch.object(
-        Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
-    ), patch.object(Module, "manifest_secrets", return_value=secret_key):
+    with (
+        patch.object(
+            Action, "callback_url", return_value=callback_url, new_callable=PropertyMock
+        ),
+        patch.object(Module, "manifest_secrets", return_value=secret_key),
+    ):
         action.set_task_as_running()
     assert getattr(action.module.configuration, secret_key) == secrets[secret_key]

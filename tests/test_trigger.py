@@ -70,9 +70,10 @@ def test_logs_url():
 
 def test_trigger_configuration():
     trigger = DummyTrigger()
-    with patch.object(
-        Module, "load_config", return_value="trigger_conf"
-    ) as mock, patch("sentry_sdk.set_context") as sentry_patch:
+    with (
+        patch.object(Module, "load_config", return_value="trigger_conf") as mock,
+        patch("sentry_sdk.set_context") as sentry_patch,
+    ):
         assert trigger.configuration == "trigger_conf"
         sentry_patch.assert_called_with("trigger_configuration", "trigger_conf")
     mock.assert_called_with(trigger.TRIGGER_CONFIGURATION_FILE_NAME, "json")
@@ -81,9 +82,10 @@ def test_trigger_configuration():
 def test_module_configuration():
     trigger = DummyTrigger()
     module_conf = {"conf_key": "conf_val"}
-    with patch.object(Module, "load_config", return_value=module_conf) as mock, patch(
-        "sentry_sdk.set_context"
-    ) as sentry_patch:
+    with (
+        patch.object(Module, "load_config", return_value=module_conf) as mock,
+        patch("sentry_sdk.set_context") as sentry_patch,
+    ):
         assert trigger.module.configuration == module_conf
         sentry_patch.assert_called_with("module_configuration", module_conf)
     mock.assert_called_with(Module.MODULE_CONFIGURATION_FILE_NAME, "json")
@@ -170,9 +172,11 @@ def send_event_with_mock(
         mock.return_value,
         mock_2.return_value,
     ]  # First call token and second url
-    with requests_mock.Mocker() as rmock, patch.object(
-        Path, "is_file", return_value=True
-    ), patch.object(Path, "open", mock):
+    with (
+        requests_mock.Mocker() as rmock,
+        patch.object(Path, "is_file", return_value=True),
+        patch.object(Path, "open", mock),
+    ):
         rmock.post("http://sekoia-playbooksapi/endpoint")
         trigger.send_event(name, event, directory, remove_directory)
 
@@ -360,8 +364,9 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._STOP_EVENT_WAIT = 0.001
-    with pytest.raises(SystemExit), patch.object(
-        Module, "load_config", return_value={}
+    with (
+        pytest.raises(SystemExit),
+        patch.object(Module, "load_config", return_value={}),
     ):
         trigger.execute()
 
@@ -391,8 +396,9 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
     trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
     trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
     trigger._STOP_EVENT_WAIT = 0.001
-    with pytest.raises(SystemExit), patch.object(
-        Module, "load_config", return_value={}
+    with (
+        pytest.raises(SystemExit),
+        patch.object(Module, "load_config", return_value={}),
     ):
         trigger.execute()
 
@@ -430,14 +436,17 @@ def test_get_secrets(_, __, ___):
     trigger = ErrorTrigger(SampleModule())
     trigger.ex = SystemExit
 
-    with requests_mock.Mocker() as rmock, patch.object(
-        Module,
-        "load_config",
-        return_value={
-            "module_field": "foo",
-            "api_key": "encrypted",
-            "password": "secret",
-        },
+    with (
+        requests_mock.Mocker() as rmock,
+        patch.object(
+            Module,
+            "load_config",
+            return_value={
+                "module_field": "foo",
+                "api_key": "encrypted",
+                "password": "secret",
+            },
+        ),
     ):
         rmock.get("http://sekoia-playbooks/secrets", json={"value": TRIGGER_SECRETS})
 

@@ -1,4 +1,5 @@
 """Test async connector."""
+
 from unittest.mock import Mock, patch
 from urllib.parse import urljoin
 
@@ -156,8 +157,9 @@ async def test_async_connector_push_multiple_events(
 
     request_url = urljoin(async_connector.configuration.intake_server, "batch")
 
-    with aioresponses() as mocked_responses, patch(
-        "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128
+    with (
+        aioresponses() as mocked_responses,
+        patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
     ):
         for _ in range(100):
             mocked_responses.post(
@@ -200,8 +202,9 @@ async def test_async_connector_raise_error(
 
     request_url = urljoin(async_connector.configuration.intake_server, "batch")
 
-    with aioresponses() as mocked_responses, patch(
-        "sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128
+    with (
+        aioresponses() as mocked_responses,
+        patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
     ):
         for _ in range(2):
             mocked_responses.post(

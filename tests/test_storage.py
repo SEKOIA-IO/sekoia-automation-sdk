@@ -70,8 +70,9 @@ def test_write_json(storage):
 
 def test_get_data_path_for_local_storage():
     mock_file = mock.mock_open(read_data="local")
-    with mock.patch.object(Path, "is_file", return_value=True), mock.patch.object(
-        Path, "open", mock_file
+    with (
+        mock.patch.object(Path, "is_file", return_value=True),
+        mock.patch.object(Path, "open", mock_file),
     ):
         data_path = get_data_path()
         assert isinstance(data_path, PosixPath | WindowsPath)

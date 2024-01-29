@@ -41,7 +41,7 @@ class DefaultConnectorConfiguration(BaseModel):
 
 
 class Connector(Trigger, ABC):
-    CONNECTOR_CONFIGURATION_FILE_NAME = "connector-configuration"
+    CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     seconds_without_events = 3600 * 6
 
     # Required for Pydantic to correctly type the configuration object

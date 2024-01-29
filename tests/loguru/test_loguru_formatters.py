@@ -1,4 +1,5 @@
 """Formatters tests."""
+
 import pytest
 
 from sekoia_automation.loguru.formatters import format_record

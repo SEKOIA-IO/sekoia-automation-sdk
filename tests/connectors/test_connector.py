@@ -234,9 +234,10 @@ def test_query_exception_api(test_connector, requests_mock):
 def test_connector_configuration(test_connector):
     test_connector._configuration = None
     config = DefaultConnectorConfiguration(intake_key="foo")
-    with patch.object(
-        Module, "load_config", return_value=config
-    ) as mock_load_config, patch("sentry_sdk.set_context") as mock_set_sentry_context:
+    with (
+        patch.object(Module, "load_config", return_value=config) as mock_load_config,
+        patch("sentry_sdk.set_context") as mock_set_sentry_context,
+    ):
         assert test_connector.configuration == config
         mock_set_sentry_context.assert_called_with(
             "connector_configuration", config.dict()

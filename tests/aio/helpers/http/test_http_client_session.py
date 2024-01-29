@@ -1,4 +1,5 @@
 """Tests for sekoia_automation.helpers.aio.http.http_client."""
+
 import time
 
 import pytest

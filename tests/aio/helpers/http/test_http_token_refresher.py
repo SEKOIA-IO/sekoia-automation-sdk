@@ -1,4 +1,5 @@
 """Tests for `sekoia_automation.aio.helpers.http.token_refresher`."""
+
 import asyncio
 import time
 from asyncio import Lock

@@ -1,4 +1,5 @@
 """Contains connector with async version."""
+
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator

@@ -55,7 +55,7 @@ loguru = { version = "^0.7.0", optional = true }
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"
 pylint = "*"
-pytest = "*"
+pytest = "<8"
 pytest-cov = "*"
 pytest-asyncio = "*"
 pytest-xdist = "*"

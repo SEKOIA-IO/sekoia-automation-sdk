@@ -1,4 +1,5 @@
 """Tests for `sekoia_automation.aio.helpers.http.utils`."""
+
 import os
 
 import aiofiles

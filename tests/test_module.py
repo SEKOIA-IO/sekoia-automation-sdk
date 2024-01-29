@@ -140,14 +140,17 @@ def test_configuration_setter_add_secret_not_required():
     secret_name = "foo"
     secret_val = "bar"
 
-    with patch.object(
-        Module,
-        "manifest_properties",
-        return_value=[secret_name],
-    ), patch.object(
-        Module,
-        "manifest_required_properties",
-        return_value=[],
+    with (
+        patch.object(
+            Module,
+            "manifest_properties",
+            return_value=[secret_name],
+        ),
+        patch.object(
+            Module,
+            "manifest_required_properties",
+            return_value=[],
+        ),
     ):
         module.configuration = {secret_name: secret_val}
         assert module.configuration == {secret_name: secret_val}
@@ -158,14 +161,17 @@ def test_configuration_setter_add_secret_required():
     secret_name = "foo"
     secret_val = "bar"
 
-    with patch.object(
-        Module,
-        "manifest_properties",
-        return_value=[secret_name],
-    ), patch.object(
-        Module,
-        "manifest_required_properties",
-        return_value=[secret_name],
+    with (
+        patch.object(
+            Module,
+            "manifest_properties",
+            return_value=[secret_name],
+        ),
+        patch.object(
+            Module,
+            "manifest_required_properties",
+            return_value=[secret_name],
+        ),
     ):
         module.configuration = {secret_name: secret_val}
         assert module.configuration == {secret_name: secret_val}
@@ -175,14 +181,17 @@ def test_configuration_setter_missing_required_secret():
     module = Module()
     secret_name = "foo"
 
-    with patch.object(
-        Module,
-        "manifest_properties",
-        return_value=[secret_name],
-    ), patch.object(
-        Module,
-        "manifest_required_properties",
-        return_value=[secret_name],
+    with (
+        patch.object(
+            Module,
+            "manifest_properties",
+            return_value=[secret_name],
+        ),
+        patch.object(
+            Module,
+            "manifest_required_properties",
+            return_value=[secret_name],
+        ),
     ):
         with pytest.raises(expected_exception=ModuleConfigurationError):
             module.configuration = {"not a secret": "some value"}

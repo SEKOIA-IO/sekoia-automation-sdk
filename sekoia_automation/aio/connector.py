@@ -1,5 +1,6 @@
 """Contains connector with async version."""
 
+import os
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
@@ -68,7 +69,7 @@ class AsyncConnector(Connector, ABC):
         cls._rate_limiter = rate_limiter
 
     @classmethod
-    def get_rate_limiter(cls) -> AsyncLimiter:
+    def get_rate_limiter(cls) -> AsyncLimiter | None:
         """
         Get or initialize rate limiter.
 
@@ -76,7 +77,13 @@ class AsyncConnector(Connector, ABC):
             AsyncLimiter:
         """
         if cls._rate_limiter is None:
-            cls._rate_limiter = AsyncLimiter(1, 1)
+            requests_limit = os.getenv("REQUESTS_PER_SECOND_TO_INTAKE")
+
+            if requests_limit is not None and int(requests_limit) > 0:
+                cls._rate_limiter = AsyncLimiter(int(requests_limit), 1)
+
+            if requests_limit is None:
+                cls._rate_limiter = AsyncLimiter(1, 1)
 
         return cls._rate_limiter
 
@@ -92,7 +99,12 @@ class AsyncConnector(Connector, ABC):
         if cls._session is None:
             cls._session = ClientSession()
 
-        async with cls.get_rate_limiter():
+        rate_limiter = cls.get_rate_limiter()
+
+        if rate_limiter:
+            async with rate_limiter:
+                yield cls._session
+        else:
             yield cls._session
 
     async def push_data_to_intakes(

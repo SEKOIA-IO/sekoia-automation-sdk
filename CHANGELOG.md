@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.2] - 2023-02-13
+
+### Fixed
+
+- Fixes rate limiter in async connector. Make it more configurable
+
 ## [1.11.1] - 2023-01-29
 
 ### Fixed

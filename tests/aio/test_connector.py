@@ -1,6 +1,7 @@
 """Test async connector."""
 
-from unittest.mock import Mock, patch
+import os
+from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import urljoin
 
 import pytest
@@ -221,3 +222,57 @@ async def test_async_connector_raise_error(
         except Exception as e:
             assert isinstance(e, RuntimeError)
             assert str(e) == expected_error
+
+
+@pytest.mark.asyncio
+async def test_session():
+    async with AsyncConnector.session() as session:
+        assert session is not None
+
+
+@pytest.mark.asyncio
+async def test_session_reuses_existing_session():
+    session_mock = Mock()
+    AsyncConnector._session = session_mock
+
+    async with AsyncConnector.session() as session:
+        assert session == session_mock
+
+
+@pytest.mark.asyncio
+async def test_session_with_rate_limiter():
+    mock_rate_limiter = AsyncMock()
+    AsyncConnector._rate_limiter = mock_rate_limiter
+
+    async with AsyncConnector.session() as session:
+        assert session is not None
+        mock_rate_limiter.__aenter__.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_session_with_rate_limiter_none():
+    AsyncConnector._rate_limiter = None
+
+    async with AsyncConnector.session() as session:
+        assert session is not None
+        assert AsyncConnector._rate_limiter.max_rate == 1
+
+
+@pytest.mark.asyncio
+async def test_session_with_rate_limiter_from_env_variable():
+    os.environ["REQUESTS_PER_SECOND_TO_INTAKE"] = str(100)
+    AsyncConnector._rate_limiter = None
+
+    async with AsyncConnector.session() as session:
+        assert session is not None
+        assert AsyncConnector._rate_limiter.max_rate == 100
+
+
+@pytest.mark.asyncio
+async def test_session_with_rate_limiter_from_env_variable_with_zero():
+    os.environ["REQUESTS_PER_SECOND_TO_INTAKE"] = str(0)
+    AsyncConnector._rate_limiter = None
+
+    async with AsyncConnector.session() as session:
+        assert session is not None
+        assert AsyncConnector._rate_limiter is None

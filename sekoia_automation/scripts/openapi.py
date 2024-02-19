@@ -121,7 +121,7 @@ class {name}(GenericAPIAction):
     ) -> str:
         name: str = ""
 
-        if "summary" in action_method and action_method["summary"]:
+        if action_method.get("summary"):
             if use_tags and action_method.get("tags"):
                 name = "-".join(action_method["tags"])
                 name += "_"

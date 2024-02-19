@@ -98,6 +98,12 @@ class Connector(Trigger, ABC):
         )
 
     @cached_property
+    def _http_session(self) -> requests.Session:
+        session = requests.Session()
+        session.headers.update({"User-Agent": self._connector_user_agent})
+        return session
+
+    @cached_property
     def _connector_user_agent(self) -> str:
         return f"sekoiaio-connector-{self.configuration.intake_key}"
 
@@ -133,10 +139,9 @@ class Connector(Trigger, ABC):
 
             for attempt in self._retry():
                 with attempt:
-                    res: Response = requests.post(
+                    res: Response = self._http_session.post(
                         batch_api,
                         json=request_body,
-                        headers={"User-Agent": self._connector_user_agent},
                         timeout=30,
                     )
                     res.raise_for_status()

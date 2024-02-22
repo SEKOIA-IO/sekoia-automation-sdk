@@ -1,5 +1,6 @@
 """Contains connector with async version."""
 
+import os
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop, gather
 from collections.abc import AsyncGenerator
@@ -13,6 +14,7 @@ from aiolimiter import AsyncLimiter
 
 from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
 from sekoia_automation.module import Module
+from sekoia_automation.aio.helpers import limit_concurrency
 
 
 class AsyncConnector(Connector, ABC):
@@ -43,6 +45,7 @@ class AsyncConnector(Connector, ABC):
             data_path: Path | None
             event_loop: AbstractEventLoop | None
         """
+        self.max_concurrency_tasks = kwargs.pop("max_concurrency_tasks", 1000)
         super().__init__(module=module, data_path=data_path, *args, **kwargs)
 
         self._event_loop = event_loop or get_event_loop()
@@ -158,7 +161,7 @@ class AsyncConnector(Connector, ABC):
                 self._send_chunk(session, batch_api, chunk_index, chunk)
                 for chunk_index, chunk in enumerate(chunks)
             ]
-            for ids in await gather(*forwarders):
+            async for ids in limit_concurrency(forwarders, self.max_concurrency_tasks):
                 result_ids.extend(ids)
 
         return result_ids

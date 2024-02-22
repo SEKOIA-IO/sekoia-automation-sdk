@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Limit the number of concurrent async tasks run at the same time
+
 ### Changed
 
 - When forwarding events, use a http session to reuse the existing HTTP connection
+- Improve concurrency of async tasks that forward events
 
 ## [1.11.1] - 2024-01-29
 

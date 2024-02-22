@@ -1,7 +1,7 @@
 """Contains connector with async version."""
 
 from abc import ABC
-from asyncio import AbstractEventLoop, get_event_loop
+from asyncio import AbstractEventLoop, get_event_loop, gather
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -95,6 +95,45 @@ class AsyncConnector(Connector, ABC):
         async with cls.get_rate_limiter():
             yield cls._session
 
+    async def _send_chunk(
+        self, session: ClientSession, url: str, chunk_index: int, chunk: list[str]
+    ) -> list[str]:
+        """
+        Send one chunk of events to intakes
+
+        Args:
+            session: ClientSession
+            url: str
+            chunk_index: int
+            chunk: list[str]
+
+        Returns:
+            list[str]
+        """
+        request_body = {
+            "intake_key": self.configuration.intake_key,
+            "jsons": chunk,
+        }
+
+        for attempt in self._retry():
+            with attempt:
+                async with session.post(
+                    url,
+                    headers={"User-Agent": self._connector_user_agent},
+                    json=request_body,
+                ) as response:
+                    if response.status >= 300:
+                        error = await response.text()
+                        error_message = f"Chunk {chunk_index} error: {error}"
+                        exception = RuntimeError(error_message)
+
+                        self.log_exception(exception)
+
+                        raise exception
+
+                    result = await response.json()
+                    return result.get("event_ids", [])
+
     async def push_data_to_intakes(
         self, events: list[str]
     ) -> list[str]:  # pragma: no cover
@@ -115,30 +154,11 @@ class AsyncConnector(Connector, ABC):
         chunks = self._chunk_events(events)
 
         async with self.session() as session:
-            for chunk_index, chunk in enumerate(chunks):
-                request_body = {
-                    "intake_key": self.configuration.intake_key,
-                    "jsons": chunk,
-                }
-
-                for attempt in self._retry():
-                    with attempt:
-                        async with session.post(
-                            batch_api,
-                            headers={"User-Agent": self._connector_user_agent},
-                            json=request_body,
-                        ) as response:
-                            if response.status >= 300:
-                                error = await response.text()
-                                error_message = f"Chunk {chunk_index} error: {error}"
-                                exception = RuntimeError(error_message)
-
-                                self.log_exception(exception)
-
-                                raise exception
-
-                            result = await response.json()
-
-                            result_ids.extend(result.get("event_ids", []))
+            forwarders = [
+                self._send_chunk(session, batch_api, chunk_index, chunk)
+                for chunk_index, chunk in enumerate(chunks)
+            ]
+            for ids in await gather(*forwarders):
+                result_ids.extend(ids)
 
         return result_ids

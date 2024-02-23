@@ -5,7 +5,7 @@ NOTE!!!: each package inside requires additional libraries to be installed.
 """
 
 import asyncio
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 
 async def limit_concurrency(tasks: list, limit: int) -> AsyncGenerator[Any, None]:

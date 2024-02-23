@@ -1,8 +1,7 @@
 """Contains connector with async version."""
 
-import os
 from abc import ABC
-from asyncio import AbstractEventLoop, get_event_loop, gather
+from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -12,9 +11,9 @@ from urllib.parse import urljoin
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
 
+from sekoia_automation.aio.helpers import limit_concurrency
 from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
 from sekoia_automation.module import Module
-from sekoia_automation.aio.helpers import limit_concurrency
 
 
 class AsyncConnector(Connector, ABC):

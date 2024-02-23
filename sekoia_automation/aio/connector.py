@@ -97,7 +97,7 @@ class AsyncConnector(Connector, ABC):
         async with cls.get_rate_limiter():
             yield cls._session
 
-    async def _send_chunk(
+    async def _async_send_chunk(
         self, session: ClientSession, url: str, chunk_index: int, chunk: list[str]
     ) -> list[str]:
         """
@@ -157,7 +157,7 @@ class AsyncConnector(Connector, ABC):
 
         async with self.session() as session:
             forwarders = [
-                self._send_chunk(session, batch_api, chunk_index, chunk)
+                self._async_send_chunk(session, batch_api, chunk_index, chunk)
                 for chunk_index, chunk in enumerate(chunks)
             ]
             async for ids in limit_concurrency(forwarders, self.max_concurrency_tasks):

@@ -117,6 +117,8 @@ class AsyncConnector(Connector, ABC):
             "jsons": chunk,
         }
 
+        events_ids = []
+
         for attempt in self._retry():
             with attempt:
                 async with session.post(
@@ -134,7 +136,9 @@ class AsyncConnector(Connector, ABC):
                         raise exception
 
                     result = await response.json()
-                    return result.get("event_ids", [])
+                    events_ids.extend(result.get("event_ids", []))
+
+        return events_ids
 
     async def push_data_to_intakes(
         self, events: list[str]

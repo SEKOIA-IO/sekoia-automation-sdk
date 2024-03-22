@@ -5,6 +5,7 @@ from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
+import os
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -153,7 +154,8 @@ class AsyncConnector(Connector, ABC):
             list[str]:
         """
         self._last_events_time = datetime.utcnow()
-        batch_api = urljoin(self.configuration.intake_server, "batch")
+        intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
+        batch_api = urljoin(intake_host, "batch")
 
         result_ids = []
 

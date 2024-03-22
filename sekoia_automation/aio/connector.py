@@ -1,11 +1,11 @@
 """Contains connector with async version."""
 
+import os
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
-import os
 from pathlib import Path
 from urllib.parse import urljoin
 

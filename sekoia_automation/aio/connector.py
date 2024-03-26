@@ -1,6 +1,5 @@
 """Contains connector with async version."""
 
-import os
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator
@@ -154,8 +153,10 @@ class AsyncConnector(Connector, ABC):
             list[str]:
         """
         self._last_events_time = datetime.utcnow()
-        intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
-        batch_api = urljoin(intake_host, "batch")
+        if intake_server := self.configuration.intake_server:
+            batch_api = urljoin(intake_server, "batch")
+        else:
+            batch_api = urljoin(self.intake_url, "batch")
 
         result_ids = []
 

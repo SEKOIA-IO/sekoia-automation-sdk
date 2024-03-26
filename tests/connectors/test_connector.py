@@ -1,5 +1,6 @@
+import json
 import os
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import Mock, PropertyMock, mock_open, patch
 
 import pytest
 from tenacity import Retrying, stop_after_attempt, wait_none
@@ -104,6 +105,11 @@ def test_chunk_events_discard_too_long_message(test_connector):
     assert test_connector.log.called
 
 
+@patch(
+    "builtins.open",
+    new_callable=mock_open,
+    read_data=json.dumps({"intake_url": "https://intake.sekoia.io/batch"}),
+)
 def test_push_event_to_intake_with_2_events(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
     mocked_trigger_logs.post(url, json={"event_ids": ["001", "002"]})

@@ -61,6 +61,13 @@ def test_secrets_url():
     mock.assert_called_with(trigger.SECRETS_URL_FILE_NAME)
 
 
+def test_intake_url():
+    trigger = DummyTrigger()
+    with patch.object(Module, "load_config", return_value="intake") as mock:
+        assert trigger.intake_url == "intake"
+    mock.assert_called_with(trigger.INTAKE_URL_FILE_NAME)
+
+
 def test_logs_url():
     trigger = DummyTrigger()
     with patch.object(Module, "load_config", return_value="logs") as mock:

@@ -1,6 +1,7 @@
 """Test async connector."""
 
-from unittest.mock import Mock, patch
+import json
+from unittest.mock import Mock, mock_open, patch
 from urllib.parse import urljoin
 
 import pytest
@@ -92,6 +93,11 @@ async def test_async_connector_client_session(async_connector: DummyAsyncConnect
     other_instance.set_client_session(None)
 
 
+@patch(
+    "builtins.open",
+    new_callable=mock_open,
+    read_data=json.dumps({"intake_url": "https://intake.sekoia.io"}),
+)
 @pytest.mark.asyncio
 async def test_async_connector_push_single_event(
     async_connector: DummyAsyncConnector, faker: Faker
@@ -116,7 +122,7 @@ async def test_async_connector_push_single_event(
 
     single_event_id = faker.uuid4()
 
-    request_url = urljoin(async_connector.configuration.intake_server, "batch")
+    request_url = urljoin("https://intake.sekoia.io", "batch")
 
     with aioresponses() as mocked_responses:
         mocked_responses.post(
@@ -155,7 +161,7 @@ async def test_async_connector_push_multiple_events(
 
     single_event_id = faker.uuid4()
 
-    request_url = urljoin(async_connector.configuration.intake_server, "batch")
+    request_url = urljoin("https://intake.sekoia.io", "batch")
 
     with (
         aioresponses() as mocked_responses,
@@ -200,7 +206,7 @@ async def test_async_connector_raise_error(
         stop=stop_after_attempt(1),
     )
 
-    request_url = urljoin(async_connector.configuration.intake_server, "batch")
+    request_url = urljoin("https://intake.sekoia.io", "batch")
 
     with (
         aioresponses() as mocked_responses,

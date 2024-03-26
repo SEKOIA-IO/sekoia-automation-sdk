@@ -322,6 +322,7 @@ class ModuleItem(ABC):
     CALLBACK_URL_FILE_NAME = "url_callback"
     SECRETS_URL_FILE_NAME = "url_secrets"
     LOGS_URL_FILE_NAME = "url_logs"
+    INTAKE_URL_FILE_NAME = "intake_url"
 
     name: str | None = None
     description: str | None = None
@@ -418,6 +419,10 @@ class ModuleItem(ABC):
             return self.module.load_config(self.SECRETS_URL_FILE_NAME)
         except FileNotFoundError:
             return self.callback_url.replace("/callback", "/secrets")
+
+    @cached_property
+    def intake_url(self) -> str:
+        return self.module.load_config(self.INTAKE_URL_FILE_NAME)
 
     @property
     def _headers(self) -> dict[str, str]:

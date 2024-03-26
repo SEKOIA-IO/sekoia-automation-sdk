@@ -1,4 +1,3 @@
-import os
 import uuid
 from abc import ABC
 from collections.abc import Generator, Sequence
@@ -36,7 +35,7 @@ from sekoia_automation.utils import (
 
 
 class DefaultConnectorConfiguration(BaseModel):
-    intake_server: str = "https://intake.sekoia.io"
+    intake_server: str | None = None
     intake_key: str
 
 
@@ -171,8 +170,10 @@ class Connector(Trigger, ABC):
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
-        intake_host = os.getenv("INTAKE_URL", self.configuration.intake_server)
-        batch_api = urljoin(intake_host, "batch")
+        if intake_server := self.configuration.intake_server:
+            batch_api = urljoin(intake_server, "batch")
+        else:
+            batch_api = urljoin(self.intake_url, "batch")
 
         # Dict to collect event_ids for the API
         collect_ids: dict[int, list] = {}

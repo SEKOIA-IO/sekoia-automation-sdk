@@ -27,7 +27,7 @@ def test_connector(storage, mocked_trigger_logs):
         test_connector.send_event = Mock()
 
         test_connector.trigger_activation = "2022-03-14T11:16:14.236930Z"
-        test_connector.configuration = {"intake_key": "", "intake_server": "https://intake.sekoia.io"}
+        test_connector.configuration = {"intake_key": ""}
 
         test_connector.log = Mock()
         test_connector.log_exception = Mock()

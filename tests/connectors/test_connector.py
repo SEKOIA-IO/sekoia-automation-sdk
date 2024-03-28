@@ -27,7 +27,7 @@ def test_connector(storage, mocked_trigger_logs):
         test_connector.send_event = Mock()
 
         test_connector.trigger_activation = "2022-03-14T11:16:14.236930Z"
-        test_connector.configuration = {"intake_key": ""}
+        test_connector.configuration = {"intake_key": "", "intake_server": "https://intake.sekoia.io"}
 
         test_connector.log = Mock()
         test_connector.log_exception = Mock()
@@ -105,11 +105,6 @@ def test_chunk_events_discard_too_long_message(test_connector):
     assert test_connector.log.called
 
 
-@patch(
-    "builtins.open",
-    new_callable=mock_open,
-    read_data=json.dumps({"intake_url": "https://intake.sekoia.io/batch"}),
-)
 def test_push_event_to_intake_with_2_events(test_connector, mocked_trigger_logs):
     url = "https://intake.sekoia.io/batch"
     mocked_trigger_logs.post(url, json={"event_ids": ["001", "002"]})

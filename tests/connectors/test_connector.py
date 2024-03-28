@@ -1,6 +1,5 @@
-import json
 import os
-from unittest.mock import Mock, PropertyMock, mock_open, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 from tenacity import Retrying, stop_after_attempt, wait_none

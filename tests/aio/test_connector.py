@@ -1,6 +1,7 @@
 """Test async connector."""
 
-from unittest.mock import Mock, patch
+import json
+from unittest.mock import Mock, mock_open, patch
 from urllib.parse import urljoin
 
 import pytest

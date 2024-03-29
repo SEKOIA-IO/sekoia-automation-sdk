@@ -144,6 +144,8 @@ def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
 def test_push_event_to_intake_custom_url(
     test_connector, mocked_trigger_logs, config_storage
 ):
+    assert test_connector.configuration.intake_server is None
+
     url = "https://fra2.app.sekoia.io/v1/intake-http/batch"
     batch_mock = mocked_trigger_logs.post(
         url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
@@ -158,6 +160,21 @@ def test_push_event_to_intake_custom_url(
     with (config_storage / "intake_url").open("w") as f:
         f.write("https://fra2.app.sekoia.io/v1/intake-http")
     mocked_trigger_logs.reset_mock()
+    test_connector.push_events_to_intakes(["foo"])
+    assert batch_mock.call_count == 1
+
+
+def test_push_event_to_intake_custom_url_configuration(
+    test_connector, mocked_trigger_logs
+):
+    url = "https://fra2.app.sekoia.io/v1/intake-http/batch"
+    batch_mock = mocked_trigger_logs.post(
+        url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
+    )
+
+    test_connector.configuration.intake_server = (
+        "https://fra2.app.sekoia.io/v1/intake-http"
+    )
     test_connector.push_events_to_intakes(["foo"])
     assert batch_mock.call_count == 1
 

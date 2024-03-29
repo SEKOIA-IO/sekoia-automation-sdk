@@ -9,7 +9,6 @@
     "properties": {
       "intake_server": {
         "title": "Intake Server",
-        "default": "https://intake.sekoia.io",
         "type": "string"
       },
       "intake_key": {

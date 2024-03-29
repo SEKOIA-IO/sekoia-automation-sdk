@@ -1,4 +1,3 @@
-import os
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -12,6 +11,12 @@ from sekoia_automation.trigger import Trigger
 from tests.utils import match_events
 
 EVENTS = ["foo", "bar"]
+
+
+@pytest.fixture(autouse=True)
+def configure_intake_url(config_storage):
+    with (config_storage / "intake_url").open("w") as f:
+        f.write("https://intake.sekoia.io")
 
 
 class DummyConnector(Connector):
@@ -136,25 +141,25 @@ def test_push_event_to_intake_with_chunks(test_connector, mocked_trigger_logs):
     assert result == ["001", "002", "003", "004"]
 
 
-def test_push_event_to_intake_custom_url(test_connector, mocked_trigger_logs):
+def test_push_event_to_intake_custom_url(
+    test_connector, mocked_trigger_logs, config_storage
+):
     url = "https://fra2.app.sekoia.io/v1/intake-http/batch"
     batch_mock = mocked_trigger_logs.post(
         url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
     )
     # With trailing slash
-    with patch.dict(
-        os.environ, {"INTAKE_URL": "https://fra2.app.sekoia.io/v1/intake-http/"}
-    ):
-        test_connector.push_events_to_intakes(["foo"])
-        assert batch_mock.call_count == 1
+    with (config_storage / "intake_url").open("w") as f:
+        f.write("https://fra2.app.sekoia.io/v1/intake-http/")
+    test_connector.push_events_to_intakes(["foo"])
+    assert batch_mock.call_count == 1
 
     # Without trailing slash
+    with (config_storage / "intake_url").open("w") as f:
+        f.write("https://fra2.app.sekoia.io/v1/intake-http")
     mocked_trigger_logs.reset_mock()
-    with patch.dict(
-        os.environ, {"INTAKE_URL": "https://fra2.app.sekoia.io/v1/intake-http"}
-    ):
-        test_connector.push_events_to_intakes(["foo"])
-        assert batch_mock.call_count == 1
+    test_connector.push_events_to_intakes(["foo"])
+    assert batch_mock.call_count == 1
 
 
 def test_push_event_to_intake_with_chunks_executor_stopped(

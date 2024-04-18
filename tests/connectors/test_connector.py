@@ -88,14 +88,18 @@ def test_chunk_events(test_connector):
 
 
 def test_chunk_events_exceed_size(test_connector):
-    events_a = ["a" * EVENT_BYTES_MAX_SIZE] * int(
-        CHUNK_BYTES_MAX_SIZE / EVENT_BYTES_MAX_SIZE
-    )
-    events_b = ["b"]
-    events = events_a + events_b
+    # list of events that fill one chunk (must pass)
+    event_bytes = 64 * 1024
+    events_a = ["a" * event_bytes] * int(CHUNK_BYTES_MAX_SIZE / event_bytes)
+    # An event that exceed the expected max size for events (mustn't pass)
+    events_b = ["b" * (EVENT_BYTES_MAX_SIZE + 1)]
+
+    # An event that doesn't exceed any limit (must pass)
+    events_c = ["c"]
+    events = events_a + events_b + events_c
     chunks = list(test_connector._chunk_events(events=events))
     assert len(chunks) == 2
-    assert chunks == [events_a, events_b]
+    assert chunks == [events_a, events_c]
 
 
 def test_chunk_events_discard_too_long_message(test_connector):

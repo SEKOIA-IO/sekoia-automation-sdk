@@ -287,7 +287,7 @@ class Connector(Trigger, ABC):
         if nb_discarded_events > 0:
             self.log(
                 message=f"{nb_discarded_events} too long events "
-                "were discarded (length > 64kb)"
+                "were discarded (length > 250kb)"
             )
 
     def forward_events(self, events) -> None:

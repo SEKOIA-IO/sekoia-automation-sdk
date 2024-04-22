@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2024-04-22
+
 ### Changed
 
 - Increase the allowed size for events to 250 kio (instead of 64 kio)

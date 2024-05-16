@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
-from asyncio import Lock as AsyncioLock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from threading import Lock as ThreadingLock
-from typing import Any
+from threading import Lock
+from typing import Any, Type
 
 from dateutil.parser import isoparse
 
@@ -31,7 +30,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
         path: Path,
         start_at: timedelta = timedelta(minutes=5),
         ignore_older_than: timedelta | None = timedelta(days=30),
-        lock: ThreadingLock | AsyncioLock | None = None,
+        lock: Lock | None = None,
         subkey: str | None = None,
     ) -> None:
         """
@@ -164,7 +163,7 @@ class CheckpointCursor(Checkpoint):
     def __init__(
         self,
         path: Path,
-        lock: ThreadingLock | AsyncioLock | None = None,
+        lock: Lock | None = None,
         subkey: str | None = None,
     ) -> None:
         """

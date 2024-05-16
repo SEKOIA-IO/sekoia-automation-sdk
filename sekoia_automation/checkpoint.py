@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any, Type
+from typing import Any
 
 from dateutil.parser import isoparse
 
@@ -30,7 +30,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
         path: Path,
         start_at: timedelta = timedelta(minutes=5),
         ignore_older_than: timedelta | None = timedelta(days=30),
-        lock: Lock | None = None,
+        lock: "Lock | None" = None,
         subkey: str | None = None,
     ) -> None:
         """
@@ -163,7 +163,7 @@ class CheckpointCursor(Checkpoint):
     def __init__(
         self,
         path: Path,
-        lock: Lock | None = None,
+        lock: "Lock | None" = None,
         subkey: str | None = None,
     ) -> None:
         """

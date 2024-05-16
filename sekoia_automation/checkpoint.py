@@ -115,10 +115,10 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
 
                 with self._context as cache:
                     if self._subkey:
-                        if self._subkey not in cache["most_recent_date_seen"]:
-                            cache["most_recent_date_seen"][self._subkey] = {}
+                        if self._subkey not in cache:
+                            cache[self._subkey] = {}
 
-                        cache["most_recent_date_seen"][self._subkey] = (
+                        cache[self._subkey]["most_recent_date_seen"] = (
                             self.datetime_to_file(self._most_recent_date_seen)
                         )
 

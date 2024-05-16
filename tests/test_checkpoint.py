@@ -58,6 +58,20 @@ def test_checkpoint_datetime_old(storage, patch_datetime_now, fake_time):
     assert check.offset.isoformat() == datetime_expected.isoformat()
 
 
+def test_checkpoint_datetime_subkey(storage, patch_datetime_now, fake_time):
+    check = CheckpointDatetime(
+        path=storage,
+        start_at=timedelta(minutes=5),
+        ignore_older_than=timedelta(days=30),
+        subkey="thread-1",
+    )
+
+    check.offset = fake_time
+    with check._context as cache:
+        assert "thread-1" in cache
+        assert "most_recent_date_seen" in cache["thread-1"]
+
+
 def test_checkpoint_timestamp_seconds_without_data(
     storage, patch_datetime_now, fake_time
 ):

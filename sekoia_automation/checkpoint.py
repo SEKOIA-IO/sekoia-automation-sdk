@@ -36,9 +36,12 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
     ) -> None:
         """
         @param start_at: if no checkpoint exist, start `{start_at}` ago
-        @param ignore_older_than: if provided, make sure returned datetime will not be older than `{ignore_older_than}` ago
-        @param lock: if provided, we'll acquire the lock before reading the context.json and release it after
-        @param subkey: support sub keys (e.g. you use multiple threads and save datetime for each thread separately in one json)
+        @param ignore_older_than: if provided, make sure returned datetime will
+                                  not be older than `{ignore_older_than}` ago
+        @param lock: if provided, we'll acquire the lock before reading
+                     the context.json and release it after
+        @param subkey: support sub keys (e.g. you use multiple threads and save datetime
+                       for each thread separately in one json)
         """
         super().__init__(path)
 
@@ -165,8 +168,10 @@ class CheckpointCursor(Checkpoint):
         subkey: str | None = None,
     ) -> None:
         """
-        @param lock: if provided, we'll acquire the lock before reading the context.json and release it after
-        @param subkey: support sub keys (e.g. you use multiple threads and save datetime for each thread separately in one json)
+        @param lock: if provided, we'll acquire the lock before reading
+                     the context.json and release it after
+        @param subkey: support sub keys (e.g. you use multiple threads and save datetime
+                       for each thread separately in one json)
         """
         super().__init__(path)
 

@@ -11,7 +11,7 @@ from sekoia_automation.storage import PersistentJSON
 
 
 class Checkpoint:
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path) -> None:
         self._context = PersistentJSON("context.json", path)
 
     @property
@@ -28,7 +28,7 @@ class Checkpoint:
 class CheckpointDatetimeBase(ABC, Checkpoint):
     def __init__(
         self,
-        path: Path | str,
+        path: Path,
         start_at: timedelta = timedelta(minutes=5),
         ignore_older_than: timedelta | None = timedelta(days=30),
         lock: ThreadingLock | AsyncioLock | None = None,
@@ -103,7 +103,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
         return self.from_datetime(self._most_recent_date_seen)
 
     @offset.setter
-    def offset(self, last_message_date: datetime | None) -> None:
+    def offset(self, last_message_date: datetime) -> None:
         if last_message_date is not None:
             # convert to inner representation
             last_message_date = self.to_datetime(last_message_date)
@@ -163,7 +163,7 @@ class CheckpointTimestampSeconds(CheckpointDatetime):
 class CheckpointCursor(Checkpoint):
     def __init__(
         self,
-        path: Path | str,
+        path: Path,
         lock: ThreadingLock | AsyncioLock | None = None,
         subkey: str | None = None,
     ) -> None:

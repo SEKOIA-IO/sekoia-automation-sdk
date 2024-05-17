@@ -11,9 +11,9 @@ from sekoia_automation.storage import PersistentJSON
 
 
 class TimeUnit(enum.Enum):
-    SECONDS = 1
-    MILLISECONDS = 2
-    NANOSECONDS = 3
+    SECOND = 1
+    MILLISECOND = 2
+    NANOSECOND = 3
 
 
 class Checkpoint:
@@ -162,13 +162,13 @@ class CheckpointTimestamp(CheckpointDatetimeBase):
 
     @property
     def multiplier(self) -> float:
-        if self._time_unit == TimeUnit.SECONDS:
+        if self._time_unit == TimeUnit.SECOND:
             multiplier = 1.0
 
-        elif self._time_unit == TimeUnit.MILLISECONDS:
+        elif self._time_unit == TimeUnit.MILLISECOND:
             multiplier = 1_000.0
 
-        elif self._time_unit == TimeUnit.NANOSECONDS:
+        elif self._time_unit == TimeUnit.NANOSECOND:
             multiplier = 1_000_000.0
 
         else:

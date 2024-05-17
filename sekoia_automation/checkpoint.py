@@ -1,3 +1,4 @@
+import enum
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -7,6 +8,12 @@ from typing import Any
 from dateutil.parser import isoparse
 
 from sekoia_automation.storage import PersistentJSON
+
+
+class TimeUnit(enum.Enum):
+    SECONDS = 1
+    MILLISECONDS = 2
+    NANOSECONDS = 3
 
 
 class Checkpoint:
@@ -139,24 +146,42 @@ class CheckpointDatetime(CheckpointDatetimeBase):
         return rp
 
 
-class CheckpointTimestampMilliseconds(CheckpointDatetime):
-    def from_datetime(self, dt: datetime) -> int:
-        # inner representation -> timestamp [ms]
-        return round(dt.timestamp() * 1000.0)
+class CheckpointTimestamp(CheckpointDatetimeBase):
+    def __init__(
+        self,
+        path: Path,
+        time_unit: TimeUnit,
+        start_at: timedelta = timedelta(minutes=5),
+        ignore_older_than: timedelta | None = timedelta(days=30),
+        lock: "Lock | None" = None,
+        subkey: str | None = None,
+    ):
+        super().__init__(path, start_at, ignore_older_than, lock, subkey)
 
-    def to_datetime(self, rp: int) -> datetime:
-        # timestamp [ms] -> inner representation
-        return datetime.fromtimestamp(rp).astimezone(timezone.utc)
+        self._time_unit = time_unit
 
+    @property
+    def multiplier(self) -> float:
+        if self._time_unit == TimeUnit.SECONDS:
+            multiplier = 1.0
 
-class CheckpointTimestampSeconds(CheckpointDatetime):
-    def from_datetime(self, dt: datetime) -> int:
-        # inner representation -> timestamp [ms]
-        return round(dt.timestamp())
+        elif self._time_unit == TimeUnit.MILLISECONDS:
+            multiplier = 1_000.0
 
-    def to_datetime(self, rp: int) -> datetime:
-        # timestamp [s] -> inner representation
-        return datetime.fromtimestamp(rp).astimezone(timezone.utc)
+        elif self._time_unit == TimeUnit.NANOSECONDS:
+            multiplier = 1_000_000.0
+
+        else:
+            raise ValueError("There is no such time unit")
+
+        return multiplier
+
+    def from_datetime(self, dt) -> int:
+        return round(dt.timestamp() * self.multiplier)
+
+    def to_datetime(self, rp: float | int) -> datetime:
+        # timestamp -> inner representation
+        return datetime.fromtimestamp(rp / self.multiplier).astimezone(timezone.utc)
 
 
 class CheckpointCursor(Checkpoint):

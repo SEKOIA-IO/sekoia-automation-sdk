@@ -6,8 +6,8 @@ import pytest
 from sekoia_automation.checkpoint import (
     CheckpointCursor,
     CheckpointDatetime,
-    CheckpointTimestampMilliseconds,
-    CheckpointTimestampSeconds,
+    CheckpointTimestamp,
+    TimeUnit,
 )
 
 
@@ -75,7 +75,8 @@ def test_checkpoint_datetime_subkey(storage, patch_datetime_now, fake_time):
 def test_checkpoint_timestamp_seconds_without_data(
     storage, patch_datetime_now, fake_time
 ):
-    check = CheckpointTimestampSeconds(
+    check = CheckpointTimestamp(
+        time_unit=TimeUnit.SECONDS,
         path=storage,
         start_at=timedelta(minutes=5),
         ignore_older_than=timedelta(days=30),
@@ -87,8 +88,11 @@ def test_checkpoint_timestamp_seconds_without_data(
 
 
 def test_checkpoint_timestamp_seconds_old(storage, patch_datetime_now, fake_time):
-    check = CheckpointTimestampSeconds(
-        path=storage, start_at=timedelta(minutes=5), ignore_older_than=timedelta(days=7)
+    check = CheckpointTimestamp(
+        time_unit=TimeUnit.SECONDS,
+        path=storage,
+        start_at=timedelta(minutes=5),
+        ignore_older_than=timedelta(days=7),
     )
 
     # try very old
@@ -100,8 +104,11 @@ def test_checkpoint_timestamp_seconds_old(storage, patch_datetime_now, fake_time
 
 
 def test_checkpoint_timestamp_seconds(storage, patch_datetime_now, fake_time):
-    check = CheckpointTimestampSeconds(
-        path=storage, start_at=timedelta(minutes=5), ignore_older_than=timedelta(days=7)
+    check = CheckpointTimestamp(
+        time_unit=TimeUnit.SECONDS,
+        path=storage,
+        start_at=timedelta(minutes=5),
+        ignore_older_than=timedelta(days=7),
     )
 
     # try specific checked time
@@ -114,7 +121,8 @@ def test_checkpoint_timestamp_seconds(storage, patch_datetime_now, fake_time):
 def test_checkpoint_timestamp_milliseconds_without_data(
     storage, patch_datetime_now, fake_time
 ):
-    check = CheckpointTimestampMilliseconds(
+    check = CheckpointTimestamp(
+        time_unit=TimeUnit.MILLISECONDS,
         path=storage,
         start_at=timedelta(minutes=5),
         ignore_older_than=timedelta(days=30),
@@ -126,8 +134,11 @@ def test_checkpoint_timestamp_milliseconds_without_data(
 
 
 def test_checkpoint_timestamp_milliseconds_old(storage, patch_datetime_now, fake_time):
-    check = CheckpointTimestampMilliseconds(
-        path=storage, start_at=timedelta(minutes=5), ignore_older_than=timedelta(days=7)
+    check = CheckpointTimestamp(
+        time_unit=TimeUnit.MILLISECONDS,
+        path=storage,
+        start_at=timedelta(minutes=5),
+        ignore_older_than=timedelta(days=7),
     )
 
     # try very old

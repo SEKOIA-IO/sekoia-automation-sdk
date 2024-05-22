@@ -99,7 +99,7 @@ def test_get_events_example_method(session_faker: Faker):
         session_faker: Faker
     """
     base_url = str(session_faker.uri())
-    auth_url = str(session_faker.uri())
+    auth_url = str(f"https://{session_faker.word()}.{session_faker.word()}")
     client_id = session_faker.word()
 
     client = SyncOauthClientExample.instance(

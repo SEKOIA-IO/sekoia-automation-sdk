@@ -391,7 +391,7 @@ class ModuleItem(ABC):
             with sentry_sdk.push_scope() as scope:
                 for key, value in kwargs.items():
                     scope.set_extra(key, value)
-                sentry_sdk.capture_message(message, level)
+                sentry_sdk.capture_message(message, level)  # type: ignore
 
     def log_exception(self, exception: Exception, **kwargs):
         """Log the given exception."""

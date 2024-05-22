@@ -12,7 +12,7 @@ class HttpClient:
     Http client with optional rate limiting.
 
     Example:
-    >>> from sekoia_automation.helpers.aio.http.http_client import HttpClient
+    >>> from sekoia_automation.http.aio.http_client import HttpClient
     >>> class CustomHttpClient(HttpClient):
     >>>     def __init__(self):
     >>>         super().__init__()

@@ -69,6 +69,7 @@ types-requests = "^2.31.0.1"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 pre-commit = "^3.3.3"
+requests-oauthlib = "^2.0.0"
 
 [tool.poetry.group.lint.dependencies]
 ruff = "*"

@@ -12,7 +12,6 @@ from sekoia_automation.http.sync.http_client import SyncHttpClient
 
 
 class BearerBasedHttpClient(SyncHttpClient):
-
     def __init__(
         self,
         token: str,

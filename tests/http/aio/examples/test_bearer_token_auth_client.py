@@ -13,7 +13,6 @@ from sekoia_automation.http.retry import RetryPolicy
 
 
 class BearerBasedHttpClient(AsyncHttpClient):
-
     def __init__(
         self,
         token: str,

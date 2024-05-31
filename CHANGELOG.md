@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added universal class for checkpoints
+- Added universal classes for a checkpoint
 
 ## [1.13.0] - 2024-04-22
 

@@ -55,7 +55,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield self._session
 
     @asynccontextmanager
-    async def get_retry(
+    async def get(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """
@@ -73,7 +73,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield result
 
     @asynccontextmanager
-    async def post_retry(
+    async def post(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """
@@ -91,7 +91,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield result
 
     @asynccontextmanager
-    async def put_retry(
+    async def put(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """
@@ -109,7 +109,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield response
 
     @asynccontextmanager
-    async def delete_retry(
+    async def delete(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """
@@ -127,7 +127,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield response
 
     @asynccontextmanager
-    async def patch_retry(
+    async def patch(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """
@@ -145,7 +145,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             yield response
 
     @asynccontextmanager
-    async def head_retry(
+    async def head(
         self, url: str, *args: Any, **kwargs: Optional[Any]
     ) -> AsyncGenerator[ClientResponse, None]:
         """

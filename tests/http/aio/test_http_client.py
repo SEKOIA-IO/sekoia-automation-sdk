@@ -151,7 +151,7 @@ async def test_retry_workflow_get_async_http_client(
         mocked_responses.get(url=base_url, status=status_2)
         mocked_responses.get(url=base_url, status=status_3)
 
-        async with client.get_retry(base_url) as response:
+        async with client.get(base_url) as response:
             # As a result, the last response should be 412
             assert response.status == status_3
 
@@ -197,7 +197,7 @@ async def test_retry_workflow_post_async_http_client(
         mocked_responses.post(url=base_url, payload=data, status=status_2)
         mocked_responses.post(url=base_url, payload=data, status=status_3)
 
-        async with client.post_retry(base_url, json=data) as response:
+        async with client.post(base_url, json=data) as response:
             assert response.status == status_3
 
 
@@ -242,7 +242,7 @@ async def test_retry_workflow_put_async_http_client(
         mocked_responses.put(url=base_url, payload=data, status=status_2)
         mocked_responses.put(url=base_url, payload=data, status=status_3)
 
-        async with client.put_retry(base_url, json=data) as response:
+        async with client.put(base_url, json=data) as response:
             assert response.status == status_3
 
 
@@ -280,7 +280,7 @@ async def test_retry_workflow_head_async_http_client(
         mocked_responses.head(url=base_url, status=status_2)
         mocked_responses.head(url=base_url, status=status_3)
 
-        async with client.head_retry(base_url) as response:
+        async with client.head(base_url) as response:
             assert response.status == status_3
 
 
@@ -318,7 +318,7 @@ async def test_retry_workflow_delete_async_http_client(
         mocked_responses.delete(url=base_url, status=status_2)
         mocked_responses.delete(url=base_url, status=status_3)
 
-        async with client.delete_retry(base_url) as response:
+        async with client.delete(base_url) as response:
             assert response.status == status_3
 
 
@@ -356,7 +356,7 @@ async def test_retry_workflow_patch_async_http_client(
         mocked_responses.patch(url=base_url, status=status_2)
         mocked_responses.patch(url=base_url, status=status_3)
 
-        async with client.patch_retry(base_url) as response:
+        async with client.patch(base_url) as response:
             assert response.status == status_3
 
 
@@ -398,7 +398,7 @@ async def test_complete_configurable_async_http_client(
         )
 
         start_time = time.time()
-        async with client.get_retry(base_url) as response:
+        async with client.get(base_url) as response:
             assert response.status == 200
             assert await response.text() == data
             end_time = time.time()
@@ -410,7 +410,7 @@ async def test_complete_configurable_async_http_client(
         mocked_responses.get(url=base_url, status=status_1)
         mocked_responses.get(url=base_url, status=status_1)
         start_time = time.time()
-        async with client.get_retry(base_url) as response:
+        async with client.get(base_url) as response:
             assert response.status == status_1
             end_time = time.time()
 

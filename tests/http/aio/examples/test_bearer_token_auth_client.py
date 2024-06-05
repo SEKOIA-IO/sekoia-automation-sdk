@@ -81,7 +81,7 @@ class BearerBasedHttpClient(AsyncHttpClient):
         Returns:
             list[str]:
         """
-        async with self.get_retry(
+        async with self.get(
             self.get_events_url(), params=params, headers=self.get_headers()
         ) as response:
             return await response.json()

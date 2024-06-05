@@ -133,8 +133,6 @@ class AsyncConnector(Connector, ABC):
 
                         self.log_exception(exception)
 
-                        raise exception
-
                     result = await response.json()
                     events_ids.extend(result.get("event_ids", []))
 

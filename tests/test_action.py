@@ -277,6 +277,20 @@ def test_generic_api_action(storage):
         assert history[0].method == "GET"
         assert history[0].url == "http://base_url/resource/fake_uuid/count?param=number"
 
+    # success with no content
+    action = init_action()
+    arguments = {"uuid": "fake_uuid", "param": "number"}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/fake_uuid/count", status_code=204)
+
+        results: dict = action.run(arguments)
+
+        assert results == None
+        assert mock.call_count == 1
+        history = mock.request_history
+        assert history[0].method == "GET"
+        assert history[0].url == "http://base_url/resource/fake_uuid/count?param=number"
+
     # error on action.run
     action = init_action()
     with requests_mock.Mocker() as mock:

@@ -285,7 +285,7 @@ def test_generic_api_action(storage):
 
         results: dict = action.run(arguments)
 
-        assert results == None
+        assert results is None
         assert mock.call_count == 1
         history = mock.request_history
         assert history[0].method == "GET"

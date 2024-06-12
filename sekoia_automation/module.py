@@ -43,7 +43,7 @@ class Module:
         self._configuration: dict | BaseModel | None = None
         self._manifest: dict | None = None
         self._community_uuid: str | None = None
-        self._items: dict[str, type["ModuleItem"]] = {}
+        self._items: dict[str, type[ModuleItem]] = {}
         self._playbook_uuid: str | None = None
         self._playbook_run_uuid: str | None = None
         self._node_run_uuid: str | None = None

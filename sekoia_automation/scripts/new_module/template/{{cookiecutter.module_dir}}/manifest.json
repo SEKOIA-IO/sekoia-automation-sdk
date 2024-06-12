@@ -9,6 +9,5 @@
   "description": "{{cookiecutter.module_description}}",
   "name": "{{cookiecutter.module_name}}",
   "uuid": "{{ uuid4() }}",
-  "docker": "sekoia-automation-module-{{cookiecutter.module_name.lower()}}",
   "version": "0.1.0"
 }

@@ -10,27 +10,25 @@ from sekoia_automation.module import Module
 
 
 class ModuleItemRunner:
-    def __init__(self, class_name: str, module_path: str):
+    def __init__(self, class_name: str, module_path: str | Path):
         self.__class_name = class_name
         self.__module_path = (
             module_path if isinstance(module_path, Path) else Path(module_path)
         ).resolve()
+        self.__root_path = self.__module_path.parent
 
-    @staticmethod
-    def load_class_from_path(path: Path | str, class_name: str):
-        """
-        @todo having issues with relative imports in modules (e.g. metrics)
-        """
-        if isinstance(path, Path):
-            path = str(path)
-
+    def load_class_from_path(self, path: Path | str, class_name: str):
         # Add the directory containing the module to sys.path
-        module_dir = "/".join(path.split("/")[:-1])
+        module_dir = "/".join(str(path).split("/")[:-1])
         if module_dir not in sys.path:
             sys.path.append(module_dir)
 
         # Load the module
-        module_name = path.split("/")[-1].split(".")[0]
+        module_name = (
+            str(Path(path).resolve().relative_to(self.__root_path))
+            .replace("/", ".")
+            .rstrip(".py")
+        )
         spec = importlib.util.spec_from_file_location(module_name, path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -172,7 +170,7 @@ class ModuleItemRunner:
 
 if __name__ == "__main__":
     class_name = "RequestAction"
-    module_name = "HTTP"
+    module_name = Path("~/PycharmProjects/automation-library/HTTP").expanduser()
     args = {"method": "get", "url": "https://dummyjson.com/test"}
 
     c = ModuleItemRunner(module_path=module_name, class_name=class_name)

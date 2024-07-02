@@ -3,7 +3,9 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Tuple, Any
 
+import typing
 from jsonschema import validate
 
 from sekoia_automation.module import Module
@@ -17,7 +19,7 @@ class ModuleItemRunner:
         ).resolve()
         self.__root_path = self.__module_path.parent
 
-    def load_class_from_path(self, path: Path | str, class_name: str):
+    def load_class_from_path(self, path: Path | str, class_name: str) -> typing.Type:
         # Add the directory containing the module to sys.path
         module_dir = "/".join(str(path).split("/")[:-1])
         if module_dir not in sys.path:
@@ -29,15 +31,15 @@ class ModuleItemRunner:
             .replace("/", ".")
             .rstrip(".py")
         )
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        spec = importlib.util.spec_from_file_location(module_name, path)  # type: ignore
+        module = importlib.util.module_from_spec(spec)  # type: ignore
+        spec.loader.exec_module(module)  # type: ignore
 
         # Get the class from the module
         cls = getattr(module, class_name)
         return cls
 
-    def find_file_with_module_item_class(self):
+    def find_file_with_module_item_class(self) -> Path:
         for file_path in self.__module_path.rglob("*.py"):
             with open(file_path) as f:
                 try:
@@ -51,11 +53,11 @@ class ModuleItemRunner:
                     ):
                         return file_path
 
-        return None
+        raise FileNotFoundError(f"No file with class `{self.__class_name}`")
 
     def find_file_with_child_class(
         self, parent_class_to_find: str
-    ) -> (str | None, Path | None):
+    ) -> Tuple[str | None, Path | None]:
         for file_path in self.__module_path.rglob("*.py"):
             with open(file_path) as f:
                 try:
@@ -83,7 +85,7 @@ class ModuleItemRunner:
 
         module_item_to_docker_param = {}
 
-        node: AST
+        node: Any
         for node in ast.walk(tree):
             if (
                 hasattr(node, "func")
@@ -107,9 +109,7 @@ class ModuleItemRunner:
 
         return module_item_to_docker_param
 
-    def get_manifest_by_docker_param(
-        self, prefix: str, docker_param: str
-    ) -> dict | None:
+    def get_manifest_by_docker_param(self, prefix: str, docker_param: str) -> dict:
         manifests = self.__module_path.glob(f"{prefix}*.json")
         for manifest_path in manifests:
             with open(manifest_path) as file:
@@ -117,6 +117,8 @@ class ModuleItemRunner:
 
             if manifest.get("docker_parameters") == docker_param:
                 return manifest
+
+        return {}
 
     @staticmethod
     def get_module_item_type(cls):
@@ -142,10 +144,10 @@ class ModuleItemRunner:
 
         raise ValueError("Incorrect class")
 
-    def run(self, args: dict, module_conf: dict | None = None) -> dict:
+    def run(self, args: dict, module_conf: dict | None = None) -> dict | None:
         cls_to_docker = self.get_docker_params_from_main_py()
         docker_param = cls_to_docker[self.__class_name]
-        manifest = self.get_manifest_by_docker_param(
+        manifest: dict = self.get_manifest_by_docker_param(
             docker_param=docker_param, prefix=""
         )
 
@@ -162,7 +164,7 @@ class ModuleItemRunner:
             parent_class_to_find="Module"
         )
 
-        if module_class_name is None:
+        if module_class_name is None or module_class_path is None:
             module = Module()
 
         else:
@@ -202,12 +204,13 @@ class ModuleItemRunner:
             module_item.configuration = module_item_conf
             module_item.run()
 
+            return None
+
 
 if __name__ == "__main__":
     class_name = "RequestAction"
     module_name = Path("~/PycharmProjects/automation-library/HTTP").expanduser()
-    module_conf = {}
     args = {"method": "get", "url": "https://dummyjson.com/test"}
 
     c = ModuleItemRunner(module_path=module_name, class_name=class_name)
-    print(c.run(args=args, module_conf=module_conf))
+    print(c.run(args=args, module_conf={}))

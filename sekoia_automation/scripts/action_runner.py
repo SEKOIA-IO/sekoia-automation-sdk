@@ -39,7 +39,7 @@ class ModuleItemRunner:
 
     def find_file_with_module_item_class(self):
         for file_path in self.__module_path.rglob("*.py"):
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 try:
                     tree = ast.parse(f.read(), filename=str(file_path))
                 except SyntaxError:
@@ -57,7 +57,7 @@ class ModuleItemRunner:
         self, parent_class_to_find: str
     ) -> (str | None, Path | None):
         for file_path in self.__module_path.rglob("*.py"):
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 try:
                     tree = ast.parse(f.read())
                 except SyntaxError:
@@ -76,7 +76,7 @@ class ModuleItemRunner:
         from _ast import AST
 
         main_py_path = self.__module_path / "main.py"
-        with open(main_py_path, "rt") as file:
+        with open(main_py_path) as file:
             content = file.read()
 
         tree = ast.parse(content)
@@ -112,7 +112,7 @@ class ModuleItemRunner:
     ) -> dict | None:
         manifests = self.__module_path.glob(f"{prefix}*.json")
         for manifest_path in manifests:
-            with open(manifest_path, "rt") as file:
+            with open(manifest_path) as file:
                 manifest = json.load(file)
 
             if manifest.get("docker_parameters") == docker_param:
@@ -142,7 +142,7 @@ class ModuleItemRunner:
 
         raise ValueError("Incorrect class")
 
-    def run(self, args: dict, module_conf: dict = None) -> dict:
+    def run(self, args: dict, module_conf: dict | None = None) -> dict:
         cls_to_docker = self.get_docker_params_from_main_py()
         docker_param = cls_to_docker[self.__class_name]
         manifest = self.get_manifest_by_docker_param(

@@ -12,12 +12,10 @@ from sekoia_automation.module import Module
 
 
 class ModuleItemRunner:
-    def __init__(self, class_name: str, module_path: str | Path):
+    def __init__(self, class_name: str, module_name: str, root_path: Path):
         self.__class_name = class_name
-        self.__module_path = (
-            module_path if isinstance(module_path, Path) else Path(module_path)
-        ).resolve()
-        self.__root_path = self.__module_path.parent
+        self.__root_path = root_path  # `automation-library` folder by default
+        self.__module_path = (root_path / module_name).resolve()
 
     def load_class_from_path(self, path: Path | str, class_name: str) -> typing.Type:
         # Add the directory containing the module to sys.path
@@ -142,7 +140,7 @@ class ModuleItemRunner:
 
         raise ValueError("Incorrect class")
 
-    def run(self, args: dict, module_conf: dict | None = None) -> dict | None:
+    def run(self, args: dict) -> dict | None:
         cls_to_docker = self.get_docker_params_from_main_py()
         docker_param = cls_to_docker[self.__class_name]
         manifest: dict = self.get_manifest_by_docker_param(
@@ -171,7 +169,7 @@ class ModuleItemRunner:
             # Prepare module configuration
             module_annotations = module_cls.__annotations__
             module_config_cls = module_annotations["configuration"]
-            conf_args = module_conf if module_conf else {}
+            conf_args = {key: args.get(key) for key in module_config_cls.__fields__}
             module_conf = module_config_cls(**conf_args)
 
             module = module_cls()
@@ -203,12 +201,3 @@ class ModuleItemRunner:
             module_item.run()
 
             return None
-
-
-if __name__ == "__main__":
-    class_name = "RequestAction"
-    module_name = Path("~/PycharmProjects/automation-library/HTTP").expanduser()
-    args = {"method": "get", "url": "https://dummyjson.com/test"}
-
-    c = ModuleItemRunner(module_path=module_name, class_name=class_name)
-    print(c.run(args=args, module_conf={}))

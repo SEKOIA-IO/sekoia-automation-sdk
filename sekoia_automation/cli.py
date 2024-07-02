@@ -12,6 +12,7 @@ from sekoia_automation.scripts.files_generator import FilesGenerator
 from sekoia_automation.scripts.openapi import OpenApiToModule
 from sekoia_automation.scripts.sync_library import SyncLibrary
 from sekoia_automation.scripts.update_sdk_version import SDKUpdater
+from sekoia_automation.scripts.action_runner import ModuleItemRunner
 
 app = typer.Typer(
     help="Sekoia.io's automation helper to generate playbook modules",
@@ -183,6 +184,22 @@ def update_sekoia_library(
     modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
 ):
     SDKUpdater(modules_path=modules_path).update_sdk_version()
+
+
+@app.command(name="run-action")
+def run_action(
+    modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
+    module_name: str = typer.Option(..., help="Name of the module to test"),
+    class_name: str = typer.Option(..., help="Class name of the action to test"),
+    args: list[str] = typer.Argument(None, help="Module/Action configuration fields"),
+):
+    kwargs = {
+        arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args
+    }
+    module_runner = ModuleItemRunner(
+        module_name=module_name, class_name=class_name, root_path=modules_path
+    )
+    print(module_runner.run(args=kwargs))
 
 
 if __name__ == "__main__":

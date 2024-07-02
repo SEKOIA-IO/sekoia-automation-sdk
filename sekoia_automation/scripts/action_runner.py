@@ -75,8 +75,6 @@ class ModuleItemRunner:
         return None, None
 
     def get_docker_params_from_main_py(self) -> dict:
-        from _ast import AST
-
         main_py_path = self.__module_path / "main.py"
         with open(main_py_path) as file:
             content = file.read()

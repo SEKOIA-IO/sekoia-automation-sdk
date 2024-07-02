@@ -118,6 +118,30 @@ class ModuleItemRunner:
             if manifest.get("docker_parameters") == docker_param:
                 return manifest
 
+    @staticmethod
+    def get_module_item_type(cls):
+        def __iter_all_parents(c):
+            result = []
+            parent_cls = c.__bases__
+
+            result.extend(parent_cls)
+            for parent in parent_cls:
+                result.extend(__iter_all_parents(parent))
+
+            return result
+
+        parents_labels = {item.__name__: item for item in __iter_all_parents(cls)}
+        if "Connector" in parents_labels:
+            return "Connector"
+
+        elif "Action" in parents_labels:
+            return "Action"
+
+        elif "Trigger" in parents_labels:
+            return "Trigger"
+
+        raise ValueError("Incorrect class")
+
     def run(self, args: dict, module_conf: dict = None) -> dict:
         cls_to_docker = self.get_docker_params_from_main_py()
         docker_param = cls_to_docker[self.__class_name]
@@ -157,21 +181,33 @@ class ModuleItemRunner:
         module_item_cls = self.load_class_from_path(
             path=file_path, class_name=self.__class_name
         )
+
         module_item = module_item_cls(
             module=module, data_path=Path(".")
         )  # @todo set custom path?
 
-        results = module_item.run(args)
+        module_item_type = self.get_module_item_type(module_item_cls)
+        if module_item_type == "Action":
+            results = module_item.run(args)
 
-        # check result
-        validate(instance=results, schema=results_schema)
-        return results
+            # check result
+            validate(instance=results, schema=results_schema)
+            return results
+
+        else:
+            module_item_annotations = module_item_cls.__annotations__
+            module_item_config_cls = module_item_annotations["configuration"]
+            module_item_conf = module_item_config_cls(**args)
+
+            module_item.configuration = module_item_conf
+            module_item.run()
 
 
 if __name__ == "__main__":
     class_name = "RequestAction"
     module_name = Path("~/PycharmProjects/automation-library/HTTP").expanduser()
+    module_conf = {}
     args = {"method": "get", "url": "https://dummyjson.com/test"}
 
     c = ModuleItemRunner(module_path=module_name, class_name=class_name)
-    print(c.run(args=args))
+    print(c.run(args=args, module_conf=module_conf))

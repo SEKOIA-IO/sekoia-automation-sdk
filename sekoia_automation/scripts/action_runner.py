@@ -20,7 +20,7 @@ class ModuleItemRunner:
         data_path: Path = Path("."),
     ):
         self.__class_name = class_name
-        self.__root_path = root_path  # `automation-library` folder by default
+        self.__root_path = root_path.resolve()  # `automation-library` folder by default
         self.__module_path = (root_path / module_name).resolve()
         self.__data_path = data_path
 

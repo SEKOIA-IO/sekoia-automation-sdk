@@ -194,9 +194,11 @@ def run_action(
     class_name: str = typer.Option(..., help="Class name of the action to test"),
     args: list[str] = typer.Argument(None, help="Module/Action configuration fields"),
 ):
-    kwargs = {
-        arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args
-    }
+    kwargs = (
+        {arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args}
+        if args
+        else {}
+    )
     module_runner = ModuleItemRunner(
         module_name=module_name,
         class_name=class_name,

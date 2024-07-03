@@ -2,10 +2,10 @@ import ast
 import importlib.util
 import json
 import sys
-from pathlib import Path
-from typing import Tuple, Any
-
 import typing
+from pathlib import Path
+from typing import Any, Tuple
+
 from jsonschema import validate
 
 from sekoia_automation.module import Module

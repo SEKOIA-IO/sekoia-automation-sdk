@@ -186,10 +186,6 @@ def update_sekoia_library(
     SDKUpdater(modules_path=modules_path).update_sdk_version()
 
 
-if __name__ == "__main__":
-    app()
-
-
 @app.command(name="run-action")
 def run_action(
     data_path: Path = typer.Option(".", help="Path to the context data"),
@@ -202,6 +198,13 @@ def run_action(
         arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args
     }
     module_runner = ModuleItemRunner(
-        module_name=module_name, class_name=class_name, root_path=modules_path, data_path=data_path
+        module_name=module_name,
+        class_name=class_name,
+        root_path=modules_path,
+        data_path=data_path,
     )
     print(module_runner.run(args=kwargs))
+
+
+if __name__ == "__main__":
+    app()

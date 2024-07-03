@@ -12,7 +12,13 @@ from sekoia_automation.module import Module
 
 
 class ModuleItemRunner:
-    def __init__(self, class_name: str, module_name: str, root_path: Path, data_path: Path = Path(".")):
+    def __init__(
+        self,
+        class_name: str,
+        module_name: str,
+        root_path: Path,
+        data_path: Path = Path("."),
+    ):
         self.__class_name = class_name
         self.__root_path = root_path  # `automation-library` folder by default
         self.__module_path = (root_path / module_name).resolve()
@@ -181,9 +187,7 @@ class ModuleItemRunner:
             path=file_path, class_name=self.__class_name
         )
 
-        module_item = module_item_cls(
-            module=module, data_path=self.__data_path
-        )
+        module_item = module_item_cls(module=module, data_path=self.__data_path)
 
         module_item_type = self.get_module_item_type(module_item_cls)
         if module_item_type == "Action":

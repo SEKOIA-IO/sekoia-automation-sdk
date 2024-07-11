@@ -24,12 +24,11 @@ class ModuleItemRunner:
         self.__module_path = (root_path / module_name).resolve()
         self.__data_path = data_path
 
-    def load_class_from_path(self, path: Path | str, class_name: str) -> typing.Type:
         # Add the directory containing the module to sys.path
-        module_dir = "/".join(str(path).split("/")[:-1])
-        if module_dir not in sys.path:
-            sys.path.append(module_dir)
+        if str(self.__module_path) not in sys.path:
+            sys.path.append(str(self.__module_path))
 
+    def load_class_from_path(self, path: Path | str, class_name: str) -> typing.Type:
         # Load the module
         module_name = (
             str(Path(path).resolve().relative_to(self.__root_path))

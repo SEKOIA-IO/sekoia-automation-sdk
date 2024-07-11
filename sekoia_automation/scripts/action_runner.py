@@ -122,6 +122,13 @@ class ModuleItemRunner:
 
         return {}
 
+    def get_module_configuration_schema(self) -> dict:
+        manifest = self.__module_path / "manifest.json"
+        with open(manifest, "rt") as file:
+            manifest = json.load(file)
+
+        return manifest.get("configuration", {})
+
     @staticmethod
     def get_module_item_type(cls):
         def __iter_all_parents(c):
@@ -168,6 +175,14 @@ class ModuleItemRunner:
 
         if module_class_name is None or module_class_path is None:
             module = Module()
+
+            module_conf_schema = self.get_module_configuration_schema()
+            module_args = {
+                k: args.get(k) for k in module_conf_schema.get("properties", [])
+            }
+            if len(module_args) > 0:
+                validate(instance=module_args, schema=module_conf_schema)
+                module.configuration = module_args
 
         else:
             module_cls = self.load_class_from_path(module_class_path, module_class_name)

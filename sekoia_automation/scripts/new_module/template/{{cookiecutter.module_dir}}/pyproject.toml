@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "SEKOIA's automation module for {{cookiecutter.module_name.capitalize()}}"
+name = "Automation module for {{cookiecutter.module_name.capitalize()}}"
 version = "0.0"
 description = ""
 authors = []

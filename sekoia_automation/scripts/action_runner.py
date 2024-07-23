@@ -123,8 +123,8 @@ class ModuleItemRunner:
         return {}
 
     def get_module_configuration_schema(self) -> dict:
-        manifest = self.__module_path / "manifest.json"
-        with open(manifest) as file:
+        manifest_path = self.__module_path / "manifest.json"
+        with open(manifest_path) as file:
             manifest = json.load(file)
 
         return manifest.get("configuration", {})

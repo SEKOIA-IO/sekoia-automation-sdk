@@ -190,7 +190,7 @@ class CheckCompliance:
                         CheckError(
                             filepath=filepath,
                             error=f"`docker_parameters` is not "
-                                  f"consistent with trigger_{suffix}",
+                            f"consistent with trigger_{suffix}",
                         )
                     )
                     # We don't want to check these further
@@ -253,7 +253,7 @@ class CheckCompliance:
                             filepath=filepath,
                             error=f"UUID is not consistent with trigger_{suffix}",
                             fix_label=f"Set the same UUID for "
-                                      f"trigger_{suffix} and connector_{suffix}",
+                            f"trigger_{suffix} and connector_{suffix}",
                             fix=partial(
                                 self.fix_set_uuid,
                                 file_path=filepath,

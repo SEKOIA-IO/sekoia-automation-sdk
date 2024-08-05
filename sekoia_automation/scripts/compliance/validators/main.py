@@ -60,7 +60,7 @@ class MainPYValidator(Validator):
                     CheckError(
                         filepath=main_path,
                         error=f"Docker parameter `{item}`"
-                              f" used multiple times in main.py",
+                        f" used multiple times in main.py",
                     )
                 )
 
@@ -81,6 +81,6 @@ class MainPYValidator(Validator):
                 CheckError(
                     filepath=main_path,
                     error=f"`Docker parameter {item}` is registered in main.py,"
-                          f" but absent in any JSON",
+                    f" but absent in any JSON",
                 )
             )

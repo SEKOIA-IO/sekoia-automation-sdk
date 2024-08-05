@@ -148,7 +148,7 @@ class ChangeLog:
                 CheckError(
                     filepath=path,
                     error=f"Header title not valid. Options "
-                          f"are [{','.join(allowed_header_titles)}]",
+                    f"are [{','.join(allowed_header_titles)}]",
                 )
             )
 
@@ -228,7 +228,7 @@ class ChangeLog:
                 CheckError(
                     filepath=path,
                     error="Versions need to be decorated with a release "
-                          "date in the following format 'YYYY-MM-DD'",
+                    "date in the following format 'YYYY-MM-DD'",
                 )
             )
             return
@@ -281,7 +281,7 @@ class ChangeLog:
                     CheckError(
                         filepath=path,
                         error=f'"{title}" is not a valid section for a version. '
-                              f'Options are [{",".join(allowed_version_sections)}]',
+                        f'Options are [{",".join(allowed_version_sections)}]',
                     )
                 )
 

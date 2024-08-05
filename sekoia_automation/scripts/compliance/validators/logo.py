@@ -1,4 +1,3 @@
-import argparse
 import os
 from functools import partial
 from pathlib import Path
@@ -30,7 +29,7 @@ def check_logo_image(result: CheckResult) -> None:
     image_path = module_dir / "logo.png"
 
     if not image_path.is_file():
-        result.errors.append(CheckError(filepath=image_path, error=f"Logo is missing"))
+        result.errors.append(CheckError(filepath=image_path, error="Logo is missing"))
         return
 
     image = Image.open(image_path)

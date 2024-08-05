@@ -1,4 +1,3 @@
-import argparse
 import re
 from pathlib import Path
 
@@ -25,7 +24,7 @@ class ChangelogValidator(Validator):
 
         result.options["changelog_path"] = changelog_path
 
-        with open(changelog_path, "rt") as file:
+        with open(changelog_path) as file:
             text = file.read()
 
         cls.validate_changelog_content(text=text, path=changelog_path, result=result)
@@ -163,7 +162,7 @@ class ChangeLog:
         versions = self.versions()
         if len(versions) == 0:
             result.errors.append(
-                CheckError(filepath=path, error=f"No entries in changelog")
+                CheckError(filepath=path, error="No entries in changelog")
             )
 
         for v in versions:
@@ -256,7 +255,7 @@ class ChangeLog:
         if body and not body.startswith("###"):
             result.errors.append(
                 CheckError(
-                    filepath=path, error=f"Version has content outside of a section."
+                    filepath=path, error="Version has content outside of a section."
                 )
             )
 

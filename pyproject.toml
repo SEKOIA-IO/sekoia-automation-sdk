@@ -125,14 +125,14 @@ testpaths = [
 ]
 
 [tool.ruff]
-select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
+lint.select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
 exclude = [
     "tests/expectations/sample_module/main.py",
     "tests/aio/",
     "sekoia_automation/scripts/new_module/template/"
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]  # Ignore unusued args because of pytest fixtures
 
 [tool.mypy]

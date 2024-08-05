@@ -1,4 +1,3 @@
-import argparse
 import json
 import uuid
 from functools import partial
@@ -27,23 +26,23 @@ class ActionsJSONValidator(Validator):
     @classmethod
     def validate_action_json(cls, path: Path, result: CheckResult):
         try:
-            with open(path, "rt") as file:
+            with open(path) as file:
                 raw = json.load(file)
 
         except ValueError:
-            result.errors.append(CheckError(filepath=path, error=f"can't load JSON"))
+            result.errors.append(CheckError(filepath=path, error="can't load JSON"))
             return
 
         if not isinstance(raw.get("name"), str):
             result.errors.append(
-                CheckError(filepath=path, error=f"`name` is not present")
+                CheckError(filepath=path, error="`name` is not present")
             )
 
         if not isinstance(raw.get("uuid"), str):
             result.errors.append(
                 CheckError(
                     filepath=path,
-                    error=f"`uuid` is not present",
+                    error="`uuid` is not present",
                     fix_label="Generate random UUID",
                     fix=partial(cls.set_random_uuid, path=path),
                 )
@@ -57,13 +56,13 @@ class ActionsJSONValidator(Validator):
 
         if not isinstance(raw.get("description"), str):
             result.errors.append(
-                CheckError(filepath=path, error=f"`description` is not present")
+                CheckError(filepath=path, error="`description` is not present")
             )
 
         # @todo track this to main.py ?
         if not isinstance(raw.get("docker_parameters"), str):
             result.errors.append(
-                CheckError(filepath=path, error=f"`docker_parameters` is not present")
+                CheckError(filepath=path, error="`docker_parameters` is not present")
             )
 
         else:
@@ -78,22 +77,22 @@ class ActionsJSONValidator(Validator):
 
         if not isinstance(raw.get("arguments"), dict):
             result.errors.append(
-                CheckError(filepath=path, error=f"`arguments` is not present")
+                CheckError(filepath=path, error="`arguments` is not present")
             )
 
         elif not cls.is_valid_json_schema(raw["arguments"]):
             result.errors.append(
-                CheckError(filepath=path, error=f"`arguments` is not valid JSON schema")
+                CheckError(filepath=path, error="`arguments` is not valid JSON schema")
             )
 
         if not isinstance(raw.get("results"), dict):
             result.errors.append(
-                CheckError(filepath=path, error=f"`results` is not present")
+                CheckError(filepath=path, error="`results` is not present")
             )
 
         elif not cls.is_valid_json_schema(raw["results"]):
             result.errors.append(
-                CheckError(filepath=path, error=f"`results` is not valid JSON schema")
+                CheckError(filepath=path, error="`results` is not valid JSON schema")
             )
 
     @staticmethod
@@ -101,15 +100,15 @@ class ActionsJSONValidator(Validator):
         try:
             Draft7Validator.check_schema(schema)
             return True
-        except SchemaError as e:
+        except SchemaError:
             return False
 
     @staticmethod
     def set_random_uuid(path: Path):
-        with open(path, "rt") as file:
+        with open(path) as file:
             manifest = json.load(file)
 
         manifest["uuid"] = str(uuid.uuid4())
 
-        with open(path, "wt") as file:
+        with open(path, "w") as file:
             json.dump(manifest, file, indent=2)

@@ -1,4 +1,3 @@
-import argparse
 import json
 import re
 from pathlib import Path
@@ -29,7 +28,7 @@ class ManifestValidator(Validator):
         result.options["manifest_path"] = manifest_path
 
         try:
-            with open(manifest_path, "rt") as f:
+            with open(manifest_path) as f:
                 manifest = json.load(f)
 
         except ValueError:
@@ -123,5 +122,5 @@ class ManifestValidator(Validator):
         try:
             Draft7Validator.check_schema(schema)
             return True
-        except SchemaError as e:
+        except SchemaError:
             return False

@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Annotated
+from typing import Optional
 
 import typer
 from cookiecutter.main import cookiecutter

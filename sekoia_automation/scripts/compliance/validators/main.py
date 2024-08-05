@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 
 from pyastgrep.search import FileFinished, search_python_files

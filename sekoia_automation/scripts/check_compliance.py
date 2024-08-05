@@ -101,7 +101,7 @@ class CheckCompliance:
         errors = mod_val.result.errors
         module_name = mod_val.path.name
         return "\n".join(
-            "%s:%s:%s" % (module_name, error.filepath.name, error.error)
+            f"{module_name}:{error.filepath.name}:{error.error}"
             for error in errors
             if error.filepath not in ignored_paths
         )
@@ -121,12 +121,12 @@ class CheckCompliance:
         return result
 
     def fix_set_uuid(self, file_path: Path, uuid: str) -> None:
-        with open(file_path, "rt") as file:
+        with open(file_path) as file:
             manifest = json.load(file)
 
         manifest["uuid"] = uuid
 
-        with open(file_path, "wt") as file:
+        with open(file_path, "w") as file:
             json.dump(manifest, file, indent=2)
 
     def check_uniqueness(self, items, error_msg: str):
@@ -175,13 +175,12 @@ class CheckCompliance:
                     continue
 
                 if data["connector"] != data["trigger"]:
-                    filename_to_fix = "connector_%s" % suffix
+                    filename_to_fix = f"connector_{suffix}"
                     filepath = module_path / filename_to_fix
                     validator.result.errors.append(
                         CheckError(
                             filepath=filepath,
-                            error=f"`docker_parameters` is not consistent with trigger_%s"
-                            % suffix,
+                            error=f"`docker_parameters` is not consistent with trigger_{suffix}",
                         )
                     )
                     # We don't want to check these further
@@ -236,14 +235,13 @@ class CheckCompliance:
                     continue
 
                 if data["connector"] != data["trigger"]:
-                    filename_to_fix = "connector_%s" % suffix
+                    filename_to_fix = f"connector_{suffix}"
                     filepath = module_path / filename_to_fix
                     validator.result.errors.append(
                         CheckError(
                             filepath=filepath,
-                            error=f"UUID is not consistent with trigger_%s" % suffix,
-                            fix_label="Set the same UUID for trigger_%s and connector_%s"
-                            % (suffix, suffix),
+                            error=f"UUID is not consistent with trigger_{suffix}",
+                            fix_label=f"Set the same UUID for trigger_{suffix} and connector_{suffix}",
                             fix=partial(
                                 self.fix_set_uuid,
                                 file_path=filepath,

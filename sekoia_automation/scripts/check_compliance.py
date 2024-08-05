@@ -161,7 +161,7 @@ class CheckCompliance:
             module_path = validator.result.options["path"]
             docker_parameters = validator.result.options.get("docker_parameters", {})
 
-            suffix_to_docker = defaultdict(dict)
+            suffix_to_docker: defaultdict[dict, dict[str, str]] = defaultdict(dict)
             for filename, docker in docker_parameters.items():
                 if filename.startswith("action_"):
                     actions_docker_params[docker].append((filename, validator))
@@ -223,7 +223,7 @@ class CheckCompliance:
 
             uuids = validator.result.options.get("uuid_to_check", {})
 
-            suffix_to_uuid = defaultdict(dict)
+            suffix_to_uuid: defaultdict[dict, dict[str, str]] = defaultdict(dict)
             for filename, uuid in uuids.items():
                 if filename == "manifest.json":
                     manifest_uuids[uuid].append((filename, validator))

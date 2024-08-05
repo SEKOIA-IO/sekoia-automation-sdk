@@ -14,5 +14,6 @@
         "title": "ModuleConfiguration",
         "type": "object"
     },
-    "version": "0.1"
+    "slug": "test",
+    "version": "0.1.0"
 }

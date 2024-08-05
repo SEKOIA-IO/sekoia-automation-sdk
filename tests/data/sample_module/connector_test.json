@@ -13,14 +13,5 @@
     "description": "Sekoia: connecting... things",
     "docker_parameters": "connector",
     "name": "Connector",
-    "results": {
-        "$schema": "https://json-schema.org/draft-07/schema#",
-        "properties": {
-        },
-        "required": [
-        ],
-        "title": "Results",
-        "type": "object"
-    },
     "uuid": "667f7e89-d907-4086-a578-a2324c9a277a"
 }

@@ -1,3 +1,4 @@
+# ruff: noqa
 from pathlib import Path
 
 from .actions_json import ActionsJSONValidator

@@ -15,15 +15,15 @@ from .triggers_json import TriggersJSONValidator
 MODULES_PATH = Path(__file__).parent.parent.parent.parent
 
 __all__ = (
-    ActionsJSONValidator,
-    ChangelogValidator,
-    ConnectorsJSONValidator,
-    DependenciesValidator,
-    DockerfileValidator,
-    LogoValidator,
-    MainPYValidator,
-    ManifestValidator,
-    ModuleValidator,
-    TestsValidator,
-    TriggersJSONValidator,
+    "ActionsJSONValidator",
+    "ChangelogValidator",
+    "ConnectorsJSONValidator",
+    "DependenciesValidator",
+    "DockerfileValidator",
+    "LogoValidator",
+    "MainPYValidator",
+    "ManifestValidator",
+    "ModuleValidator",
+    "TestsValidator",
+    "TriggersJSONValidator",
 )

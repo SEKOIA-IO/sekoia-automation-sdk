@@ -52,7 +52,7 @@ class MainPYValidator(Validator):
         if len(used_docker_params) != len(unique_used_docker_params):
             tmp = set()
             duplicated_docker_params = [
-                x for x in used_docker_params if x in tmp or tmp.add(x)
+                x for x in used_docker_params if x in tmp or tmp.add(x)  # type: ignore
             ]
 
             for item in duplicated_docker_params:
@@ -64,7 +64,9 @@ class MainPYValidator(Validator):
                     )
                 )
 
-        docker_params_in_jsons = set(result.options.get("docker_parameters").values())
+        docker_params_in_jsons = set(
+            result.options.get("docker_parameters", {}).values()
+        )
         absent_in_main_py = docker_params_in_jsons - unique_used_docker_params
         absent_in_jsons = unique_used_docker_params - docker_params_in_jsons
 

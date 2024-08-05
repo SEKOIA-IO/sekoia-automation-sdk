@@ -43,15 +43,10 @@ class ChangeLogElement:
         raw: str = "",
         title: str = "",
         body: str = "",
-        line_number: int | None = None,
     ):
         self.__raw = raw
         self.__title = title
         self.__body = body
-        self.__line_number = line_number
-
-    def line_number(self) -> int:
-        return self.__line_number
 
     def title(self) -> str:
         return self.__title
@@ -203,6 +198,8 @@ class ChangeLog:
         elif "unreleased" in title.lower():
             return "Unreleased"
 
+        return ""
+
     def validate_version_semver(
         self, version: ChangeLogElement, path: Path, result: CheckResult
     ):
@@ -268,7 +265,6 @@ class ChangeLog:
             text=version.body(),
             start_depth=3,
             end_depth=3,
-            line_offset=version.line_number(),
         )
 
         sections = {}
@@ -317,10 +313,6 @@ class ChangeLog:
             else:
                 body = text[end:]
 
-            elements.append(
-                ChangeLogElement(
-                    raw=raw, title=title, body=body, line_number=line_number
-                )
-            )
+            elements.append(ChangeLogElement(raw=raw, title=title, body=body))
 
         return elements

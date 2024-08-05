@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 
-def transparent_background(image: Image, fuzz: int) -> Image:
+def transparent_background(image: Image.Image, fuzz: int) -> Image.Image:
     """
     Replace white background into transparent background
     """
@@ -28,8 +28,8 @@ def transparent_background(image: Image, fuzz: int) -> Image:
 
 
 def resize_canvas(
-    image: Image, canvas_width: int = 500, canvas_height: int = 500
-) -> Image:
+    image: Image.Image, canvas_width: int = 500, canvas_height: int = 500
+) -> Image.Image:
     """
     Resize the canvas of the image
     """
@@ -48,7 +48,7 @@ def resize_canvas(
     return new_image
 
 
-def square_canvas(image: Image) -> Image:
+def square_canvas(image: Image.Image) -> Image.Image:
     """
     Square the canvas of the image
     """
@@ -57,7 +57,9 @@ def square_canvas(image: Image) -> Image:
     return resize_canvas(image, max_size, max_size)
 
 
-def lighten_image(original: Image, size: int, max_iteration: int = 100) -> Image:
+def lighten_image(
+    original: Image.Image, size: int, max_iteration: int = 100
+) -> Image.Image:
     """
     Downsize the image until its weight is lesser than the supplied parameter
     """
@@ -78,7 +80,9 @@ def lighten_image(original: Image, size: int, max_iteration: int = 100) -> Image
     raise Exception("Unable to resize the image in the maximum iteration")
 
 
-def merge(template: Image, embedded: Image, box: tuple[int, int, int, int]) -> Image:
+def merge(
+    template: Image.Image, embedded: Image.Image, box: tuple[int, int, int, int]
+) -> Image.Image:
     """
     Put an image in a template
     """

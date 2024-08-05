@@ -81,7 +81,7 @@ def check_logo_image(result: CheckResult) -> None:
     result.options["logo_path"] = image_path
 
 
-def has_transparency(img: Image) -> bool:
+def has_transparency(img: Image.Image) -> bool:
     if img.info.get("transparency", None) is not None:
         return True
 
@@ -93,7 +93,7 @@ def has_transparency(img: Image) -> bool:
 
     elif img.mode == "RGBA":
         extrema = img.getextrema()
-        if extrema[3][0] < 255:
+        if extrema[3][0] < 255:  # type: ignore
             return True
 
     return False

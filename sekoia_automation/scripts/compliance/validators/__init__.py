@@ -8,9 +8,9 @@ from .dockerfile import DockerfileValidator
 from .logo import LogoValidator
 from .main import MainPYValidator
 from .manifest import ManifestValidator
-from .module import ModuleValidator
 from .tests import TestsValidator
 from .triggers_json import TriggersJSONValidator
+from .module import ModuleValidator
 
 MODULES_PATH = Path(__file__).parent.parent.parent.parent
 
@@ -23,7 +23,7 @@ __all__ = (
     "LogoValidator",
     "MainPYValidator",
     "ManifestValidator",
-    "ModuleValidator",
     "TestsValidator",
     "TriggersJSONValidator",
+    "ModuleValidator",
 )

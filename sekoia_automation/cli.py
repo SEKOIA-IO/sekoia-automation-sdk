@@ -217,7 +217,7 @@ def check_compliance(
 ):
     from .scripts.check_compliance import CheckCompliance
 
-    cc = CheckCompliance(path=path)
+    cc = CheckCompliance(path=path.resolve())
 
     cc.run(fix=fix)
 

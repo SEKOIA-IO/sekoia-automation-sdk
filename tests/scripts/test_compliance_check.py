@@ -4,6 +4,7 @@ from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
 import pytest
+
 from sekoia_automation.scripts.check_compliance import CheckCompliance
 
 

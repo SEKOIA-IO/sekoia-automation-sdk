@@ -113,8 +113,10 @@ class ChangeLog:
         allowed_header_titles = {"Changelog", "Change log"}
         default_content = [
             "All notable changes to this project will be documented in this file.",
-            "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), "
-            "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).",
+            "The format is based on "
+            "[Keep a Changelog](https://keepachangelog.com/en/1.0.0/), "
+            "and this project adheres to "
+            "[Semantic Versioning](https://semver.org/spec/v2.0.0.html).",
         ]
 
         # 1. assert only one header and starts on first line
@@ -145,7 +147,8 @@ class ChangeLog:
             result.errors.append(
                 CheckError(
                     filepath=path,
-                    error=f"Header title not valid. Options are [{','.join(allowed_header_titles)}]",
+                    error=f"Header title not valid. Options "
+                          f"are [{','.join(allowed_header_titles)}]",
                 )
             )
 
@@ -224,7 +227,8 @@ class ChangeLog:
             result.errors.append(
                 CheckError(
                     filepath=path,
-                    error="Versions need to be decorated with a release date in the following format 'YYYY-MM-DD'",
+                    error="Versions need to be decorated with a release "
+                          "date in the following format 'YYYY-MM-DD'",
                 )
             )
             return
@@ -276,7 +280,8 @@ class ChangeLog:
                 result.errors.append(
                     CheckError(
                         filepath=path,
-                        error=f'"{title}" is not a valid section for a version. Options are [{",".join(allowed_version_sections)}]',
+                        error=f'"{title}" is not a valid section for a version. '
+                              f'Options are [{",".join(allowed_version_sections)}]',
                     )
                 )
 

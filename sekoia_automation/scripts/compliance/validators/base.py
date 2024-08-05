@@ -5,7 +5,8 @@ from .models import CheckResult
 
 class Validator(ABC):
     """
-    Every validator class changes mutable `result` data class either by adding data for the downstream validators
+    Every validator class changes mutable `result` data class
+    either by adding data for the downstream validators
     or enhancing list of detected errors
     """
 

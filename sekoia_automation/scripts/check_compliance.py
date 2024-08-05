@@ -41,7 +41,8 @@ class CheckCompliance:
             r = self.check_module(module)
             all_validators.append(r)
 
-            # We have to check all the modules, but show results only for the selected ones
+            # We have to check all the modules, but
+            # show results only for the selected ones
             if module in self.modules:
                 selected_validators.append(r)
 
@@ -67,7 +68,10 @@ class CheckCompliance:
                 print("🛠 Available automatic fixes (run with `fix` command):")
                 for error in errors_to_fix:
                     print(
-                        f"FIX {error.filepath.relative_to(self.modules_path)}:{error.fix_label}"
+                        f"FIX "
+                        f"{error.filepath.relative_to(self.modules_path)}"
+                        f":"
+                        f"{error.fix_label}"
                     )
 
         else:
@@ -77,7 +81,10 @@ class CheckCompliance:
                 print("Fixing...")
                 for error in errors_to_fix:
                     print(
-                        f"FIX {error.filepath.relative_to(self.modules_path)}:{error.fix_label}"
+                        f"FIX "
+                        f"{error.filepath.relative_to(self.modules_path)}"
+                        f":"
+                        f"{error.fix_label}"
                     )
                     error.fix()
 
@@ -135,8 +142,9 @@ class CheckCompliance:
                 for file_name, val in v:
                     path = val.result.options["path"] / file_name
 
-                    # We don't add fix call (e.g. generating new UUID) here, because it would create
-                    # a lot of error-prone corner cases
+                    # We don't add fix call (e.g. generating new UUID)
+                    # here, because it would create a lot of
+                    # error-prone corner cases
                     val.result.errors.append(
                         CheckError(
                             filepath=path,
@@ -170,7 +178,8 @@ class CheckCompliance:
                     ] = docker
 
             for suffix, data in suffix_to_docker.items():
-                # ignore cases where we have only either `trigger_` or `connector_` files
+                # ignore cases where we have only
+                # either `trigger_` or `connector_` files
                 if "connector" not in data or "trigger" not in data:
                     continue
 
@@ -180,7 +189,8 @@ class CheckCompliance:
                     validator.result.errors.append(
                         CheckError(
                             filepath=filepath,
-                            error=f"`docker_parameters` is not consistent with trigger_{suffix}",
+                            error=f"`docker_parameters` is not "
+                                  f"consistent with trigger_{suffix}",
                         )
                     )
                     # We don't want to check these further
@@ -230,7 +240,8 @@ class CheckCompliance:
                     suffix_to_uuid[filename.lstrip("connector_")]["connector"] = uuid
 
             for suffix, data in suffix_to_uuid.items():
-                # ignore cases where we have only either `trigger_` or `connector_` files
+                # ignore cases where we have only either
+                # `trigger_` or `connector_` files
                 if "connector" not in data or "trigger" not in data:
                     continue
 
@@ -241,7 +252,8 @@ class CheckCompliance:
                         CheckError(
                             filepath=filepath,
                             error=f"UUID is not consistent with trigger_{suffix}",
-                            fix_label=f"Set the same UUID for trigger_{suffix} and connector_{suffix}",
+                            fix_label=f"Set the same UUID for "
+                                      f"trigger_{suffix} and connector_{suffix}",
                             fix=partial(
                                 self.fix_set_uuid,
                                 file_path=filepath,

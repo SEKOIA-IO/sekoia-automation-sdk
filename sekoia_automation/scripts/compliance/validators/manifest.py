@@ -96,7 +96,8 @@ class ManifestValidator(Validator):
             result.errors.append(
                 CheckError(
                     filepath=manifest_path,
-                    error=f"'{module_version}' is not valid semantic version. Read more: https://semver.org/",
+                    error=f"'{module_version}' is not valid semantic version. "
+                          f"Read more: https://semver.org/",
                 )
             )
 

@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.13.0"
+version = "1.14.0"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -29,7 +29,7 @@ classifiers = [
 sekoia-automation = 'sekoia_automation.cli:app'
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.11,<3.13"
 requests = "^2.25"
 sentry-sdk = "*"
 tenacity = "*"

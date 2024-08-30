@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2024-08-30
+
 ### Added
 
 - Added universal classes for a checkpoint
-
-## [1.14.0] - 2024-08-29
 
 ### Changed
 

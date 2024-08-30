@@ -328,7 +328,7 @@ class ModuleItem(ABC):
     description: str | None = None
     results_model: type[BaseModel] | None = None
 
-    _http_error_base_sleep = 0.5
+    _wait_exponent_base: int = 2
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         self.module: Module = module or Module()
@@ -437,7 +437,7 @@ class ModuleItem(ABC):
             return response
         except HTTPError as exception:
             self._log_request_error(exception)
-            if attempt == 5:
+            if attempt == 10:
                 status_code = (
                     exception.response.status_code
                     if isinstance(exception.response, Response)
@@ -454,7 +454,7 @@ class ModuleItem(ABC):
                     "Impossible to send event to Sekoia.io API",
                     status_code=exception.response.status_code,
                 )
-            time.sleep(attempt * self._http_error_base_sleep)
+            time.sleep(self._wait_exponent_base**attempt)
             return self._send_request(data, verb, attempt + 1)
 
     def _log_request_error(self, exception: HTTPError):

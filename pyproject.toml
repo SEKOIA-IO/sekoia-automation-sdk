@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.13.0"
+version = "1.14.0"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -69,6 +69,7 @@ types-requests = "^2.31.0.1"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 pre-commit = "^3.3.3"
+jsonschema = "^4.22.0"
 requests-oauthlib = "^2.0.0"
 
 [tool.poetry.group.lint.dependencies]

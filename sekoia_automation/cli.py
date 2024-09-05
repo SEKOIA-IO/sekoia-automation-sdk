@@ -5,6 +5,7 @@ from typing import Optional
 import typer
 from cookiecutter.main import cookiecutter
 
+from sekoia_automation.scripts.action_runner import ModuleItemRunner
 from sekoia_automation.scripts.documentation.generate import (
     DocumentationGenerator,
 )
@@ -183,6 +184,28 @@ def update_sekoia_library(
     modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
 ):
     SDKUpdater(modules_path=modules_path).update_sdk_version()
+
+
+@app.command(name="run-action")
+def run_action(
+    data_path: Path = typer.Option(".", help="Path to the context data"),
+    modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
+    module_name: str = typer.Option(..., help="Name of the module to test"),
+    class_name: str = typer.Option(..., help="Class name of the action to test"),
+    args: list[str] = typer.Argument(None, help="Module/Action configuration fields"),
+):
+    kwargs = (
+        {arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args}
+        if args
+        else {}
+    )
+    module_runner = ModuleItemRunner(
+        module_name=module_name,
+        class_name=class_name,
+        root_path=modules_path,
+        data_path=data_path,
+    )
+    print(module_runner.run(args=kwargs))
 
 
 if __name__ == "__main__":

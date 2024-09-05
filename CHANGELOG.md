@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - For GenericAPIAction, handle when the response is a no content response
 
+## [1.14.0] - 2024-08-30
+
+### Added
+
+- Added universal classes for a checkpoint
+
+### Changed
+
+- Increase number of retries and time between retries when sending requests 
+
 ## [1.13.0] - 2024-04-22
 
 ### Changed

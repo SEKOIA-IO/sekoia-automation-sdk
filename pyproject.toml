@@ -68,6 +68,8 @@ types-requests = "^2.31.0.1"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 pre-commit = "^3.3.3"
+
+[tool.poetry.group.scripts.dependencies]
 jsonschema = "^4.22.0"
 semver = "^3.0.2"
 pillow = "^10.3.0"

@@ -23,7 +23,7 @@ from sekoia_automation.exceptions import (
     TriggerConfigurationError,
 )
 from sekoia_automation.metrics import PrometheusExporterThread, make_exporter
-from sekoia_automation.module import Module, ModuleItem
+from sekoia_automation.module import LogLevelStr, Module, ModuleItem
 from sekoia_automation.timer import RepeatedTimer
 from sekoia_automation.utils import (
     capture_retry_error,
@@ -306,7 +306,7 @@ class Trigger(ModuleItem):
         message = kwargs.get("message", "An exception occurred")
         self.log(f"{message}\n{exception}", level="error", propagate=False)
 
-    def log(self, message: str, level: str = "info", *args, **kwargs) -> None:
+    def log(self, message: str, level: LogLevelStr = "info", *args, **kwargs) -> None:
         if level == "critical" and self._critical_log_sent:
             #  Prevent sending multiple critical errors
             level = "error"

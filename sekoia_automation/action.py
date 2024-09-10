@@ -352,7 +352,8 @@ class GenericAPIAction(Action):
         if not response.ok:
             self.log_request_error(url, arguments, response)
             return None
-        return response.json()
+
+        return response.json() if response.status_code != 204 else None
 
     def _wait_param(self) -> wait_base:
         return wait_exponential(multiplier=2, min=1, max=10)

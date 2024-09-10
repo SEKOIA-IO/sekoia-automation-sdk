@@ -38,7 +38,7 @@ def mock_volume():
         elif "callback" in file_name:
             return FAKE_URL
         elif "sentry" in file_name:
-            return "http://1234@localhost/123"
+            return None
         else:
             return DEFAULT_ARGUMENTS
 

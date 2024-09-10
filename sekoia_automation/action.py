@@ -27,7 +27,7 @@ from sekoia_automation.exceptions import (
     MissingActionArgumentFileError,
     SendEventError,
 )
-from sekoia_automation.module import Module, ModuleItem
+from sekoia_automation.module import LogLevelStr, Module, ModuleItem
 from sekoia_automation.storage import UPLOAD_CHUNK_SIZE
 from sekoia_automation.utils import chunks, returns
 
@@ -107,7 +107,11 @@ class Action(ModuleItem):
         self.send_results()
 
     def log(
-        self, message: str, level: str = "debug", only_sentry: bool = True, **kwargs
+        self,
+        message: str,
+        level: LogLevelStr = "debug",
+        only_sentry: bool = True,
+        **kwargs,
     ) -> None:
         """Log a message with a specific level."""
         self._logs.append(

@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import requests
 import sentry_sdk
@@ -24,6 +24,8 @@ from sekoia_automation.utils import (
     get_annotation_for,
     get_as_model,
 )
+
+LogLevelStr = Literal["fatal", "critical", "error", "warning", "info", "debug"]
 
 
 class Module:
@@ -380,7 +382,11 @@ class ModuleItem(ABC):
                 raise
 
     def log(
-        self, message: str, level: str = "debug", only_sentry: bool = False, **kwargs
+        self,
+        message: str,
+        level: LogLevelStr = "debug",
+        only_sentry: bool = False,
+        **kwargs,
     ) -> None:
         """Log a message with a specific level."""
         # Right now propagates to sentry only errors and warnings

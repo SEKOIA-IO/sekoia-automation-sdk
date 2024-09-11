@@ -4,6 +4,7 @@ from unittest.mock import patch
 # third parties
 import pytest
 from pydantic import BaseModel
+from sentry_sdk import get_isolation_scope
 
 # internal
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
@@ -196,3 +197,69 @@ def test_configuration_setter_missing_required_secret():
         with pytest.raises(expected_exception=ModuleConfigurationError):
             module.configuration = {"not a secret": "some value"}
             assert module.configuration == {secret_name: "some other value"}
+
+
+def test_playbook_uuid():
+    module = Module()
+    with patch.object(
+        module, "load_config", return_value="5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+    ):
+        assert module.playbook_uuid == "5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+
+
+def test_playbook_run_uuid():
+    module = Module()
+    with patch.object(
+        module, "load_config", return_value="5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+    ):
+        assert module.playbook_run_uuid == "5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+
+
+def test_node_run_uuid():
+    module = Module()
+    with patch.object(
+        module, "load_config", return_value="5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+    ):
+        assert module.node_run_uuid == "5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+
+
+def test_trigger_configuration_uuid():
+    module = Module()
+    with patch.object(
+        module, "load_config", return_value="5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+    ):
+        assert (
+            module.trigger_configuration_uuid == "5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+        )
+
+
+def test_connector_configuration_uuid():
+    module = Module()
+    with patch.object(
+        module, "load_config", return_value="5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+    ):
+        assert (
+            module.connector_configuration_uuid
+            == "5e57c739-391a-4eb3-b6be-7d15ca92d5ed"
+        )
+
+
+def test_init_sentry():
+    module = Module()
+    module._community_uuid = "community"
+    module._playbook_uuid = "playbook"
+    module._playbook_run_uuid = "playbook_run"
+    module._node_run_uuid = "node_run"
+    module._trigger_configuration_uuid = "trigger_configuration"
+    module._connector_configuration_uuid = "connector_configuration"
+
+    with patch.object(
+        module, "_load_sentry_dsn", return_value="http://1234@localhost/1234"
+    ):
+        module.init_sentry()
+        tags = get_isolation_scope()._tags
+        assert tags["community"] == "community"
+        assert tags["playbook_uuid"] == "playbook"
+        assert tags["playbook_run_uuid"] == "playbook_run"
+        assert tags["trigger_configuration_uuid"] == "trigger_configuration"
+        assert tags["connector_configuration_uuid"] == "connector_configuration"

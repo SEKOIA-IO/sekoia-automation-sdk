@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.1] - 2024-09-10
+
 ### Fixed
 
 - For GenericAPIAction, handle when the response is a no content response
+- Fix dependency issue
 
 ## [1.14.0] - 2024-08-30
 

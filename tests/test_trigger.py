@@ -330,13 +330,15 @@ def test_trigger_log_time_elapsed(mocked_trigger_logs):
     trigger._logs_timer.start()
 
     trigger.log("test message", "info")
-    assert mocked_trigger_logs.call_count == 0
-    time.sleep(trigger.LOGS_MAX_DELTA * 1.5)
-    assert mocked_trigger_logs.call_count == 1
+    try:
+        assert mocked_trigger_logs.call_count == 0
+        time.sleep(trigger.LOGS_MAX_DELTA * 1.5)
+        assert mocked_trigger_logs.call_count == 1
 
-    logs = mocked_trigger_logs.last_request.json()["logs"]
-    assert len(logs) == 1
-    trigger.stop()
+        logs = mocked_trigger_logs.last_request.json()["logs"]
+        assert len(logs) == 1
+    finally:
+        trigger.stop()
 
 
 def test_trigger_log_retry(mocked_trigger_logs):

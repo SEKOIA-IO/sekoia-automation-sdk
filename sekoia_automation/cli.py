@@ -31,7 +31,7 @@ def generate_files(
         dir_okay=True,
         writable=True,
         help="Path to the module to work on",
-    )
+    ),
 ):
     """
     Generate modules files from the actions and triggers python code.

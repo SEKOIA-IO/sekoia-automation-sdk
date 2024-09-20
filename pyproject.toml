@@ -31,6 +31,7 @@ sekoia-automation = 'sekoia_automation.cli:app'
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
 requests = "^2.25"
+requests-ratelimiter = "^0.4.2"
 sentry-sdk = "*"
 tenacity = "*"
 boto3 = "^1.28"
@@ -69,6 +70,15 @@ types-requests = "^2.31.0.1"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 pre-commit = "^3.3.3"
+requests-oauthlib = "^2.0.0"
+
+[tool.poetry.group.lint.dependencies]
+ruff = "*"
+black = "*"
+mypy = "*"
+isort = "*"
+autoflake = "^1.4"
+poethepoet = { version = "^0.16.5", extras = ["poetry_plugin"] }
 
 [tool.poetry.group.scripts.dependencies]
 jsonschema = "^4.22.0"
@@ -102,15 +112,12 @@ logging = [
     "loguru"
 ]
 
-
-[tool.poetry.group.lint.dependencies]
-ruff = "*"
-black = "*"
-mypy = "*"
-
 [tool.black]
 target-version = ["py311"]
 force-exclude = "tests/expectations/sample_module/main.py|sekoia_automation/scripts/new_module/template/"
+
+[tool.autoflake]
+exclude = "sekoia_automation/scripts/**/*"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -147,3 +154,10 @@ exclude = [
     "tests/"
 ]
 disable_error_code = "annotation-unchecked"
+
+[tool.poe.tasks.lint]
+sequence = [
+    { cmd = "poetry run autoflake ." },
+    { cmd = "poetry run black ." },
+]
+help = "Make code linting and formatting."

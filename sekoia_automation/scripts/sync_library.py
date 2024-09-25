@@ -171,13 +171,9 @@ class SyncLibrary:
 
         else:
             content: dict = response.json()
-            mod_list: list = list(module_info.keys())
 
             for k in content.keys():
-                if k not in mod_list:
-                    module_info[k] = None
-
-                if content[k] == module_info[k]:
+                if k in module_info and content[k] == module_info[k]:
                     del module_info[k]
 
             if not module_info:

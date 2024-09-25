@@ -104,12 +104,17 @@ class SyncLibrary:
             elif response.status_code == 404:
                 data: dict = obj.copy()
                 data.update({"module_uuid": module_uuid})
-                requests.post(
+                r = requests.post(
                     urljoin(self.playbook_url, f"{name}s"),
                     json=data,
                     headers=self.headers,
                 )
-                created.append(f"{obj_name}")
+                if r.status_code == 200:
+                    created.append(f"{obj_name}")
+                else:
+                    errors.append(
+                        f"{{{obj_name}: {response.status_code} - {response.text}}}"
+                    )
 
             else:
                 content: dict = response.json()
@@ -128,12 +133,17 @@ class SyncLibrary:
                     up_to_date.append(f"{obj_name}")
 
                 else:
-                    updated.append(f"{obj_name}")
-                    requests.patch(
+                    r = requests.patch(
                         urljoin(self.playbook_url, f"{name}s", obj_uuid),
                         json=obj,
                         headers=self.headers,
                     )
+                    if r.status_code == 200:
+                        updated.append(f"{obj_name}")
+                    else:
+                        errors.append(
+                            f"{{{obj_name}: {response.status_code} - {response.text}}}"
+                        )
 
         print(f"\t{module_name}/{name}")
         self.pprint(
@@ -162,33 +172,35 @@ class SyncLibrary:
             print(f"[red]Error {response.status_code}[/red]")
 
         elif response.status_code == 404:
-            requests.post(
+            r = requests.post(
                 urljoin(self.playbook_url, "modules"),
                 json=module_info,
                 headers=self.headers,
             )
-            print("Created")
+            if r.status_code == 200:
+                print("Created")
+            else:
+                print(f"[red]Error {response.status_code} - {response.text}[/red]")
 
         else:
             content: dict = response.json()
-            mod_list: list = list(module_info.keys())
 
             for k in content.keys():
-                if k not in mod_list:
-                    module_info[k] = None
-
-                if content[k] == module_info[k]:
+                if k in module_info and content[k] == module_info[k]:
                     del module_info[k]
 
             if not module_info:
                 print("Already-Up-To-Date")
             else:
-                requests.patch(
+                r = requests.patch(
                     urljoin(self.playbook_url, "modules", module_uuid),
                     json=module_info,
                     headers=self.headers,
                 )
-                print("Updated")
+                if r.status_code == 200:
+                    print("Updated")
+                else:
+                    print(f"[red]Error {response.status_code} - {response.text}[/red]")
 
     def load_actions(self, module_path: Path) -> list:
         """Load JSON files representing the actions linked to a module

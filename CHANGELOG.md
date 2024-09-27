@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Make the minimal Python version to 3.10.
+- Replace isort, black and autoflake with Ruff.
 
 ## [1.14.1] - 2024-09-10
 

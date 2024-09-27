@@ -332,7 +332,7 @@ def test_trigger_log_time_elapsed(mocked_trigger_logs):
     trigger.log("test message", "info")
     try:
         assert mocked_trigger_logs.call_count == 0
-        time.sleep(trigger.LOGS_MAX_DELTA * 1.5)
+        time.sleep(0.1)
         assert mocked_trigger_logs.call_count == 1
 
         logs = mocked_trigger_logs.last_request.json()["logs"]

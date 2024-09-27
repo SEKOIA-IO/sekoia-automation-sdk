@@ -29,7 +29,7 @@ classifiers = [
 sekoia-automation = 'sekoia_automation.cli:app'
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = "^3.10"
 requests = "^2.25"
 requests-ratelimiter = "^0.4.2"
 sentry-sdk = "*"

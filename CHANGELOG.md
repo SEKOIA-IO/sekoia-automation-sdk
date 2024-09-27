@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Make the minimal Python version to 3.10.
 - Replace isort, black and autoflake with Ruff.
+- Update Mypy configuration.
 
 ## [1.14.1] - 2024-09-10
 

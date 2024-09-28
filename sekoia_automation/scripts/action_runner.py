@@ -2,9 +2,8 @@ import ast
 import importlib.util
 import json
 import sys
-import typing
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 from jsonschema import validate
 
@@ -28,7 +27,7 @@ class ModuleItemRunner:
         if str(self.__module_path) not in sys.path:
             sys.path.append(str(self.__module_path))
 
-    def load_class_from_path(self, path: Path | str, class_name: str) -> typing.Type:
+    def load_class_from_path(self, path: Path | str, class_name: str) -> type:
         # Load the module
         module_name = (
             str(Path(path).resolve().relative_to(self.__root_path))
@@ -61,7 +60,7 @@ class ModuleItemRunner:
 
     def find_file_with_child_class(
         self, parent_class_to_find: str
-    ) -> Tuple[str | None, Path | None]:
+    ) -> tuple[str | None, Path | None]:
         for file_path in self.__module_path.rglob("*.py"):
             with open(file_path) as f:
                 try:

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace isort, black and autoflake with Ruff.
 - Update Mypy configuration.
 - Improve CI to test the package with several versions of Python.
+- Update some dependencies to their latest version
+  (`requests-ratelimiter`, `typer`, `prometheus-client`) and some
+  devel ones (`pytest`, `pytest-asyncio`, `pytest-env`, `faker`).
 
 ## [1.14.1] - 2024-09-10
 

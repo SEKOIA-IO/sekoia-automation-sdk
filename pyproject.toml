@@ -31,21 +31,21 @@ sekoia-automation = 'sekoia_automation.cli:app'
 [tool.poetry.dependencies]
 python = "^3.10"
 requests = "^2.25"
-requests-ratelimiter = "^0.4.2"
+requests-ratelimiter = "^0.7.0"
 sentry-sdk = "*"
 tenacity = "*"
 boto3 = "^1.28"
 s3path = "^0.5"
 orjson = "^3.8"
 pydantic = "^1.10"
-typer = { extras = ["all"], version = "^0.7"}
+typer = { extras = ["all"], version = "^0.12"}
 cookiecutter = "^2.1"
 python-slugify = "^5.0.2"
 PyYAML = "^6.0"
 Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
 poetry = "*" # To lock requirements when creating new module
-prometheus-client = "^0.16.0"
+prometheus-client = "^0.21.0"
 aiohttp = { version = "^3.8.4", optional = true }
 aiolimiter = { version = "^1.1.0", optional = true }
 aiobotocore = { version = "^2.5.2", optional = true }
@@ -57,13 +57,13 @@ jsonschema = "^4.22.0"
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"
 pylint = "*"
-pytest = "<8"
+pytest = "^8.3.3"
 pytest-cov = "*"
-pytest-asyncio = "*"
+pytest-asyncio = "^0.24.0"
 pytest-xdist = "*"
-pytest-env = "*"
+pytest-env = "^1.1.5"
 requests-mock = "^1.9"
-faker = "^19.0.0"
+faker = "^30.0.0"
 aioresponses = { git = "https://github.com/pnuckowski/aioresponses.git", rev = "444aa498cd2f625edd7923355fa373972d5fcf44" }
 pre-commit = "^3.3.3"
 requests-oauthlib = "^2.0.0"

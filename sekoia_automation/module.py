@@ -269,6 +269,11 @@ class Module:
             item.name = name
         self._items[name] = item
 
+    def register_account_validator(self):
+        from sekoia_automation.account_validator import AccountValidator
+
+        self.register(AccountValidator, "validate_module_configuration")
+
     def run(self):
         command = self.command or ""
 

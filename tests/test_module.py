@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sentry_sdk import get_isolation_scope
 
 # internal
+from sekoia_automation.account_validator import AccountValidator
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger
@@ -61,6 +62,15 @@ def test_register_no_command():
     with patch("sys.argv", ["run", "other_command"]):
         with pytest.raises(CommandNotFoundError):
             module.run()
+
+
+def test_register_account_validator():
+    module = Module()
+    with patch.object(module, "register") as mock_register:
+        module.register_account_validator()
+        mock_register.assert_called_once_with(
+            AccountValidator, "validate_module_configuration"
+        )
 
 
 @patch.object(DummyTrigger, "execute")

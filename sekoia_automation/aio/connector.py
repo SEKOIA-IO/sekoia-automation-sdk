@@ -129,6 +129,13 @@ class AsyncConnector(Connector, ABC):
 
         return events_ids
 
+    @property
+    def _batchapi_url(self):
+        if intake_server := self.configuration.intake_server:
+            return urljoin(intake_server, "batch")
+        else:
+            return urljoin(self.intake_url, "batch")
+
     async def push_data_to_intakes(
         self, events: list[str]
     ) -> list[str]:  # pragma: no cover
@@ -142,10 +149,6 @@ class AsyncConnector(Connector, ABC):
             list[str]:
         """
         self._last_events_time = datetime.utcnow()
-        if intake_server := self.configuration.intake_server:
-            batch_api = urljoin(intake_server, "batch")
-        else:
-            batch_api = urljoin(self.intake_url, "batch")
 
         result_ids = []
 
@@ -153,7 +156,7 @@ class AsyncConnector(Connector, ABC):
 
         async with self.session() as session:
             forwarders = [
-                self._async_send_chunk(session, batch_api, chunk_index, chunk)
+                self._async_send_chunk(session, self._batchapi_url, chunk_index, chunk)
                 for chunk_index, chunk in enumerate(chunks)
             ]
             async for ids in limit_concurrency(forwarders, self.max_concurrency_tasks):

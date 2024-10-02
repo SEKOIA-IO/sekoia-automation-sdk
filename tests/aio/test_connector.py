@@ -1,7 +1,7 @@
 """Test async connector."""
 
 from unittest.mock import Mock, patch
-from urllib.parse import urljoin
+from posixpath import join as urljoin
 
 import pytest
 from aiolimiter import AsyncLimiter
@@ -222,6 +222,7 @@ async def test_async_connector_raise_error(
     [
         ('http://intake.fake.url/', 'http://intake.fake.url/batch'),
         ('http://fake.url/intake/', 'http://fake.url/intake/batch'),
+        ('http://fake.url/intake', 'http://fake.url/intake/batch'),
     ]
 )
 def test_async_connector_batchapi_url(storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str):

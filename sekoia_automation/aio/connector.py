@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin
+from posixpath import join as urljoin
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter

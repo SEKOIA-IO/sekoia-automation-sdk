@@ -37,7 +37,7 @@ class RefreshedToken(GenericModel, Generic[HttpTokenT]):
         Returns:
             bool:
         """
-        return self.created_at + self.ttl < (time.time() - 1)
+        return (self.created_at + self.ttl) < (int(time.time()) - 1)
 
 
 RefreshedTokenT = TypeVar("RefreshedTokenT", bound=RefreshedToken)
@@ -141,7 +141,7 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         Yields:
             RefreshedTokenT:
         """
-        if self._token is None:
+        if self._token is None or not self._token.is_valid():
             await self._refresh_token()
 
         if not self._token:

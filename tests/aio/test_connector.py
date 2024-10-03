@@ -1,5 +1,7 @@
 """Test async connector."""
 
+from collections.abc import AsyncGenerator
+from datetime import datetime
 from unittest.mock import Mock, patch
 from urllib.parse import urljoin
 
@@ -15,8 +17,17 @@ from sekoia_automation.aio.connector import AsyncConnector
 class DummyAsyncConnector(AsyncConnector):
     trigger_activation: str | None = None
 
-    def run(self):
-        raise NotImplementedError
+    events: list[list[str]] | None = None
+
+    def set_events(self, events: list[list[str]]) -> None:
+        self.events = events
+
+    async def iterate(self) -> AsyncGenerator[tuple[list[str], datetime | None], None]:
+        if self.events is None:
+            raise RuntimeError("Events are not set")
+
+        for event in self.events:
+            yield event, None
 
 
 @pytest.fixture
@@ -221,3 +232,49 @@ async def test_async_connector_raise_error(
         except Exception as e:
             assert isinstance(e, RuntimeError)
             assert str(e) == expected_error
+
+
+@pytest.mark.asyncio
+async def test_async_connector_async_next_run(
+    async_connector: DummyAsyncConnector, faker: Faker
+):
+    """
+    Test async connector push events.
+
+    Args:
+        async_connector: DummyAsyncConnector
+        faker: Faker
+    """
+    single_event_id = faker.uuid4()
+
+    # We expect 3 chunks of events
+    test_events = [
+        [faker.uuid4(), faker.uuid4()],
+        [faker.uuid4(), faker.uuid4(), faker.uuid4()],
+        [faker.uuid4(), faker.uuid4(), faker.uuid4(), faker.uuid4()],
+    ]
+
+    async_connector.set_events(test_events)
+
+    request_url = urljoin(async_connector.configuration.intake_server, "batch")
+
+    with aioresponses() as mocked_responses:
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        await async_connector.async_next_run()

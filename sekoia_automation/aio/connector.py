@@ -1,8 +1,10 @@
 """Contains connector with async version."""
 
+import asyncio
+import time
 from abc import ABC
 from asyncio import AbstractEventLoop, get_event_loop
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +14,11 @@ from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
 
 from sekoia_automation.aio.helpers import limit_concurrency
-from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
+from sekoia_automation.connector import (
+    Connector,
+    DefaultConnectorConfiguration,
+    EventType,
+)
 from sekoia_automation.module import Module
 
 
@@ -139,7 +145,7 @@ class AsyncConnector(Connector, ABC):
         return events_ids
 
     async def push_data_to_intakes(
-        self, events: list[str]
+        self, events: Sequence[EventType]
     ) -> list[str]:  # pragma: no cover
         """
         Custom method to push events to intakes.
@@ -150,7 +156,6 @@ class AsyncConnector(Connector, ABC):
         Returns:
             list[str]:
         """
-        self._last_events_time = datetime.utcnow()
         if intake_server := self.configuration.intake_server:
             batch_api = urljoin(intake_server, "batch")
         else:
@@ -169,3 +174,73 @@ class AsyncConnector(Connector, ABC):
                 result_ids.extend(ids)
 
         return result_ids
+
+    async def async_iterate(
+        self,
+    ) -> AsyncGenerator[tuple[list[EventType], datetime | None], None]:
+        """Iterate over events."""
+        yield [], None  # To avoid type checking error
+
+    async def async_next_run(self) -> None:
+        processing_start = time.time()
+
+        result_last_event_date: datetime | None = None
+        total_number_of_events = 0
+        async for data in self.async_iterate():
+            events, last_event_date = data
+            if last_event_date:
+                if (
+                    not result_last_event_date
+                    or last_event_date > result_last_event_date
+                ):
+                    result_last_event_date = last_event_date
+
+            if events:
+                total_number_of_events += len(events)
+                await self.push_data_to_intakes(events)
+
+        processing_end = time.time()
+        processing_time = processing_end - processing_start
+
+        # Metric about processing time
+        self._forward_events_duration.labels(
+            intake_key=self.configuration.intake_key
+        ).observe(processing_time)
+
+        # Metric about processing count
+        self._outcoming_events.labels(intake_key=self.configuration.intake_key).inc(
+            total_number_of_events
+        )
+
+        # Metric about events lag
+        if result_last_event_date:
+            lag = (datetime.utcnow() - result_last_event_date).total_seconds()
+            self._events_lag.labels(intake_key=self.configuration.intake_key).set(lag)
+
+        # Compute the remaining sleeping time.
+        # If greater than 0 and no messages where fetched, pause the connector
+        delta_sleep = (self.frequency or 0) - processing_time
+        if total_number_of_events == 0 and delta_sleep > 0:
+            self.log(message=f"Next batch in the future. Waiting {delta_sleep} seconds")
+
+            await asyncio.sleep(delta_sleep)
+
+    # Put infinite arg only to have testing easier
+    async def async_run(self) -> None:  # pragma: no cover
+        """Runs Connector."""
+        while self.running:
+            try:
+                await self.async_next_run()
+            except Exception as e:
+                self.log_exception(
+                    e,
+                    message=f"Error while running connector {self.connector_name}",
+                )
+
+                if self.frequency:
+                    await asyncio.sleep(self.frequency)
+
+    def run(self) -> None:  # pragma: no cover
+        """Runs Connector."""
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.async_run())

@@ -1,3 +1,5 @@
+from collections.abc import Generator
+from datetime import datetime
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -20,8 +22,18 @@ def configure_intake_url(config_storage):
 
 
 class DummyConnector(Connector):
-    def run(self):
-        raise NotImplementedError
+
+    events: list[list[str]] | None = None
+
+    def set_events(self, events: list[list[str]]) -> None:
+        self.events = events
+
+    def iterate(self) -> Generator[tuple[list[str], datetime | None], None, None]:
+        if self.events is None:
+            raise RuntimeError("Events are not set")
+
+        for data in self.events:
+            yield data, None
 
 
 @pytest.fixture
@@ -280,3 +292,25 @@ def test_connector_configuration_file_not_found(test_connector):
         Trigger, "configuration", new_callable=PropertyMock, return_value=config
     ):
         assert test_connector.configuration == config
+
+
+def test_connector_next_run(faker, test_connector, requests_mock):
+    requests_mock.post(
+        "https://intake.sekoia.io/batch",
+        [
+            {"json": {"event_ids": ["001", "002"]}},
+        ],
+    )
+
+    events = [
+        [faker.word(), faker.word()],
+        [faker.word(), faker.word(), faker.word()],
+        [faker.word(), faker.word(), faker.word(), faker.word()],
+    ]
+
+    test_connector.set_events(events)
+
+    test_connector.next_run()
+
+    # because we expect 3 iterations
+    assert len(requests_mock.request_history) == 3

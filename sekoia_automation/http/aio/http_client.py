@@ -45,14 +45,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Yields:
             AsyncGenerator[ClientSession, None]:
         """
-        if self._session is None:
-            self._session = ClientSession()
-
-        if self._rate_limiter:
-            async with self._rate_limiter:
+        async with ClientSession() as self._session:
+            if self._rate_limiter:
+                async with self._rate_limiter:
+                    yield self._session
+            else:
                 yield self._session
-        else:
-            yield self._session
 
     @asynccontextmanager
     async def get(

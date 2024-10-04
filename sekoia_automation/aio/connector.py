@@ -91,10 +91,7 @@ class AsyncConnector(Connector, ABC):
         Returns:
             ClientSession:
         """
-        if cls._session is None:
-            cls._session = ClientSession()
-
-        async with cls.get_rate_limiter():
+        async with ClientSession() as cls._session, cls.get_rate_limiter():
             yield cls._session
 
     async def _async_send_chunk(

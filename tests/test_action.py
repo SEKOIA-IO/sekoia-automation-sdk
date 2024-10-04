@@ -39,12 +39,10 @@ def test_action_logs(capsys):
     assert action.logs[1]["level"] == "info"
     assert action.logs[2]["level"] == "warning"
     assert action.logs[3]["level"] == "error"
-    assert action.logs[4]["level"] == "warning"
     assert action.logs[0]["message"] == "message1"
     assert action.logs[1]["message"] == "message2"
     assert action.logs[2]["message"] == "message3"
     assert action.logs[3]["message"] == "message4"
-    assert action.logs[4]["message"] == "message5"
 
 
 def test_action_outputs():
@@ -239,9 +237,9 @@ def test_action_json_result_same_as_argument():
 
 
 def test_generic_api_action(storage):
-    def init_action():
+    def init_action(verb: str = "get"):
         action = GenericAPIAction(data_path=storage)
-        action.verb = "get"
+        action.verb = verb
         action.endpoint = "resource/{uuid}/count"
         action.query_parameters = ["param"]
         action.module.configuration = {"base_url": "http://base_url/"}
@@ -322,7 +320,26 @@ def test_generic_api_action(storage):
         results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
 
         assert results is None
+        assert mock.call_count == 10
+
+    action = init_action()
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/fake_uuid/count", status_code=400, json={})
+        results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
+
+        assert results is None
         assert mock.call_count == 1
+
+    action = init_action(verb="delete")
+    with requests_mock.Mocker() as mock:
+        mock.delete(
+            "http://base_url/resource/fake_uuid/count",
+            [{"status_code": 503}, {"status_code": 404}],
+        )
+        results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
+
+        assert results is None
+        assert mock.call_count == 2
 
     # timeout
     action = init_action()

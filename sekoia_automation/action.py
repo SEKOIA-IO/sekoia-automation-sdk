@@ -302,8 +302,8 @@ class GenericAPIAction(Action):
         )
         self.error(message)
 
-    def log_timeout_error(self, url: str, arguments: dict):
-        message = f"HTTP Request timeout: {url}"
+    def log_retry_error(self, url: str, arguments: dict):
+        message = f"HTTP Request failed after all retries: {url}"
         self.log(
             message,
             level="error",
@@ -349,15 +349,22 @@ class GenericAPIAction(Action):
                     response: Response = requests.request(
                         self.verb, url, json=body, headers=headers, timeout=self.timeout
                     )
+                    if not response.ok:
+                        if (
+                            self.verb.lower() == "delete"
+                            and response.status_code == 404
+                            and attempt.retry_state.attempt_number > 1
+                        ):
+                            return None
+                        if 400 <= response.status_code < 500:
+                            self.log_request_error(url, arguments, response)
+                            return None
+                        response.raise_for_status()
         except RetryError:
-            self.log_timeout_error(url, arguments)
-            return None
-
-        if not response.ok:
-            self.log_request_error(url, arguments, response)
+            self.log_retry_error(url, arguments)
             return None
 
         return response.json() if response.status_code != 204 else None
 
     def _wait_param(self) -> wait_base:
-        return wait_exponential(multiplier=2, min=1, max=10)
+        return wait_exponential(multiplier=2, min=2, max=300)

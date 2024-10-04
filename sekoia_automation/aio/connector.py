@@ -103,6 +103,11 @@ class AsyncConnector(Connector, ABC):
         async with cls.get_rate_limiter():
             yield cls._session
 
+    async def async_close(self) -> None:
+        """Close session."""
+        if self._session:
+            await self._session.close()
+
     async def _async_send_chunk(
         self, session: ClientSession, url: str, chunk_index: int, chunk: list[str]
     ) -> list[str]:
@@ -244,3 +249,4 @@ class AsyncConnector(Connector, ABC):
         """Runs Connector."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.async_run())
+        loop.run_until_complete(self.async_close())

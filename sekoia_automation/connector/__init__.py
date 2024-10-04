@@ -8,7 +8,7 @@ from datetime import datetime
 from datetime import time as datetime_time
 from functools import cached_property
 from os.path import join as urljoin
-from typing import Any
+from typing import Any, TypeAlias
 
 import orjson
 import requests
@@ -27,7 +27,7 @@ from sekoia_automation.utils import get_annotation_for, get_as_model
 # We should add the content of push_events_to_intakes
 # so that we are able to send events directly from connectors
 
-EventType = dict[str, Any] | str | BaseModel
+EventType: TypeAlias = dict[str, Any] | str | BaseModel
 
 
 class DefaultConnectorConfiguration(BaseModel):

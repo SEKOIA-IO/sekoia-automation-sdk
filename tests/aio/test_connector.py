@@ -50,31 +50,6 @@ def async_connector(storage, mocked_trigger_logs, faker: Faker):
 
 
 @pytest.mark.asyncio
-async def test_async_connector_rate_limiter(async_connector: DummyAsyncConnector):
-    """
-    Test async connector rate limiter.
-
-    Args:
-        async_connector: DummyAsyncConnector
-    """
-    other_instance = DummyAsyncConnector()
-    rate_limiter_mock = AsyncLimiter(max_rate=100)
-
-    assert async_connector._rate_limiter is None
-    assert other_instance._rate_limiter is None
-
-    assert async_connector.get_rate_limiter() == other_instance.get_rate_limiter()
-
-    async_connector.set_rate_limiter(rate_limiter_mock)
-
-    assert async_connector.get_rate_limiter() == other_instance.get_rate_limiter()
-    assert async_connector._rate_limiter == rate_limiter_mock
-
-    DummyAsyncConnector.set_rate_limiter(None)
-    DummyAsyncConnector.set_client_session(None)
-
-
-@pytest.mark.asyncio
 async def test_async_connector_client_session(async_connector: DummyAsyncConnector):
     """
     Test async connector client_session.
@@ -89,7 +64,7 @@ async def test_async_connector_client_session(async_connector: DummyAsyncConnect
 
     async with async_connector.session() as session_1:
         async with other_instance.session() as session_2:
-            assert session_1 == session_2
+            assert session_1 != session_2
 
             assert async_connector._rate_limiter is not None and isinstance(
                 async_connector._rate_limiter, AsyncLimiter
@@ -98,9 +73,6 @@ async def test_async_connector_client_session(async_connector: DummyAsyncConnect
             assert other_instance._rate_limiter is not None and isinstance(
                 other_instance._rate_limiter, AsyncLimiter
             )
-
-    DummyAsyncConnector.set_rate_limiter(None)
-    other_instance.set_client_session(None)
 
 
 @pytest.mark.asyncio

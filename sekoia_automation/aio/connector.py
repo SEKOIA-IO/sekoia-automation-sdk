@@ -3,7 +3,6 @@
 import asyncio
 import time
 from abc import ABC
-from asyncio import AbstractEventLoop, get_event_loop
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -27,8 +26,6 @@ class AsyncConnector(Connector, ABC):
 
     configuration: DefaultConnectorConfiguration
 
-    _event_loop: AbstractEventLoop
-
     _session: ClientSession | None = None
     _rate_limiter: AsyncLimiter | None = None
 
@@ -36,7 +33,6 @@ class AsyncConnector(Connector, ABC):
         self,
         module: Module | None = None,
         data_path: Path | None = None,
-        event_loop: AbstractEventLoop | None = None,
         *args,
         **kwargs,
     ):
@@ -53,60 +49,31 @@ class AsyncConnector(Connector, ABC):
         self.max_concurrency_tasks = kwargs.pop("max_concurrency_tasks", 1000)
         super().__init__(module=module, data_path=data_path, *args, **kwargs)
 
-        self._event_loop = event_loop or get_event_loop()
-
-    @classmethod
-    def set_client_session(cls, session: ClientSession) -> None:
-        """
-        Set client session.
-
-        Args:
-            session: ClientSession
-        """
-        cls._session = session
-
-    @classmethod
-    def set_rate_limiter(cls, rate_limiter: AsyncLimiter) -> None:
-        """
-        Set rate limiter.
-
-        Args:
-            rate_limiter:
-        """
-        cls._rate_limiter = rate_limiter
-
-    @classmethod
-    def get_rate_limiter(cls) -> AsyncLimiter:
+    def get_rate_limiter(self) -> AsyncLimiter:
         """
         Get or initialize rate limiter.
 
         Returns:
             AsyncLimiter:
         """
-        if cls._rate_limiter is None:
-            cls._rate_limiter = AsyncLimiter(1, 1)
+        if self._rate_limiter is None:
+            self._rate_limiter = AsyncLimiter(1, 1)
 
-        return cls._rate_limiter
+        return self._rate_limiter
 
-    @classmethod
     @asynccontextmanager
-    async def session(cls) -> AsyncGenerator[ClientSession, None]:  # pragma: no cover
+    async def session(self) -> AsyncGenerator[ClientSession, None]:  # pragma: no cover
         """
         Get or initialize client session if it is not initialized yet.
 
         Returns:
             ClientSession:
         """
-        if cls._session is None:
-            cls._session = ClientSession()
+        if self._session is None:
+            self._session = ClientSession()
 
-        async with cls.get_rate_limiter():
-            yield cls._session
-
-    async def async_close(self) -> None:
-        """Close session."""
-        if self._session:
-            await self._session.close()
+        async with self.get_rate_limiter():
+            yield self._session
 
     async def _async_send_chunk(
         self, session: ClientSession, url: str, chunk_index: int, chunk: list[str]
@@ -245,8 +212,17 @@ class AsyncConnector(Connector, ABC):
                 if self.frequency:
                     await asyncio.sleep(self.frequency)
 
+    def stop(self, *args, **kwargs):
+        """
+        Stop the connector
+        """
+        super().stop(*args, **kwargs)
+        loop = asyncio.get_event_loop()
+
+        if self._session:
+            loop.run_until_complete(self._session.close())
+
     def run(self) -> None:  # pragma: no cover
         """Runs Connector."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.async_run())
-        loop.run_until_complete(self.async_close())

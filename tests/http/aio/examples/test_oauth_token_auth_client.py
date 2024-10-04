@@ -132,3 +132,5 @@ async def test_get_events_example_method(session_faker: Faker):
         )
 
         assert await client.get_events() == data
+
+    await client.http_client.close()

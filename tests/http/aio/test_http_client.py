@@ -40,6 +40,8 @@ async def test_simple_workflow_async_http_client(base_url: str, session_faker: F
                 assert response.status == 200
                 assert await response.json() == json.loads(data)
 
+    await client.close()
+
 
 @pytest.mark.asyncio
 async def test_rate_limited_workflow_async_http_client(
@@ -73,6 +75,8 @@ async def test_rate_limited_workflow_async_http_client(
                 async with session.get(base_url) as response:
                     assert response.status == 200
                     assert await response.json() == json.loads(data)
+
+        await client.close()
 
         time_end = time.time()
 
@@ -111,6 +115,8 @@ async def test_rate_limited_workflow_async_http_client_1(
                 async with session.get(base_url) as response:
                     assert response.status == 200
                     assert await response.json() == json.loads(data)
+
+        await client.close()
 
         time_end = time.time()
 
@@ -155,6 +161,8 @@ async def test_retry_workflow_get_async_http_client(
         async with client.get(base_url) as response:
             # As a result, the last response should be 412
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -201,6 +209,8 @@ async def test_retry_workflow_post_async_http_client(
         async with client.post(base_url, json=data) as response:
             assert response.status == status_3
 
+    await client.close()
+
 
 @pytest.mark.asyncio
 async def test_retry_workflow_put_async_http_client(
@@ -246,6 +256,8 @@ async def test_retry_workflow_put_async_http_client(
         async with client.put(base_url, json=data) as response:
             assert response.status == status_3
 
+    await client.close()
+
 
 @pytest.mark.asyncio
 async def test_retry_workflow_head_async_http_client(
@@ -283,6 +295,8 @@ async def test_retry_workflow_head_async_http_client(
 
         async with client.head(base_url) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -322,6 +336,8 @@ async def test_retry_workflow_delete_async_http_client(
         async with client.delete(base_url) as response:
             assert response.status == status_3
 
+    await client.close()
+
 
 @pytest.mark.asyncio
 async def test_retry_workflow_patch_async_http_client(
@@ -359,6 +375,8 @@ async def test_retry_workflow_patch_async_http_client(
 
         async with client.patch(base_url) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -415,4 +433,6 @@ async def test_complete_configurable_async_http_client(
             assert response.status == status_1
             end_time = time.time()
 
-        assert end_time - start_time >= 3
+    await client.close()
+
+    assert end_time - start_time >= 3

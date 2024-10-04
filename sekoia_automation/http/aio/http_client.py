@@ -8,7 +8,6 @@ from typing import Any
 from aiohttp import ClientResponse, ClientResponseError, ClientSession
 from aiohttp.web_response import Response
 from aiolimiter import AsyncLimiter
-from loguru import logger
 
 from sekoia_automation.http.http_client import AbstractHttpClient, Method
 from sekoia_automation.http.rate_limiter import RateLimiterConfig
@@ -192,8 +191,6 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
         for attempt in range(attempts):
             try:
-                logger.debug("Attempt {0} to do {1} on {2}", attempt, method.value, url)
-
                 async with self.session() as session:
                     async with session.request(
                         method.value, url, *args, **kwargs

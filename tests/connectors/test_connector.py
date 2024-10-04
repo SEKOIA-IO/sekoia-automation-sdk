@@ -22,7 +22,6 @@ def configure_intake_url(config_storage):
 
 
 class DummyConnector(Connector):
-
     events: list[list[str]] | None = None
 
     def set_events(self, events: list[list[str]]) -> None:

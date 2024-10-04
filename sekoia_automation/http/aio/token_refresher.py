@@ -118,7 +118,8 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         Args:
             expires_in: int
         """
-        await self.close()
+        if self._token_refresh_task:
+            self._token_refresh_task.cancel()
 
         async def _refresh() -> None:
             await asyncio.sleep(expires_in)
@@ -132,6 +133,9 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         """
         if self._token_refresh_task:
             self._token_refresh_task.cancel()
+
+        if self._session:
+            await self._session.close()
 
     @asynccontextmanager
     async def with_access_token(self) -> AsyncGenerator[RefreshedTokenT, None]:

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.1] - 2024-10-03
+
+### Fixed
+
+- Fix tests for async version of connector.
+
 ## [1.15.0] - 2024-09-28
 
 ### Changed

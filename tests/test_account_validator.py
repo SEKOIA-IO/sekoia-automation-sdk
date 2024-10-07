@@ -4,16 +4,12 @@ import pytest
 import requests
 import requests_mock
 
-from sekoia_automation.account_validator import AccountValidator
-
-
-class TestAccountValidator(AccountValidator):
-    def validator(self) -> bool:
-        return True
+from sekoia_automation.module import AccountValidator
+from tests.conftest import MockAccountValidator
 
 
 def test_execute_success():
-    validator = TestAccountValidator()
+    validator = MockAccountValidator()
 
     with (
         patch.object(
@@ -59,7 +55,7 @@ def test_execute_failure():
 
 
 def test_execute_request_failure():
-    validator = TestAccountValidator()
+    validator = MockAccountValidator()
 
     with (
         patch.object(

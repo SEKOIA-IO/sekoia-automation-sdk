@@ -7,11 +7,10 @@ from pydantic import BaseModel
 from sentry_sdk import get_isolation_scope
 
 # internal
-from sekoia_automation.account_validator import AccountValidator
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger
-from tests.conftest import DEFAULT_ARGUMENTS
+from tests.conftest import DEFAULT_ARGUMENTS, MockAccountValidator
 
 
 def test_load_config_file_not_exists():
@@ -66,10 +65,11 @@ def test_register_no_command():
 
 def test_register_account_validator():
     module = Module()
+
     with patch.object(module, "register") as mock_register:
-        module.register_account_validator()
+        module.register_account_validator(MockAccountValidator)
         mock_register.assert_called_once_with(
-            AccountValidator, "validate_module_configuration"
+            MockAccountValidator, "validate_module_configuration"
         )
 
 

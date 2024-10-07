@@ -11,7 +11,7 @@ from faker import Faker
 
 from sekoia_automation import config
 from sekoia_automation import storage as storage_module
-from sekoia_automation.module import Module
+from sekoia_automation.module import AccountValidator, Module
 from sekoia_automation.trigger import Trigger
 
 
@@ -157,3 +157,7 @@ def session_faker(faker_locale: list[str], faker_seed: int) -> Faker:
     instance.seed_instance(seed=faker_seed)
 
     return instance
+
+
+class MockAccountValidator(AccountValidator):
+    def validate(self): ...

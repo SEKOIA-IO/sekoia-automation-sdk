@@ -1,7 +1,5 @@
 from abc import abstractmethod
 
-import requests
-
 from sekoia_automation.module import ModuleItem
 
 

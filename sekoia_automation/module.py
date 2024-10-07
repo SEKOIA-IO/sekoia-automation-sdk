@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 from pydantic import BaseModel
 from requests import RequestException, Response
 
+from sekoia_automation.account_validator import AccountValidator
 from sekoia_automation.config import load_config
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
@@ -269,7 +270,7 @@ class Module:
             item.name = name
         self._items[name] = item
 
-    def register_account_validator(self, validator: type["AccountValidator"] ):
+    def register_account_validator(self, validator: type["AccountValidator"]):
         self.register(validator, "validate_module_configuration")
 
     def run(self):

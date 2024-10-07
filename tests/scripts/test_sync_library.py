@@ -272,7 +272,7 @@ def test_registry_check_not_found(module, **kwargs):
 
     kwargs["m"].register_uri(
         "GET",
-        f"https://{custom_path}/v2/sekoia-io/sekoia-automation-module-sample/manifests/0.1",
+        f"https://{custom_path}/v2/sekoia-io/sekoia-automation-module-sample/manifests/0.1.0",
         status_code=404,
     )
     assert (

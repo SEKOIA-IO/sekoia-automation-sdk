@@ -2,3 +2,5 @@
 relative_files = True
 omit =
     sekoia_automation/scripts/new_module/template/*
+    sekoia_automation/scripts/action_runner.py
+    sekoia_automation/scripts/compliance/*

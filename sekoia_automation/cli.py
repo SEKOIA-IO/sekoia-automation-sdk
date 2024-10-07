@@ -207,5 +207,19 @@ def run_action(
     print(module_runner.run(args=kwargs))
 
 
+@app.command(name="check-compliance")
+def check_compliance(
+    path: Path = typer.Option(
+        ".", help="Path to the playbook module or folder with playbook modules"
+    ),
+    fix: bool = typer.Option(False, "--fix"),
+):
+    from .scripts.check_compliance import CheckCompliance
+
+    cc = CheckCompliance(path=path.resolve())
+
+    cc.run(fix=fix)
+
+
 if __name__ == "__main__":
     app()

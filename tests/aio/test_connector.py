@@ -76,17 +76,14 @@ async def test_async_connector_client_session(async_connector: DummyAsyncConnect
     assert async_connector._session is None
     assert other_instance._session is None
 
-    async with async_connector.session() as session_1:
-        async with other_instance.session() as session_2:
-            assert session_1 == session_2
+    async with async_connector.session():
+        assert async_connector._rate_limiter is not None and isinstance(
+            async_connector._rate_limiter, AsyncLimiter
+        )
 
-            assert async_connector._rate_limiter is not None and isinstance(
-                async_connector._rate_limiter, AsyncLimiter
-            )
-
-            assert other_instance._rate_limiter is not None and isinstance(
-                other_instance._rate_limiter, AsyncLimiter
-            )
+        assert other_instance._rate_limiter is not None and isinstance(
+            other_instance._rate_limiter, AsyncLimiter
+        )
 
     DummyAsyncConnector.set_rate_limiter(None)
     other_instance.set_client_session(None)

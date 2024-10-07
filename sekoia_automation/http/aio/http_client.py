@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
 from aiohttp import ClientResponse, ClientResponseError, ClientSession
 from aiohttp.web_response import Response
@@ -45,18 +45,16 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Yields:
             AsyncGenerator[ClientSession, None]:
         """
-        if self._session is None:
-            self._session = ClientSession()
-
-        if self._rate_limiter:
-            async with self._rate_limiter:
+        async with ClientSession() as self._session:
+            if self._rate_limiter:
+                async with self._rate_limiter:
+                    yield self._session
+            else:
                 yield self._session
-        else:
-            yield self._session
 
     @asynccontextmanager
     async def get(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Get callable.
@@ -74,7 +72,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def post(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Post callable.
@@ -92,7 +90,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def put(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Put callable.
@@ -110,7 +108,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def delete(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Delete callable.
@@ -128,7 +126,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def patch(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Patch callable.
@@ -146,7 +144,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def head(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Head callable.
@@ -164,7 +162,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def request_retry(
-        self, method: str, url: str, *args: Any, **kwargs: Optional[Any]
+        self, method: str, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Request callable.

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 1.15.1 - 2024-010-04
+
+### Changed
+
+- Improve retry on some HTTP errors
+
+## [1.15.0] - 2024-09-28
+
+### Changed
+
+- Make the minimal Python version to 3.10.
+- Replace isort, black and autoflake with Ruff.
+- Update Mypy configuration.
+- Improve CI to test the package with several versions of Python.
+- Update some dependencies to their latest version
+  (`requests-ratelimiter`, `typer`, `prometheus-client`) and some
+  devel ones (`pytest`, `pytest-asyncio`, `pytest-env`, `faker`).
+
 ## [1.14.1] - 2024-09-10
 
 ### Fixed
@@ -22,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Increase number of retries and time between retries when sending requests 
+- Increase number of retries and time between retries when sending requests
 
 ## [1.13.0] - 2024-04-22
 
@@ -71,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add heartbeat in triggers 
+- Add heartbeat in triggers
   The heartbeat allows to mark the trigger as not alive if no heartbeat was received for a certain amount of time.
   To support this feature triggers must:
     - Set the `last_heartbeat_threshold` class attribute to a value greater than 0
@@ -103,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add graceful delay on startup where unhandled errors won't trigger a critical exit 
+- Add graceful delay on startup where unhandled errors won't trigger a critical exit
 
 ## [1.7.0] - 2023-11-07
 
@@ -147,7 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve error message when it is not possible to access the data storage
 - Remove `chunk_size` parameter from configuration
-- Try to take Intake URL from an environment var first  
+- Try to take Intake URL from an environment var first
 
 ### Fixed
 

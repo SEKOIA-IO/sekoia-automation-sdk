@@ -291,6 +291,23 @@ class SyncLibrary:
         with path_to_use.open("rb") as f:
             return f"{prefix}{b64encode(f.read()).decode('utf-8')}"
 
+    def get_module_changelog(self, module_path: Path) -> str | None:
+        """Checks if a changelog exists for a given module and returns its path
+
+        Args:
+            module_path (Path): Path to the module to be checked
+
+        Returns:
+            str | None: Path to the logo if it exists; None otherwise
+        """
+        changelog_path = module_path / "CHANGELOG.md"
+
+        if not changelog_path.is_file():
+            return None
+
+        with changelog_path.open() as f:
+            return f.read()
+
     def check_image_on_registry(self, docker_image: str, version: str) -> bool:
         """Checks if a Docker image exists on a registry
 
@@ -362,9 +379,13 @@ class SyncLibrary:
         module_uuid: str = module_info["uuid"]
         module_name: str = module_info["name"]
         module_image: str | None = self.get_module_logo(module_path)
+        module_changelog: str | None = self.get_module_changelog(module_path)
 
         if module_image:
             module_info["image"] = module_image
+
+        if module_changelog:
+            module_info["changelog"] = module_changelog
 
         self.sync_module(module_info)
         if triggers:

@@ -11,7 +11,7 @@ import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
-from requests import HTTPError, Response
+from requests import RequestException, Response
 
 from sekoia_automation.config import load_config
 from sekoia_automation.exceptions import (
@@ -441,19 +441,22 @@ class ModuleItem(ABC):
             )
             response.raise_for_status()
             return response
-        except HTTPError as exception:
-            self._log_request_error(exception)
+        except (RequestException, OSError) as exception:
+            if isinstance(exception, RequestException):
+                self._log_request_error(exception)
             if attempt == 10:
                 status_code = (
                     exception.response.status_code
-                    if isinstance(exception.response, Response)
+                    if isinstance(exception, RequestException)
+                    and isinstance(exception.response, Response)
                     else 500
                 )
                 raise SendEventError(
                     "Impossible to send event to Sekoia.io API", status_code=status_code
                 )
             if (
-                isinstance(exception.response, Response)
+                isinstance(exception, RequestException)
+                and isinstance(exception.response, Response)
                 and 400 <= exception.response.status_code < 500
             ):
                 raise SendEventError(
@@ -463,7 +466,7 @@ class ModuleItem(ABC):
             time.sleep(self._wait_exponent_base**attempt)
             return self._send_request(data, verb, attempt + 1)
 
-    def _log_request_error(self, exception: HTTPError):
+    def _log_request_error(self, exception: RequestException):
         context: dict[str, Any] = {}
         if exception.response:
             response: Response = exception.response

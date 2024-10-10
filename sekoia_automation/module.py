@@ -509,6 +509,18 @@ class AccountValidator(ModuleItem):
     def execute(self):
         """Validates the account (module_configuration) of the module
         and sends the result to Symphony."""
+        # Retrieve module's secrets
+        if self.module.has_secrets():
+            response = self._send_request(
+                {"status": "running", "need_secrets": True}, verb="PATCH"
+            )
+            secrets = {
+                k: v
+                for k, v in response.json()["module_configuration"]["value"].items()
+                if k in self.module.manifest_secrets()
+            }
+            self.module.set_secrets(secrets)
+
         # Call the actual validation procedure
         status = self.validate()
 

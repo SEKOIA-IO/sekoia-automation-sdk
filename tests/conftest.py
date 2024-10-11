@@ -160,4 +160,9 @@ def session_faker(faker_locale: list[str], faker_seed: int) -> Faker:
 
 
 class MockAccountValidator(AccountValidator):
-    def validate(self): ...
+    def __init__(self, mock_return_value: bool = True):
+        super().__init__()
+        self.mock_return_value = mock_return_value
+
+    def validate(self):
+        return self.mock_return_value

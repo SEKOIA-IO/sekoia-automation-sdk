@@ -496,7 +496,7 @@ class ModuleItem(ABC):
 
 
 class AccountValidator(ModuleItem):
-    VALIDATION_CALLBACK_URL_FILE_NAME = "validation_callback_url"
+    CALLBACK_URL_FILE_NAME = "validation_callback_url"
 
     @abstractmethod
     def validate(self) -> bool:
@@ -509,21 +509,20 @@ class AccountValidator(ModuleItem):
     def execute(self):
         """Validates the account (module_configuration) of the module
         and sends the result to Symphony."""
-        # Retrieve module's secrets
+        # Call the actual validation procedure
+        status = self.validate()
+
+        # Return result of validation to Symphony ; ask for module's secrets if needed
+        data = {"validation_status": status, "need_secrets": self.module.has_secrets()}
+
+        # Send request to Symphony
+        response = self._send_request(data, verb="PATCH")
+
+        # Set module's secrets if needed
         if self.module.has_secrets():
-            response = self._send_request(
-                {"status": "running", "need_secrets": True}, verb="PATCH"
-            )
             secrets = {
                 k: v
                 for k, v in response.json()["module_configuration"]["value"].items()
                 if k in self.module.manifest_secrets()
             }
             self.module.set_secrets(secrets)
-
-        # Call the actual validation procedure
-        status = self.validate()
-
-        # Return result of validation to Symphony
-        data = {"validation_status": status}
-        self._send_request(data)

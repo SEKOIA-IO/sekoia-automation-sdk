@@ -269,6 +269,9 @@ class Module:
             item.name = name
         self._items[name] = item
 
+    def register_account_validator(self, validator: type["AccountValidator"]):
+        self.register(validator, "validate_module_configuration")
+
     def run(self):
         command = self.command or ""
 
@@ -490,3 +493,36 @@ class ModuleItem(ABC):
         """
         Stops the background monitoring operations
         """
+
+
+class AccountValidator(ModuleItem):
+    CALLBACK_URL_FILE_NAME = "validation_callback_url"
+
+    @abstractmethod
+    def validate(self) -> bool:
+        """To define in subclasses. Validates the configuration of the module.
+
+        Returns:
+            bool: True if the module is valid, False otherwise
+        """
+
+    def execute(self):
+        """Validates the account (module_configuration) of the module
+        and sends the result to Symphony."""
+        # Call the actual validation procedure
+        status = self.validate()
+
+        # Return result of validation to Symphony ; ask for module's secrets if needed
+        data = {"validation_status": status, "need_secrets": self.module.has_secrets()}
+
+        # Send request to Symphony
+        response = self._send_request(data, verb="PATCH")
+
+        # Set module's secrets if needed
+        if self.module.has_secrets():
+            secrets = {
+                k: v
+                for k, v in response.json()["module_configuration"]["value"].items()
+                if k in self.module.manifest_secrets()
+            }
+            self.module.set_secrets(secrets)

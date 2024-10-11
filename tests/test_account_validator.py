@@ -4,7 +4,6 @@ import pytest
 import requests
 import requests_mock
 
-from sekoia_automation.module import AccountValidator
 from tests.conftest import MockAccountValidator
 
 
@@ -17,24 +16,23 @@ def test_execute_success():
         ) as mock_load_config,
         requests_mock.Mocker() as mock_request,
     ):
-        mock_request.post("http://example.com/callback", status_code=200)
+        mock_request.patch("http://example.com/callback", status_code=200)
 
         validator.execute()
 
         assert mock_load_config.call_args_list == [
-            call(validator.VALIDATION_CALLBACK_URL_FILE_NAME),
+            call(validator.CALLBACK_URL_FILE_NAME),
             call(validator.TOKEN_FILE_NAME),
         ]
         assert mock_request.called
-        assert mock_request.last_request.json() == {"validation_status": True}
+        assert mock_request.last_request.json() == {
+            "validation_status": True,
+            "need_secrets": False,
+        }
 
 
 def test_execute_failure():
-    class FailingAccountValidator(AccountValidator):
-        def validator(self) -> bool:
-            return False
-
-    validator = FailingAccountValidator()
+    validator = MockAccountValidator(mock_return_value=False)
 
     with (
         patch.object(
@@ -42,16 +40,19 @@ def test_execute_failure():
         ) as mock_load_config,
         requests_mock.Mocker() as mock_request,
     ):
-        mock_request.post("http://example.com/callback", status_code=200)
+        mock_request.patch("http://example.com/callback", status_code=200)
 
         validator.execute()
 
         assert mock_load_config.call_args_list == [
-            call(validator.VALIDATION_CALLBACK_URL_FILE_NAME),
+            call(validator.CALLBACK_URL_FILE_NAME),
             call(validator.TOKEN_FILE_NAME),
         ]
         assert mock_request.called
-        assert mock_request.last_request.json() == {"validation_status": False}
+        assert mock_request.last_request.json() == {
+            "validation_status": False,
+            "need_secrets": False,
+        }
 
 
 def test_execute_request_failure():
@@ -63,14 +64,35 @@ def test_execute_request_failure():
         ) as mock_load_config,
         requests_mock.Mocker() as mock_request,
     ):
-        mock_request.post("http://example.com/callback", status_code=500)
+        mock_request.patch("http://example.com/callback", status_code=500)
 
         with pytest.raises(requests.exceptions.HTTPError):
             validator.execute()
 
         assert mock_load_config.call_args_list == [
-            call(validator.VALIDATION_CALLBACK_URL_FILE_NAME),
+            call(validator.CALLBACK_URL_FILE_NAME),
             call(validator.TOKEN_FILE_NAME),
         ]
         assert mock_request.called
-        assert mock_request.last_request.json() == {"validation_status": True}
+        assert mock_request.last_request.json() == {
+            "validation_status": True,
+            "need_secrets": False,
+        }
+
+
+def test_retrieve_secrets():
+    validator = MockAccountValidator()
+
+    with (
+        patch.object(validator.module, "has_secrets", return_value=True),
+        patch.object(
+            validator.module, "load_config", return_value="http://example.com/callback"
+        ),
+        requests_mock.Mocker() as mock_request,
+    ):
+        mock_request.patch(
+            "http://example.com/callback",
+            json={"module_configuration": {"value": {"secret_key": "secret_value"}}},
+        )
+
+        validator.execute()

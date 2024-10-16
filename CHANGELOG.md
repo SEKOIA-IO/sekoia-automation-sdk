@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.16.0] - 2024-10-02
+## [1.17.0] - 2024-10-07
 
 ### Changed
 
@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improvements for Async Http workflow
 - Remove duplicated parts and make the code more uniform for async http workflow
 
+## 1.16.1 - 2024-10-16
+
+### Fixed
+
+- Fix tests for async version of connector.
+
+## 1.16.0 - 2024-10-16
+
+### Changed
+
+- Update documentation generation command to follow new structure
+
+## 1.15.1 - 2024-10-04
+
+### Changed
+
+- Improve retry on some HTTP errors
 
 ## [1.15.0] - 2024-09-28
 

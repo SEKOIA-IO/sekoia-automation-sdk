@@ -1,0 +1,26 @@
+{
+    "arguments": {
+        "$schema": "https://json-schema.org/draft-07/schema#",
+        "properties": {
+            "rule_filter": {
+                "type": "string",
+                "description": "Some description"
+            }
+        },
+        "type": "object",
+        "title": "Connector configuration"
+    },
+    "description": "Duplicate of connector",
+    "docker_parameters": "connector",
+    "name": "Connector",
+    "results": {
+        "$schema": "https://json-schema.org/draft-07/schema#",
+        "properties": {
+        },
+        "required": [
+        ],
+        "title": "Results",
+        "type": "object"
+    },
+    "uuid": "667f7e89-d907-4086-a578-a2324c9a277a"
+}

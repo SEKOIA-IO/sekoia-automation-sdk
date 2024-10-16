@@ -1,4 +1,9 @@
+
 {#- -*- mode: jinja2 -*- -#}
+uuid: {{manifest.uuid}}
+name: {{manifest.name}}
+type: playbook
+
 # {{manifest.name}}
 
 {%- if logo_filename %}

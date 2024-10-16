@@ -95,16 +95,19 @@ def test_generate_documentation(tmp_path):
     with documentation_path.joinpath("mkdocs.yml").open("r") as fp:
         manifest = yaml.load(fp, Loader=Loader)
 
+    actions = manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"]
+    assert actions[0]["Overview"] == "integration/action_library/overview.md"
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
-        ][0]["Test Module"]
-        == "xdr/features/automate/library/test-module.md"
+        actions[1]["Endpoint"][0]["Test Module"]
+        == "integration/action_library/test-module.md"
     )
+
+    actions = manifest["nav"][1]["Sekoia.io TIP"][0]["Features"][0]["Automate"][0][
+        "Actions Library"
+    ]
+    assert actions[0]["Overview"] == "tip/features/automate/library/overview.md"
     assert (
-        manifest["nav"][1]["Sekoia.io TIP"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
-        ][0]["Test Module"]
+        actions[1]["Endpoint"][0]["Test Module"]
         == "tip/features/automate/library/test-module.md"
     )
 
@@ -138,17 +141,23 @@ def test_generate_documentation_specific_module(tmp_path):
 
     # Make sure we didn't remove other modules
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][0][
+            "Endpoint"
         ][0]["Sekoia.io"]
-        == "xdr/features/automate/library/sekoia-io.md"
+        == "integration/action_library/sekoia-io.md"
     )
     # And our module has been added
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][0][
+            "Endpoint"
         ][1]["Test Module"]
-        == "xdr/features/automate/library/test-module.md"
+        == "integration/action_library/test-module.md"
+    )
+    assert (
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][1][
+            "Network"
+        ][0]["Test Module"]
+        == "integration/action_library/test-module.md"
     )
 
 

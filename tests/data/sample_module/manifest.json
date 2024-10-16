@@ -4,5 +4,9 @@
     "uuid": "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154",
     "docker": "sekoia-automation-module-sample",
     "configuration": {},
-    "version": "0.1"
+    "version": "0.1",
+    "categories": [
+        "Endpoint",
+        "Network"
+    ]
 }

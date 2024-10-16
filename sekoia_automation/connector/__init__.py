@@ -13,11 +13,11 @@ from typing import Any, TypeAlias
 import orjson
 import requests
 import sentry_sdk
-from prometheus_client import Counter, Gauge, Histogram
 from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
+from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
 from sekoia_automation.trigger import Trigger
@@ -35,42 +35,12 @@ class DefaultConnectorConfiguration(BaseModel):
     intake_key: str
 
 
-class Connector(Trigger, ABC):
+class Connector(Trigger, MetricsMixin, ABC):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     seconds_without_events = 3600 * 6
 
     # Required for Pydantic to correctly type the configuration object
     configuration: DefaultConnectorConfiguration
-
-    _prometheus_namespace = "symphony_module_common"
-
-    _outcoming_events = Counter(
-        name="forwarded_events",
-        documentation="Number of events forwarded to Sekoia.io",
-        namespace=_prometheus_namespace,
-        labelnames=["intake_key"],
-    )
-
-    _forward_events_duration = Histogram(
-        name="forward_events_duration",
-        documentation="Duration to collect and forward events from eventhub",
-        namespace=_prometheus_namespace,
-        labelnames=["intake_key"],
-    )
-
-    _discarded_events = Counter(
-        name="discarded_events",
-        documentation="Number of events discarded from the collect",
-        namespace=_prometheus_namespace,
-        labelnames=["intake_key"],
-    )
-
-    _events_lag = Gauge(
-        name="events_lags",
-        documentation="The delay, in seconds, from the date of the last event",
-        namespace=_prometheus_namespace,
-        labelnames=["intake_key"],
-    )
 
     @property
     def connector_name(self) -> str:
@@ -315,6 +285,7 @@ class Connector(Trigger, ABC):
 
             if isinstance(event, BaseModel):
                 result_event = orjson.dumps(event.dict()).decode("utf-8")
+
             elif isinstance(event, dict):
                 result_event = orjson.dumps(event).decode("utf-8")
 

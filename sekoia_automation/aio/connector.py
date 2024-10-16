@@ -212,18 +212,10 @@ class AsyncConnector(Connector, ABC):
                 if self.frequency:
                     await asyncio.sleep(self.frequency)
 
-    def stop(self, *args, **kwargs):
-        """
-        Stop the connector
-        """
-        loop = asyncio.get_event_loop()
-
-        if self._session:
-            loop.run_until_complete(self._session.close())
-
-        super().stop(*args, **kwargs)
-
     def run(self) -> None:  # pragma: no cover
         """Runs Connector."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.async_run())
+
+        if self._session:
+            loop.run_until_complete(self._session.close())

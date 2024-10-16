@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from shutil import copytree
 from tempfile import mkdtemp
 from unittest.mock import patch
 
@@ -44,13 +45,20 @@ def connector():
         return connector
 
 
+@pytest.fixture
+def tmp_module(tmp_path):
+    copytree(Path("tests/data"), str(tmp_path), dirs_exist_ok=True)
+    tmp_path.joinpath("sample_module").joinpath("trigger_test.json").unlink()
+    yield tmp_path
+
+
 @requests_mock.Mocker(kw="m")
-def test_no_module_success(module, action, trigger, connector, **kwargs):
+def test_no_module_success(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -82,12 +90,12 @@ def test_no_module_success(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_404(module, action, trigger, connector, **kwargs):
+def test_no_module_404(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=404, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -119,12 +127,12 @@ def test_no_module_404(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_other_code(module, action, trigger, connector, **kwargs):
+def test_no_module_other_code(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=418, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -144,14 +152,12 @@ def test_no_module_other_code(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_with_module(module, action, trigger, connector, **kwargs):
+def test_with_module(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), module="sample_module"
-    )
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module, module="sample_module")
     sync_lib.execute()
 
     history = kwargs["m"].request_history

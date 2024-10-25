@@ -363,6 +363,7 @@ class SyncLibrary:
             module_info = json.load(fd)
 
         docker_name = self._get_module_docker_name(module_info)
+        module_info["docker"] = f"{docker_name}:{module_info['version']}"
         if self.registry_check and not self.check_image_on_registry(
             docker_name, module_info["version"]
         ):

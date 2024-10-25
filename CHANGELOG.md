@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Specify docker image when publishing a module
+
 ### Fixed
 
 - Fix tests for async version of connector.

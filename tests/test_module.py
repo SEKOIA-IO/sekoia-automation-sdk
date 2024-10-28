@@ -1,5 +1,5 @@
 # natives
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # third parties
 import pytest
@@ -10,7 +10,7 @@ from sentry_sdk import get_isolation_scope
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger
-from tests.conftest import DEFAULT_ARGUMENTS, MockAccountValidator
+from tests.conftest import DEFAULT_ARGUMENTS
 
 
 def test_load_config_file_not_exists():
@@ -65,12 +65,10 @@ def test_register_no_command():
 
 def test_register_account_validator():
     module = Module()
-
-    with patch.object(module, "register") as mock_register:
-        module.register_account_validator(MockAccountValidator)
-        mock_register.assert_called_once_with(
-            MockAccountValidator, "validate_module_configuration"
-        )
+    validator = Mock()
+    validator.name = None
+    module.register_account_validator(validator)
+    assert module._items["validate_module_configuration"] == validator
 
 
 @patch.object(DummyTrigger, "execute")

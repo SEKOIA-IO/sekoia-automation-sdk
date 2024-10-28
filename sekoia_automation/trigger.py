@@ -414,7 +414,7 @@ class Trigger(ModuleItem):
         self.log(
             message=f"The trigger didn't send events for {delta_seconds} seconds, "
             "it will be restarted.",
-            level="error",
+            level="info",
         )
         return False
 

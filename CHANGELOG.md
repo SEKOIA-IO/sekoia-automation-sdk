@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replace ulrllib.parse.urljoin by posixpath.join in AsyncConnector
 - Fix tests for async version of connector.
 - Fix support for boolean arguments in the json_argument method
 

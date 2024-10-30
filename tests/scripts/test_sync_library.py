@@ -68,6 +68,7 @@ def test_no_module_success(tmp_module, module, action, trigger, connector, **kwa
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[1].method == "PATCH"
     assert history[1].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
+    assert "docker" in history[1].json()
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
@@ -105,6 +106,7 @@ def test_no_module_404(tmp_module, module, action, trigger, connector, **kwargs)
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[1].method == "POST"
     assert history[1].url == f"{SYMPOHNY_URL}/modules"
+    assert "docker" in history[1].json()
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
@@ -168,6 +170,7 @@ def test_with_module(tmp_module, module, action, trigger, connector, **kwargs):
     assert history[1].method == "PATCH"
     assert history[1].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert "docker" in history[1].json()
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
     assert history[2].headers["Authorization"] == f"Bearer {API_KEY}"

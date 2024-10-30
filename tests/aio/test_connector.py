@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from unittest.mock import Mock, patch
-from urllib.parse import urljoin
+from posixpath import join as urljoin
 
 import pytest
 from aiolimiter import AsyncLimiter
@@ -204,6 +204,27 @@ async def test_async_connector_raise_error(
         except Exception as e:
             assert isinstance(e, RuntimeError)
             assert str(e) == expected_error
+
+
+@pytest.mark.parametrize(
+    'base_url,expected_batchapi_url',
+    [
+        ('http://intake.fake.url/', 'http://intake.fake.url/batch'),
+        ('http://fake.url/intake/', 'http://fake.url/intake/batch'),
+        ('http://fake.url/intake', 'http://fake.url/intake/batch'),
+    ]
+)
+def test_async_connector_batchapi_url(storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str):
+    with patch("sentry_sdk.set_tag"):
+        async_connector = DummyAsyncConnector(data_path=storage)
+
+        async_connector.trigger_activation = "2022-03-14T11:16:14.236930Z"
+        async_connector.configuration = {
+            "intake_key": "",
+            "intake_server": base_url,
+        }
+
+        assert async_connector._batchapi_url == expected_batchapi_url
 
 
 @pytest.mark.asyncio

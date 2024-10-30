@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Specify docker image when publishing a module
+- Move from error to info the message when no event was collected from severals seconds
 
 ### Fixed
 
 - Replace ulrllib.parse.urljoin by posixpath.join in AsyncConnector
 - Fix tests for async version of connector.
+- Fix support for boolean arguments in the json_argument method
 
 ## 1.16.0 - 2024-10-16
 

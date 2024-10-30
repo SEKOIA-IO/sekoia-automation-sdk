@@ -144,7 +144,7 @@ class Action(ModuleItem):
         If `name` is inside arguments, returns the value.
         If `name`_path is inside arguments, returns the content of the file
         """
-        if arguments.get(name, None):
+        if arguments.get(name, None) is not None:
             self._result_as_file = False
             return arguments[name]
         elif f"{name}_path" in arguments:

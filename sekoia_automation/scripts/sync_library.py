@@ -249,21 +249,20 @@ class SyncLibrary:
 
         return connectors
 
-    def set_docker(self, manifests: list, module: dict) -> list:
+    def set_docker(self, manifests: list, module_docker_image: str) -> list:
         """Loops over the Docker name of objets linked to a module and adds the Docker
         version if missing
 
         Args:
             manifests (list): List of dict representing the objects to be checked
-            module (dict): Data dict of the parent module
+            module_docker_image (str): The docker image as defined in the module
 
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        module_docker_name = self._get_module_docker_name(module)
         for manifest in manifests:
-            if "docker" not in manifest or manifest["docker"] == module_docker_name:
-                manifest["docker"] = f"{module_docker_name}:{module['version']}"
+            if "docker" not in manifest or manifest["docker"] != module_docker_image:
+                manifest["docker"] = module_docker_image
 
         return manifests
 
@@ -363,7 +362,6 @@ class SyncLibrary:
             module_info = json.load(fd)
 
         docker_name = self._get_module_docker_name(module_info)
-        module_info["docker"] = f"{docker_name}:{module_info['version']}"
         if self.registry_check and not self.check_image_on_registry(
             docker_name, module_info["version"]
         ):
@@ -373,9 +371,13 @@ class SyncLibrary:
             )
             raise typer.Exit(code=1)
 
-        triggers = self.set_docker(self.load_triggers(module_path), module_info)
-        connectors = self.set_docker(self.load_connectors(module_path), module_info)
-        actions = self.set_docker(self.load_actions(module_path), module_info)
+        module_docker_image = f"{docker_name}:{module_info['version']}"
+        module_info["docker"] = module_docker_image
+        triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
+        connectors = self.set_docker(
+            self.load_connectors(module_path), module_docker_image
+        )
+        actions = self.set_docker(self.load_actions(module_path), module_docker_image)
 
         module_uuid: str = module_info["uuid"]
         module_name: str = module_info["name"]
@@ -453,8 +455,6 @@ class SyncLibrary:
             )
 
     def _get_module_docker_name(self, manifest: dict) -> str:
-        if docker := manifest.get("docker"):
-            return docker
         if slug := manifest.get("slug"):
             return f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
         raise ValueError("Impossible to generate image name")

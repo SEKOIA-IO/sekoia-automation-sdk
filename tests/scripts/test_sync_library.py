@@ -204,52 +204,55 @@ def test_with_module_invalid_name():
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_default_success(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_pat=PAT)
     kwargs["m"].register_uri(
         "GET",
         re.compile("https://ghcr.io/.*"),
         status_code=200,
         json={"token": API_KEY},
     )
-    assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_pat=PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert lib.check_image_on_registry(
+        lib._get_module_docker_name(module), module["version"]
+    )
 
     history = kwargs["m"].request_history
     assert len(history) == 1
     assert history[0].method == "GET"
     assert (
         history[0].url
-        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
+        == f"https://ghcr.io/v2/sekoia-io/{lib.DOCKER_PREFIX}-{module['slug']}/\
 manifests/{module['version']}"
     )
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_default_fail(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT)
     kwargs["m"].register_uri(
         "GET",
         re.compile("https://ghcr.io/v2/sekoia-io.*"),
         status_code=404,
     )
-    assert not SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert not lib.check_image_on_registry(
+        lib._get_module_docker_name(module), module["version"]
+    )
 
     history = kwargs["m"].request_history
     assert len(history) == 1
     assert history[0].method == "GET"
     assert (
         history[0].url
-        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
+        == f"https://ghcr.io/v2/sekoia-io/{lib.DOCKER_PREFIX}-{module['slug']}/\
 manifests/{module['version']}"
     )
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_custom_success(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT)
     custom_path = "foo.bar"
     custom_pathinfo = "sekoia-io"
-    image_name = module["docker"]
+    image_name = lib._get_module_docker_name(module)
     module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
 
     kwargs["m"].register_uri(
@@ -258,9 +261,7 @@ def test_registry_check_custom_success(module, **kwargs):
         status_code=200,
         json={"token": API_KEY},
     )
-    assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert lib.check_image_on_registry(module["docker"], module["version"])
 
     history = kwargs["m"].request_history
     assert len(history) == 1
@@ -276,20 +277,21 @@ manifests/{module['version']}"
 def test_registry_check_not_found(module, **kwargs):
     custom_path = "foo.bar"
     custom_pathinfo = "sekoia-io"
-    image_name = module["docker"]
-    module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
+    lib = SyncLibrary(
+        SYMPOHNY_URL,
+        API_KEY,
+        Path("tests/data"),
+        registry=custom_path,
+        namespace=custom_pathinfo,
+    )
+    module["docker"] = lib._get_module_docker_name(module)
 
     kwargs["m"].register_uri(
         "GET",
-        f"https://{custom_path}/v2/sekoia-io/sekoia-automation-module-sample/manifests/0.1",
+        f"https://{custom_path}/v2/sekoia-io/automation-module-sample/manifests/0.1",
         status_code=404,
     )
-    assert (
-        SyncLibrary(
-            SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
-        ).check_image_on_registry(module["docker"], module["version"])
-        is False
-    )
+    assert lib.check_image_on_registry(module["docker"], module["version"]) is False
 
     history = kwargs["m"].request_history
     assert len(history) == 1
@@ -325,9 +327,6 @@ def test_get_module_docker_name():
     lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
 
     manifest = {"docker": "foo", "slug": "bar"}
-    assert lib._get_module_docker_name(manifest) == "foo"
-
-    manifest.pop("docker")
     assert (
         lib._get_module_docker_name(manifest)
         == "ghcr.io/sekoia-io/automation-module-bar"

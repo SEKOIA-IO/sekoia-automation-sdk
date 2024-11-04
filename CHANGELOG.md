@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Change the way to handle docker image information when publishing a module
+
 ## 1.17.0 - 2024-11-04
 
 ### Added

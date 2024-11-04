@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import requests
 import sentry_sdk
@@ -24,6 +24,10 @@ from sekoia_automation.utils import (
     get_annotation_for,
     get_as_model,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from sekoia_automation.account_validator import AccountValidator
+
 
 LogLevelStr = Literal["fatal", "critical", "error", "warning", "info", "debug"]
 
@@ -268,6 +272,9 @@ class Module:
         if not item.name:
             item.name = name
         self._items[name] = item
+
+    def register_account_validator(self, validator: type["AccountValidator"]):
+        self.register(validator, "validate_module_configuration")
 
     def run(self):
         command = self.command or ""

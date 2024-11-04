@@ -10,11 +10,20 @@ import re
 from base64 import b64encode
 from pathlib import Path
 from posixpath import join as urljoin
-from typing import Any
+from typing import Any, NamedTuple
 
 import requests
 import typer
 from rich import print
+
+
+class DockerInfo(NamedTuple):
+    name: str
+    version: str
+
+    @property
+    def image(self):
+        return f"{self.name}:{self.version}"
 
 
 class SyncLibrary:
@@ -260,10 +269,13 @@ class SyncLibrary:
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        module_docker_name = self._get_module_docker_name(module)
+        module_docker_info = self._get_module_docker_info(module)
         for manifest in manifests:
-            if "docker" not in manifest or manifest["docker"] == module_docker_name:
-                manifest["docker"] = f"{module_docker_name}:{module['version']}"
+            if (
+                "docker" not in manifest
+                or manifest["docker"] == module_docker_info.name
+            ):
+                manifest["docker"] = module_docker_info.image
 
         return manifests
 
@@ -362,14 +374,13 @@ class SyncLibrary:
         with manifest_path.open() as fd:
             module_info = json.load(fd)
 
-        docker_name = self._get_module_docker_name(module_info)
-        module_info["docker"] = f"{docker_name}:{module_info['version']}"
+        docker_info = self._get_module_docker_info(module_info)
+        module_info["docker"] = docker_info.image
         if self.registry_check and not self.check_image_on_registry(
-            docker_name, module_info["version"]
+            docker_info.name, docker_info.version
         ):
             print(
-                f"[bold red][!] Image {docker_name}:{module_info['version']} "
-                f"not available on registry"
+                f"[bold red][!] Image {docker_info.image} " f"not available on registry"
             )
             raise typer.Exit(code=1)
 
@@ -452,9 +463,11 @@ class SyncLibrary:
                 module_path=self.modules_path.joinpath(self.module).absolute(),
             )
 
-    def _get_module_docker_name(self, manifest: dict) -> str:
+    def _get_module_docker_info(self, manifest: dict) -> DockerInfo:
         if docker := manifest.get("docker"):
-            return docker
+            (name, version, *extra) = docker.split(":")
+            return DockerInfo(name, version)
         if slug := manifest.get("slug"):
-            return f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
+            name = f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
+            return DockerInfo(name, manifest["version"])
         raise ValueError("Impossible to generate image name")

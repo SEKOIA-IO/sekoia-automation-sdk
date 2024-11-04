@@ -335,3 +335,48 @@ def test_get_module_docker_name():
     manifest.pop("slug")
     with pytest.raises(ValueError):
         lib._get_module_docker_name(manifest)
+
+
+def test_sync_module_create_error(requests_mock):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=404,
+    )
+    requests_mock.post(
+        f"{SYMPOHNY_URL}/modules",
+        status_code=500,
+        json={"error": "Internal Server Error"},
+    )
+    with pytest.raises(typer.Exit):
+        lib.sync_module(
+            {"name": "My Module", "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129"}
+        )
+
+
+def test_sync_module_update_error(requests_mock):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=200,
+        json={
+            "name": "My Module",
+            "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+            "version": "0.1",
+        },
+    )
+    requests_mock.patch(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=500,
+        json={"error": "Internal Server Error"},
+    )
+    with pytest.raises(typer.Exit):
+        lib.sync_module(
+            {
+                "name": "My Module",
+                "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+                "version": "0.2",
+            }
+        )

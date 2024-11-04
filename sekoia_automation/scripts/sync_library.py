@@ -162,32 +162,35 @@ class SyncLibrary:
             print(f"[red]Error {response.status_code}[/red]")
 
         elif response.status_code == 404:
-            requests.post(
+            res = requests.post(
                 urljoin(self.playbook_url, "modules"),
                 json=module_info,
                 headers=self.headers,
             )
+            if not res.ok:
+                print(f"[red]Error creating the module: {res.status_code}[/red]")
+                print(res.json())
+                raise typer.Exit(code=1)
             print("Created")
 
         else:
             content: dict = response.json()
-            mod_list: list = list(module_info.keys())
-
-            for k in content.keys():
-                if k not in mod_list:
-                    module_info[k] = None
-
-                if content[k] == module_info[k]:
+            for k, value in content.items():
+                if k in module_info and value == module_info[k]:
                     del module_info[k]
 
             if not module_info:
                 print("Already-Up-To-Date")
             else:
-                requests.patch(
+                res = requests.patch(
                     urljoin(self.playbook_url, "modules", module_uuid),
                     json=module_info,
                     headers=self.headers,
                 )
+                if not res.ok:
+                    print(f"[red]Error updating the module: {res.status_code}[/red]")
+                    print(res.json())
+                    raise typer.Exit(code=1)
                 print("Updated")
 
     def load_actions(self, module_path: Path) -> list:

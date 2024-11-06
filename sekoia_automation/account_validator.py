@@ -5,8 +5,6 @@ from sekoia_automation.module import Module, ModuleItem
 
 
 class AccountValidator(ModuleItem):
-    CALLBACK_URL_FILE_NAME = "validation_callback_url"
-
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
         self._error: str | None = None

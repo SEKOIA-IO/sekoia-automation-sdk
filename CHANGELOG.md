@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 1.18.0 - 2024-11-26
+
+### Changed
+
+- Add additional values to log events sent to the API
+- In Generic actions, in case of error use the message from the response if available
+
 ## 1.17.2 - 2024-11-06
 
 ### Fixed

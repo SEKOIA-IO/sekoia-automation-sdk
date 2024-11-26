@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from abc import abstractmethod
@@ -115,7 +116,12 @@ class Action(ModuleItem):
     ) -> None:
         """Log a message with a specific level."""
         self._logs.append(
-            {"date": str(datetime.utcnow()), "level": level, "message": message}
+            {
+                "date": str(datetime.utcnow()),
+                "level": level,
+                "message": message,
+                **kwargs,
+            }
         )
         super().log(message, level, only_sentry=only_sentry, **kwargs)
 
@@ -184,7 +190,13 @@ class Action(ModuleItem):
             logs = ""
 
             for log in self._logs:
-                logs += f"{log['date']}: {log['level']}: {log['message']}\n"
+                log = log.copy()
+                formatted = (
+                    f"{log.pop('date')}: {log.pop('level')}: {log.pop('message')}"
+                )
+                if log:
+                    formatted += f" - Context: {json.dumps(log)}"
+                logs += f"{formatted}\n"
 
             return logs
 
@@ -287,11 +299,13 @@ class GenericAPIAction(Action):
         return path
 
     def log_request_error(self, url: str, arguments: dict, response: Response):
+        message = f"HTTP Request failed: {url} with {response.status_code}"
         try:
             content = response.json()
+            if isinstance(content, dict) and "message" in content:
+                message = content["message"]
         except ValueError:
             content = response.content
-        message = f"HTTP Request failed: {url} with {response.status_code}"
         self.log(
             message,
             level="error",

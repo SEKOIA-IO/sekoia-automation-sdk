@@ -7,19 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.17.0] - 2024-10-07
+## 1.18.0 - 2024-11-26
 
 ### Changed
 
-- Improvements for AsyncConnector.
-- Improvements for Async Http workflow
-- Remove duplicated parts and make the code more uniform for async http workflow
+- Add additional values to log events sent to the API
+- In Generic actions, in case of error use the message from the response if available
 
-## 1.16.1 - 2024-10-16
+## 1.17.2 - 2024-11-06
 
 ### Fixed
 
+- Fix callback URL file for account validation
+
+## 1.17.1 - 2024-11-04
+
+### Fixed
+
+- Change the way to handle docker image information when publishing a module
+- Fix the module synchronization script
+
+## 1.17.0 - 2024-11-04
+
+### Added
+
+- Add account validation (beta)
+
+## 1.16.1 - 2024-10-30
+
+### Changed
+
+- Specify docker image when publishing a module
+- Move from error to info the message when no event was collected from severals seconds
+
+### Fixed
+
+- Replace ulrllib.parse.urljoin by posixpath.join in AsyncConnector
 - Fix tests for async version of connector.
+- Fix support for boolean arguments in the json_argument method
 
 ## 1.16.0 - 2024-10-16
 

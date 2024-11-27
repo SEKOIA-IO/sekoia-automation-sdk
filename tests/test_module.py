@@ -1,5 +1,5 @@
 # natives
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # third parties
 import pytest
@@ -61,6 +61,14 @@ def test_register_no_command():
     with patch("sys.argv", ["run", "other_command"]):
         with pytest.raises(CommandNotFoundError):
             module.run()
+
+
+def test_register_account_validator():
+    module = Module()
+    validator = Mock()
+    validator.name = None
+    module.register_account_validator(validator)
+    assert module._items["validate_module_configuration"] == validator
 
 
 @patch.object(DummyTrigger, "execute")

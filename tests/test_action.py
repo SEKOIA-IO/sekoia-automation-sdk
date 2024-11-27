@@ -142,7 +142,7 @@ def test_exception_handler(mock_volume):
 def test_all(mock_volume):
     class PrintAction(Action):
         def run(self, arguments):
-            self.log("message", "info")
+            self.log("message", "info", status=401)
             self.set_output("malicious")
 
             return {"key1": "value1"}
@@ -158,6 +158,7 @@ def test_all(mock_volume):
 
         results = rmock.last_request.json()
         assert "info: message" in results["logs"]
+        assert '- Context: {"status": 401}' in results["logs"]
         assert results["outputs"] == {"malicious": True}
         assert results["results"] == {"key1": "value1"}
 
@@ -324,11 +325,16 @@ def test_generic_api_action(storage):
 
     action = init_action()
     with requests_mock.Mocker() as mock:
-        mock.get("http://base_url/resource/fake_uuid/count", status_code=400, json={})
+        mock.get(
+            "http://base_url/resource/fake_uuid/count",
+            status_code=400,
+            json={"message": "Oops"},
+        )
         results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
 
         assert results is None
         assert mock.call_count == 1
+        assert action._error == "Oops"
 
     action = init_action(verb="delete")
     with requests_mock.Mocker() as mock:

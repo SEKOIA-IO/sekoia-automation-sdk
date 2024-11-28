@@ -313,8 +313,8 @@ class Connector(Trigger, MetricsMixin, ABC):
 
         # if events were discarded, log it
         if nb_discarded_events > 0:
-            self._discarded_events.labels(intake_key=self.configuration.intake_key).inc(
-                nb_discarded_events
+            self.put_discarded_events(
+                intake_key=self.configuration.intake_key, count=nb_discarded_events
             )
 
             self.log(
@@ -361,19 +361,20 @@ class Connector(Trigger, MetricsMixin, ABC):
         processing_time = processing_end - processing_start
 
         # Metric about processing time
-        self._forward_events_duration.labels(
-            intake_key=self.configuration.intake_key
-        ).observe(processing_time)
+        self.put_forward_events_duration(
+            intake_key=self.configuration.intake_key,
+            duration=processing_time,
+        )
 
         # Metric about processing count
-        self._outcoming_events.labels(intake_key=self.configuration.intake_key).inc(
-            total_number_of_events
+        self.put_forwarded_events(
+            intake_key=self.configuration.intake_key, count=total_number_of_events
         )
 
         # Metric about events lag
         if result_last_event_date:
             lag = (datetime.utcnow() - result_last_event_date).total_seconds()
-            self._events_lag.labels(intake_key=self.configuration.intake_key).set(lag)
+            self.put_events_lag(intake_key=self.configuration.intake_key, lag=lag)
 
         # Compute the remaining sleeping time.
         # If greater than 0 and no messages where fetched, pause the connector

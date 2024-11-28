@@ -2,8 +2,8 @@
 
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from unittest.mock import Mock, patch
 from posixpath import join as urljoin
+from unittest.mock import Mock, patch
 
 import pytest
 from aiolimiter import AsyncLimiter
@@ -22,7 +22,9 @@ class DummyAsyncConnector(AsyncConnector):
     def set_events(self, events: list[list[str]]) -> None:
         self.events = events
 
-    async def iterate(self) -> AsyncGenerator[tuple[list[str], datetime | None], None]:
+    async def async_iterate(
+        self,
+    ) -> AsyncGenerator[tuple[list[str], datetime | None], None]:
         if self.events is None:
             raise RuntimeError("Events are not set")
 
@@ -251,15 +253,18 @@ async def test_async_connector_async_next_run(
 
         await async_connector.async_next_run()
 
+
 @pytest.mark.parametrize(
-    'base_url,expected_batchapi_url',
+    "base_url,expected_batchapi_url",
     [
-        ('http://intake.fake.url/', 'http://intake.fake.url/batch'),
-        ('http://fake.url/intake/', 'http://fake.url/intake/batch'),
-        ('http://fake.url/intake', 'http://fake.url/intake/batch'),
-    ]
+        ("http://intake.fake.url/", "http://intake.fake.url/batch"),
+        ("http://fake.url/intake/", "http://fake.url/intake/batch"),
+        ("http://fake.url/intake", "http://fake.url/intake/batch"),
+    ],
 )
-def test_async_connector_batchapi_url(storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str):
+def test_async_connector_batchapi_url(
+    storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str
+):
     with patch("sentry_sdk.set_tag"):
         async_connector = DummyAsyncConnector(data_path=storage)
 

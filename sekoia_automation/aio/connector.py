@@ -155,14 +155,14 @@ class AsyncConnector(Connector, ABC):
         self,
     ) -> AsyncGenerator[tuple[list[EventType], datetime | None], None]:
         """Iterate over events."""
-        yield [], None  # To avoid type checking error
+        raise NotImplementedError  # To avoid type checking error
 
     async def async_next_run(self) -> None:
         processing_start = time.time()
 
         result_last_event_date: datetime | None = None
         total_number_of_events = 0
-        async for data in self.async_iterate():
+        async for data in self.async_iterate():  # type: ignore
             events, last_event_date = data
             if last_event_date:
                 if (
@@ -179,19 +179,20 @@ class AsyncConnector(Connector, ABC):
         processing_time = processing_end - processing_start
 
         # Metric about processing time
-        self._forward_events_duration.labels(
-            intake_key=self.configuration.intake_key
-        ).observe(processing_time)
+        self.put_forward_events_duration(
+            intake_key=self.configuration.intake_key,
+            duration=processing_time,
+        )
 
         # Metric about processing count
-        self._outcoming_events.labels(intake_key=self.configuration.intake_key).inc(
-            total_number_of_events
+        self.put_forwarded_events(
+            intake_key=self.configuration.intake_key, count=total_number_of_events
         )
 
         # Metric about events lag
         if result_last_event_date:
             lag = (datetime.utcnow() - result_last_event_date).total_seconds()
-            self._events_lag.labels(intake_key=self.configuration.intake_key).set(lag)
+            self.put_events_lag(intake_key=self.configuration.intake_key, lag=lag)
 
         # Compute the remaining sleeping time.
         # If greater than 0 and no messages where fetched, pause the connector
@@ -200,6 +201,15 @@ class AsyncConnector(Connector, ABC):
             self.log(message=f"Next batch in the future. Waiting {delta_sleep} seconds")
 
             await asyncio.sleep(delta_sleep)
+
+    async def on_shutdown(self) -> None:
+        """
+        Called when connector is finishing processing.
+
+        Can be used for some resources cleanup.
+
+        Basically it emits shutdown event.
+        """
 
     # Put infinite arg only to have testing easier
     async def async_run(self) -> None:  # pragma: no cover
@@ -216,10 +226,12 @@ class AsyncConnector(Connector, ABC):
                 if self.frequency:
                     await asyncio.sleep(self.frequency)
 
+        if self._session:
+            await self._session.close()
+
+        await self.on_shutdown()
+
     def run(self) -> None:  # pragma: no cover
         """Runs Connector."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.async_run())
-
-        if self._session:
-            loop.run_until_complete(self._session.close())

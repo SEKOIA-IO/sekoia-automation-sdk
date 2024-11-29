@@ -182,7 +182,7 @@ class CheckpointTimestamp(CheckpointDatetimeBase):
 
     def to_datetime(self, rp: float | int) -> datetime:
         # timestamp -> inner representation
-        return datetime.fromtimestamp(rp / self.multiplier).astimezone(timezone.utc)
+        return datetime.fromtimestamp(rp / self.multiplier, tz=timezone.utc)
 
 
 class CheckpointCursor(Checkpoint):

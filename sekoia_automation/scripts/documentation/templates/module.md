@@ -69,11 +69,11 @@ This module accepts no configuration.
 
 {{action.description}}
 
-{%- if action.arguments.description %}
+{%- if action.arguments.properties.description %}
 
 **Configuration**
 
-{{action.arguments.description}}
+{{action.arguments.properties.description}}
 
 {%- endif -%}
 

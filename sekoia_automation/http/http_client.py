@@ -1,9 +1,23 @@
+from enum import Enum
 from typing import Generic, TypeVar
 
 from sekoia_automation.http.rate_limiter import RateLimiterConfig
 from sekoia_automation.http.retry import RetryPolicy
 
 TResult = TypeVar("TResult")
+
+
+class Method(Enum):
+    """
+    Enum for http methods.
+    """
+
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    PATCH = "PATCH"
+    DELETE = "DELETE"
+    HEAD = "HEAD"
 
 
 class AbstractHttpClient(Generic[TResult]):

@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
+
+## 1.18.2
+
+### Changed
+
+- Lock boto3 to versions lower than 1.36
+  - The new integrity algorithm doesn't work with third party object storage implementations
 
 ## 1.18.1 - 2024-12-04
 

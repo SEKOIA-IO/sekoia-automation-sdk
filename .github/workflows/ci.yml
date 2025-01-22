@@ -23,7 +23,7 @@ jobs:
 
       - name: Check `poetry.lock` consistency
         run: |
-          poetry lock --check
+          poetry check
 
       - name: Install linting dependencies
         run: |

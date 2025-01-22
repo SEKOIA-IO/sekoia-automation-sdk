@@ -171,6 +171,24 @@ def test_validate_results_none():
     assert action.error_message is None
 
 
+def test_validate_list_results(mock_volume):
+    class ListAction(Action):
+        def run(self, arguments):
+            return [{"key1": "value1"}, {"key2": "value2"}]
+
+    action = ListAction()
+
+    with requests_mock.Mocker() as rmock:
+        rmock.patch(FAKE_URL)
+
+        action.execute()
+
+        assert rmock.last_request.json()["results"] == [
+            {"key1": "value1"},
+            {"key2": "value2"},
+        ]
+
+
 def test_action_results_invalid(mock_volume):
     class TestAction(Action):
         def run(self, arguments):

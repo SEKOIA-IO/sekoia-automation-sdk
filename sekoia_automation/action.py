@@ -212,6 +212,16 @@ class Action(ModuleItem):
                 except Exception:
                     sentry_sdk.capture_exception()
 
+            # Add a check for list
+            if isinstance(self._results, list):
+                for result in self._results:
+                    if isinstance(result, dict):
+                        try:
+                            orjson.dumps(result)
+                        except Exception:
+                            sentry_sdk.capture_exception()
+                return
+
             # If we reached this point, the results are invalid
             self._error = f"Results are invalid: '{self._results}'"
             self._results = None

@@ -31,7 +31,7 @@ def test_new_module(tmp_path):
     )
     assert res.exit_code == 0
 
-    module_path = tmp_path.joinpath(module)
+    module_path = tmp_path.joinpath("MyModule")  # without spaces
     assert module_path.is_dir()
 
     manifest = json.loads(module_path.joinpath("manifest.json").read_text())

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 1.18.1 - 2024-12-04
+
+### Added
+
+- Add the support to list type for action response
+- Add a configuration part for action documentation
+
+### Fixed
+
+- Fix checkpoint for timestamps
+
 ## 1.18.0 - 2024-11-26
 
 ### Changed

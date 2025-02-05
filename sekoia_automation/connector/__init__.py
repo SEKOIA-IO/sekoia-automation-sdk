@@ -11,7 +11,7 @@ from typing import Any
 import orjson
 import requests
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import Response
 from tenacity import (
     Retrying,

@@ -8,7 +8,7 @@ from pkgutil import walk_packages
 from uuid import UUID, uuid5
 
 import typer
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from rich import print
 
 from sekoia_automation.action import Action

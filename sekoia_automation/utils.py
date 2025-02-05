@@ -3,7 +3,7 @@ from functools import wraps
 from inspect import get_annotations, getmro
 
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from tenacity import RetryCallState
 
 

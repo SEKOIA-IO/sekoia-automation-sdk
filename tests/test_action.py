@@ -5,7 +5,7 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import requests_mock
-from pydantic import BaseModel, ValidationError
+from pydantic.v1 import BaseModel, ValidationError
 
 # third parties
 from requests import Timeout

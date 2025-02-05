@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 # third parties
 import pytest
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from sentry_sdk import get_isolation_scope
 
 # internal

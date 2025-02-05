@@ -10,7 +10,7 @@ import pytest
 import requests
 import requests_mock
 from botocore.exceptions import ClientError, ConnectionError
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from tenacity import wait_none
 
 from sekoia_automation.exceptions import (

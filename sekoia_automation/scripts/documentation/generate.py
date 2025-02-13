@@ -99,7 +99,7 @@ class DocumentationGenerator:
             actions=module_actions,
             triggers=module_triggers,
             logo_filename=module_logo_filename,
-            setup=setup
+            setup=setup,
         )
 
         module_doc_filename = f'{slugify(module_manifest["name"])}.md'
@@ -136,12 +136,15 @@ class DocumentationGenerator:
                 return module_logo_filename
         return None
 
-    def _copy_configure_md(self, module_path: Path, module_manifest: dict) -> str | None:
+    def _copy_configure_md(
+        self, module_path: Path, module_manifest: dict
+    ) -> str | None:
         """
         Copy and return the CONFIGURE.md content
 
         Read the content of CONFIGURE.md in the automation module directory.
-        Copy the items in docs/assets into the documentation and replace the paths in the content.
+        Copy the items in docs/assets into the documentation and replace the
+        paths in the content.
         """
         # Is the SETUP.md exists
         if not (module_path / "CONFIGURE.md").exists():
@@ -155,7 +158,9 @@ class DocumentationGenerator:
         assets_dir = "docs/assets"
         assets_path = module_path / assets_dir
         if assets_path.exists():
-            new_location = f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
+            new_location = (
+                f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
+            )
             new_location_path = self.documentation_path / "docs" / new_location
             new_location_path.mkdir(parents=True, exist_ok=True)
 

@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lock boto3 to versions lower than 1.36
   - The new integrity algorithm doesn't work with third party object storage implementations
 
+### Fixed
+
+- Fixed template for module generation
+
 ## 1.18.1 - 2024-12-04
 
 ### Added

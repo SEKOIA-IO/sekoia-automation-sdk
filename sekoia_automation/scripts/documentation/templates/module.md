@@ -101,6 +101,13 @@ This module accepts no configuration.
 {%- endfor -%}{# /actions #}
 {%- endif -%}{# /actions #}
 
+{%- if setup %}
+## Set up
+
+{{ setup }}
+
+{%- endif %}
+
 ## Extra
 
 Module **`{{manifest.name}}` v{{manifest.version}}**

@@ -12,7 +12,7 @@ from uuid import uuid4
 import orjson
 import requests
 import sentry_sdk
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 from requests import RequestException, Response
 from tenacity import (
     RetryError,
@@ -63,7 +63,7 @@ class Action(ModuleItem):
         self._update_secrets = False
         logging.getLogger().addHandler(ActionLogHandler(self))
 
-        # Make sure arguments are validated/coerced by pydantic
+        # Make sure arguments are validated/coerced by pydantic.v1
         # if a type annotation is defined
         self.run = validate_arguments()(self.run)  # type: ignore
 
@@ -102,7 +102,7 @@ class Action(ModuleItem):
             self.set_task_as_running()
             self._results = self.run(self.arguments)
         except Exception:
-            self.error(f"An unexpected error occured: {format_exc()}")
+            self.error(f"An unexpected error occurred: {format_exc()}")
             sentry_sdk.capture_exception()
 
         self.send_results()

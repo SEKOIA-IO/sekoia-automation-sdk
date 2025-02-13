@@ -95,7 +95,7 @@ def new_module(
         extra_context={
             "module_name": module_name,
             "module_description": description,
-            "module_dir": module_name,
+            "module_dir": module_name.replace(" ", ""),
         },
         accept_hooks=not skip_hooks,
     )

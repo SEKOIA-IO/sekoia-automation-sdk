@@ -102,7 +102,7 @@ class Action(ModuleItem):
             self.set_task_as_running()
             self._results = self.run(self.arguments)
         except Exception:
-            self.error(f"An unexpected error occured: {format_exc()}")
+            self.error(f"An unexpected error occurred: {format_exc()}")
             sentry_sdk.capture_exception()
 
         self.send_results()

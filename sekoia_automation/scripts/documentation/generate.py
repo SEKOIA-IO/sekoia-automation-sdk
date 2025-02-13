@@ -86,6 +86,9 @@ class DocumentationGenerator:
         # Copy the logo
         module_logo_filename = self._copy_logo(module_path, module_manifest)
 
+        # Copy content of CONFIGURE.md
+        setup = self._copy_configure_md(module_path, module_manifest)
+
         current_dir = Path(os.path.dirname(__file__)).resolve()
         file_loader = FileSystemLoader(current_dir / "templates")
         env = Environment(loader=file_loader)
@@ -96,6 +99,7 @@ class DocumentationGenerator:
             actions=module_actions,
             triggers=module_triggers,
             logo_filename=module_logo_filename,
+            setup=setup
         )
 
         module_doc_filename = f'{slugify(module_manifest["name"])}.md'
@@ -131,6 +135,36 @@ class DocumentationGenerator:
                 )
                 return module_logo_filename
         return None
+
+    def _copy_configure_md(self, module_path: Path, module_manifest: dict) -> str | None:
+        """
+        Copy and return the CONFIGURE.md content
+
+        Read the content of CONFIGURE.md in the automation module directory.
+        Copy the items in docs/assets into the documentation and replace the paths in the content.
+        """
+        # Is the SETUP.md exists
+        if not (module_path / "CONFIGURE.md").exists():
+            return None
+
+        # Read it content
+        with (module_path / "CONFIGURE.md").open("r") as fd:
+            content = fd.read()
+
+        # Copy the assets for the documentation and update the path
+        assets_dir = "docs/assets"
+        assets_path = module_path / assets_dir
+        if assets_path.exists():
+            new_location = f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
+            new_location_path = self.documentation_path / "docs" / new_location
+            new_location_path.mkdir(parents=True, exist_ok=True)
+
+            for item in assets_path.iterdir():
+                copyfile(item, new_location_path / item.name)
+
+            content = content.replace(assets_dir, f"/{new_location}")
+
+        return content
 
     def _update_submenu(
         self, menu: list[dict], target: str, value: list, append_only: bool = False

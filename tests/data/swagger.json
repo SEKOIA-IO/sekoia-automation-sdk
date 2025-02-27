@@ -1,6 +1,7 @@
 {
     "swagger": "2.0",
     "basePath": "/v1/dashboard",
+    "host": "localhost",
     "paths": {
         "/dashboards": {
             "post": {

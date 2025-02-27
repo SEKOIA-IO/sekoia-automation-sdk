@@ -21,6 +21,11 @@ def swagger_path():
     return Path(os.path.dirname(__file__)).resolve().joinpath("data", "swagger.json")
 
 
+@pytest.fixture
+def openapi3_path():
+    return Path(os.path.dirname(__file__)).resolve().joinpath("data", "openapi.yml")
+
+
 def test_new_module(tmp_path):
     module = "My Module"
     description = "My Description"
@@ -187,6 +192,20 @@ def test_openapi_to_module(tmp_path, swagger_path):
     assert module.joinpath("dashboard_api", "__init__.py").exists()
 
 
+def test_openapi_to_module_openapi3(tmp_path, openapi3_path):
+    res: Result = runner.invoke(
+        app,
+        ["openapi-to-module", str(tmp_path), str(openapi3_path)],
+    )
+    assert res.exit_code == 0
+    module = tmp_path.joinpath("Censys Search API")
+    assert module.is_dir()
+    assert module.joinpath("manifest.json").exists()
+    assert module.joinpath("main.py").exists()
+    assert len(list(module.glob("action_*"))) > 0
+    assert module.joinpath("censys_search_api", "__init__.py").exists()
+
+
 def test_openapi_url_to_module(tmp_path, requests_mock, swagger_path):
     requests_mock.get(
         "https://myswagger.com/swagger.json", json=json.load(swagger_path.open())
@@ -202,6 +221,32 @@ def test_openapi_url_to_module(tmp_path, requests_mock, swagger_path):
             "openapi-to-module",
             str(tmp_path),
             "https://myswagger.com/swagger.json",
+            "--tags",
+        ],
+    )
+    assert res.exit_code == 0
+    assert module.is_dir()
+    assert not module.joinpath("should_be_removed").exists()
+    assert module.joinpath("manifest.json").exists()
+    assert module.joinpath("main.py").exists()
+    assert len(list(module.glob("action_*"))) > 0
+    assert module.joinpath("dashboard_api", "__init__.py").exists()
+
+
+def test_openapi_url_to_module_yaml(tmp_path, requests_mock, swagger_path):
+    loaded = json.load(swagger_path.open())
+    requests_mock.get("https://myswagger.com/swagger.yml", text=yaml.dump(loaded))
+
+    module = tmp_path.joinpath("Dashboard API")
+    module.mkdir()
+    module.joinpath("should_be_removed").write_text("foo")
+
+    res: Result = runner.invoke(
+        app,
+        [
+            "openapi-to-module",
+            str(tmp_path),
+            "https://myswagger.com/swagger.yml",
             "--tags",
         ],
     )

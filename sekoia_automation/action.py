@@ -271,6 +271,7 @@ class Action(ModuleItem):
 
 class GenericAPIAction(Action):
     # Endpoint Specific Information, should be defined in subclasses
+    base_url = ""
     verb: str
     endpoint: str
     query_parameters: list[str]
@@ -284,8 +285,8 @@ class GenericAPIAction(Action):
         return headers
 
     def get_url(self, arguments):
-        # Specific Informations, should be defined in the Module Configuration
-        url = self.module.configuration["base_url"]
+        # Specific Information, should be defined in the Module Configuration
+        url = self.module.configuration.get("base_url") or self.base_url
 
         match = re.findall("{(.*?)}", self.endpoint)
         for replacement in match:

@@ -15,6 +15,8 @@ from black import Mode, WriteBack, format_file_in_place
 from requests import Response
 from rich import print
 
+from sekoia_automation.typing import SupportedAuthentications
+
 
 class OpenApiToModule:
     file_header = """
@@ -22,6 +24,8 @@ from sekoia_automation.action import GenericAPIAction
 
 class Base(GenericAPIAction):
   base_url = "{base_url}"
+  authentication = "{authentication}"
+  auth_header = "{auth_header}"
 """
     class_template = """
 class {name}(Base):
@@ -69,12 +73,21 @@ class {name}(Base):
     def module_path(self) -> Path:
         return self.modules_path / self.module_name
 
-    def __init__(self, modules_path: Path, swagger_file: str, use_tags: bool):
+    def __init__(
+        self,
+        modules_path: Path,
+        swagger_file: str,
+        use_tags: bool,
+        authentication: SupportedAuthentications = None,
+        auth_header: str = "Authorization",
+    ):
         self.swagger_file = swagger_file
         self.use_tags = use_tags
         self.modules_path = modules_path
         self.actions: list[dict] = []
         self.classes: list[str] = []
+        self.authentication = authentication
+        self.auth_header = auth_header
 
     def add_results_to_action(self, action: dict, action_method: dict):
         for response in action_method["responses"].values():
@@ -258,7 +271,12 @@ class {name}(Base):
         base_url = self.swagger.get("servers", [{}])[0].get("url", "")
         if not base_url and (host := self.swagger.get("host")):
             base_url = f"https://{host}"
-        content = self.file_header.format(base_url=base_url)
+
+        authentication, auth_header = self._get_authentication_info()
+
+        content = self.file_header.format(
+            base_url=base_url, authentication=authentication, auth_header=auth_header
+        )
 
         for action in self.actions:
             docker_parameters = action["docker_parameters"]
@@ -346,3 +364,39 @@ class {name}(Base):
         print("Generating main.py ...")
         self.generate_main()
         print("main.py generated")
+
+    def _get_authentication_info(self) -> tuple[str | None, str | None]:
+        if self.authentication:
+            return self.authentication, self.auth_header
+        security_ids = [
+            k for security in self.swagger.get("security", []) for k in security.keys()
+        ]
+        if not security_ids:
+            return None, self.auth_header
+
+        # Openapi v2
+        for name, definition in self.swagger.get("securityDefinitions", {}).items():
+            if name in security_ids and definition.get("type") in {"basic", "apiKey"}:
+                if definition["type"] == "apiKey" and definition.get("in") != "header":
+                    # For now only support header based auth
+                    continue
+                return definition["type"], definition.get("name", self.auth_header)
+
+        # Openapi v3
+        for name, definition in (
+            self.swagger.get("components", {}).get("securitySchemes", {}).items()
+        ):
+            if name in security_ids and definition.get("scheme") in {
+                "basic",
+                "apiKey",
+                "bearer",
+            }:
+                if (
+                    definition["scheme"] == "apiKey"
+                    and definition.get("in") != "header"
+                ):
+                    # For now only support header based auth
+                    continue
+                return definition["scheme"], definition.get("name", self.auth_header)
+
+        return None, self.auth_header

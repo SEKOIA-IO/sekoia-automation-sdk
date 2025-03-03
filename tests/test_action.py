@@ -441,6 +441,17 @@ def test_generic_api_action(storage):
         action.run(arguments)
         assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
 
+    # Query Param API Key
+    action = init_action()
+    action.authentication = "apiKey"
+    action.auth_query_param = "key"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].qs == {"key": ["api_key"]}
+
 
 def test_action_with_arguments_model():
     class TestActionArguments(BaseModel):

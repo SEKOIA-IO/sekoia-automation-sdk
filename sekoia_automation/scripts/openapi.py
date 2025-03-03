@@ -24,8 +24,9 @@ from sekoia_automation.action import GenericAPIAction
 
 class Base(GenericAPIAction):
   base_url = "{base_url}"
-  authentication = "{authentication}"
-  auth_header = "{auth_header}"
+  authentication = {authentication}
+  auth_header = {auth_header}
+  auth_query_param = {auth_query_param}
 """
     class_template = """
 class {name}(Base):
@@ -88,6 +89,7 @@ class {name}(Base):
         self.classes: list[str] = []
         self.authentication = authentication
         self.auth_header = auth_header
+        self.auth_query_param = "api_key"
 
     def add_results_to_action(self, action: dict, action_method: dict):
         for response in action_method["responses"].values():
@@ -136,21 +138,12 @@ class {name}(Base):
                 required += nested_param.get("required", [])
                 continue
 
-            prop = {"in": param_in}
-            for key in [
-                "type",
-                "description",
-                "example",
-                "default",
-                "minimum",
-                "maximum",
-                "enum",
-            ]:
-                if key in param:
-                    prop[key] = param[key]
-                elif key in param.get("schema", {}):
-                    prop[key] = param["schema"][key]
-
+            prop = {
+                k: v
+                for k, v in param.items()
+                if k not in ["required", "format", "allowEmptyValue"]
+            }
+            prop |= param.get("schema", {})
             properties.update({param_name: prop})
 
         if body := action_method.get("requestBody"):
@@ -272,10 +265,16 @@ class {name}(Base):
         if not base_url and (host := self.swagger.get("host")):
             base_url = f"https://{host}"
 
-        authentication, auth_header = self._get_authentication_info()
+        authentication, auth_header, auth_query_param = self._get_authentication_info()
+
+        def quote(s: str | None) -> str:
+            return f'"{s}"' if isinstance(s, str) else "None"
 
         content = self.file_header.format(
-            base_url=base_url, authentication=authentication, auth_header=auth_header
+            base_url=base_url,
+            authentication=quote(authentication),
+            auth_header=quote(auth_header),
+            auth_query_param=quote(auth_query_param),
         )
 
         for action in self.actions:
@@ -365,22 +364,35 @@ class {name}(Base):
         self.generate_main()
         print("main.py generated")
 
-    def _get_authentication_info(self) -> tuple[str | None, str | None]:
+    def _get_authentication_info(self) -> tuple[str | None, str | None, str | None]:
         if self.authentication:
-            return self.authentication, self.auth_header
+            return self.authentication, self.auth_header, None
         security_ids = [
             k for security in self.swagger.get("security", []) for k in security.keys()
         ]
         if not security_ids:
-            return None, self.auth_header
+            return None, None, None
 
         # Openapi v2
         for name, definition in self.swagger.get("securityDefinitions", {}).items():
             if name in security_ids and definition.get("type") in {"basic", "apiKey"}:
-                if definition["type"] == "apiKey" and definition.get("in") != "header":
-                    # For now only support header based auth
+                if (
+                    definition["type"] == "apiKey"
+                    and definition.get("in", "cookie") == "cookie"
+                ):
+                    # For now, we don't support cookie auth
                     continue
-                return definition["type"], definition.get("name", self.auth_header)
+                if definition.get("in") == "query":
+                    return (
+                        definition["type"],
+                        None,
+                        definition.get("name", self.auth_query_param),
+                    )
+                return (
+                    definition["type"],
+                    definition.get("name", self.auth_header),
+                    None,
+                )
 
         # Openapi v3
         for name, definition in (
@@ -393,10 +405,20 @@ class {name}(Base):
             }:
                 if (
                     definition["scheme"] == "apiKey"
-                    and definition.get("in") != "header"
+                    and definition.get("in", "cookie") == "cookie"
                 ):
-                    # For now only support header based auth
+                    # For now, we don't support cookie auth
                     continue
-                return definition["scheme"], definition.get("name", self.auth_header)
+                if definition.get("in") == "query":
+                    return (
+                        definition["scheme"],
+                        None,
+                        definition.get("name", self.auth_query_param),
+                    )
+                return (
+                    definition["scheme"],
+                    definition.get("name", self.auth_header),
+                    None,
+                )
 
-        return None, self.auth_header
+        return None, None, None

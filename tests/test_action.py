@@ -326,10 +326,11 @@ def test_generic_api_action(storage):
         assert mock.call_count == 2
         mock.assert_called_with(
             "get",
-            "http://base_url/resource/fake_uuid/count?param=number",
+            "http://base_url/resource/fake_uuid/count",
             json=arguments,
             headers={"Accept": "application/json"},
             timeout=5,
+            params={"param": "number"},
         )
 
     # error http code
@@ -407,6 +408,49 @@ def test_generic_api_action(storage):
         history = mock.request_history
         assert history[0].method == "GET"
         assert history[0].url == "http://base_url/resource/10/count"
+
+    # Basic auth
+    action = init_action()
+    action.authentication = "basic"
+    action.module.configuration["username"] = "user"
+    action.module.configuration["password"] = "pass"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Basic dXNlcjpwYXNz"
+
+    # API Key
+    action = init_action()
+    action.authentication = "apiKey"
+    action.auth_header = "X-API-Key"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["X-API-Key"] == "api_key"
+
+    # Bearer Token
+    action = init_action()
+    action.authentication = "bearer"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
+
+    # Query Param API Key
+    action = init_action()
+    action.authentication = "apiKey"
+    action.auth_query_param = "key"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].qs == {"key": ["api_key"]}
 
 
 def test_action_with_arguments_model():

@@ -1,0 +1,4275 @@
+openapi: 3.0.3
+info:
+  title: Censys Search API
+  description:
+    "The Censys REST API provides programmatic access to the same data accessible through the web
+    interface. API access is governed by our [Terms of Service](https://censys.io/tos/) and all scripted access should use this API.
+    Endpoints are hosted at [`https://search.censys.io`](https://search.censys.io) and require authenticating with HTTP basic auth using
+    the API ID and secret that are shown on the [account](/account/api) page, which also lists the rate limits that apply to your account.
+    \n\n### Use This API
+    \n - Import the Censys [Postman Collection](https://github.com/censys/censys-postman) and call the API with Postman.
+    \n - Call the API from your Python app using our [Python library](https://github.com/censys/censys-python).
+    "
+  contact:
+    name: Support
+    email: support@censys.io
+  version: "2.0"
+servers: 
+  - url: https://search.censys.io/api
+security:
+  - basicAuth: []
+tags:
+  - name: hosts
+    description: Everything about Hosts (v2)
+  - name: certificates v2
+    description: Everything about Certificates (v2)
+  - name: data
+    description: Everything about Data (v1)
+  - name: account
+    description: Everything about your Account (v1)
+  - name: metadata
+    description: Everything about our Data (v2)
+  - name: comments
+    description: Everything about Comments (v2)
+  - name: tags
+    description: Everything about Tags (v2)
+  - name: experimental
+    description: APIs which are subject to change in the future but are available for testing.
+paths:
+  /v2/hosts/search:
+    get:
+      tags:
+        - hosts
+      summary: Returns previews of hosts matching a specified search query
+      description:
+        "Accepts queries for host or service attributes provided in the Censys
+        Search Language and returns a list of matching hosts with some summary fields.
+        \n\n**Cursor Pagination**
+        \n\nSearch endpoints rely on using cursors for efficient pagination.
+        \n\nEach search result may return a `next` and `prev` cursor value
+        which can be used to fetch additional pages of results.
+        \n\n```json
+        \n{\n\t\"links\":{
+        \n\t\t\"prev\":\"prevCursorToken\",
+        \n\t\t\"next\":\"nextCursorToken\"
+        \n\t},
+        \n\t[Rest of Response]\n}
+        \n```
+        \nThe returned cursor token values can be added to the search endpoint as
+        a `cursor` parameter to fetch either the next page of results or the previous page.
+        \n\nThe entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned."
+      externalDocs:
+        url: /search/language
+      operationId: searchHosts
+      parameters:
+        - name: q
+          in: query
+          description: Query used to search for hosts with matching attributes. Uses the Censys Search Language.
+          schema:
+            type: string
+            example: "services.service_name: HTTP"
+        - name: per_page
+          in: query
+          description:
+            The maximum number of hits to return in each response (minimum of 1, maximum of 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: virtual_hosts
+          in: query
+          description: |
+            Determine how to query Virtual Hosts. The default is `EXCLUDE` which will ignore any virtual hosts entries.
+            When set to `INCLUDE` or `ONLY` virtual hosts will be present in the returned list of hits, with the later
+            returning only virtual hosts.
+
+            To learn more, see the [Help Desk article on Virtual Hosts](https://support.censys.io/hc/en-us/articles/4411773845524).
+          schema:
+            type: string
+            enum: [EXCLUDE, INCLUDE, ONLY]
+            default: EXCLUDE
+        - name: sort
+          in: query
+          description:
+            Sort the results
+          schema:
+            type: string
+            enum: [RELEVANCE, ASCENDING, DESCENDING]
+            default: RELEVANCE
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next or previous page of hits when added to the endpoint URL.
+          schema:
+            type: string
+        - name: fields
+          in: query
+          description:
+            Comma separated list of up to 25 fields to be returned for each result. (This parameter is only available to paid users.)
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        example: "service.service_name: HTTP"
+                      total:
+                        type: integer
+                        example: 50000
+                      hits:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: "#/components/schemas/HostHit"
+                            - $ref: "#/components/schemas/VirtualHostHit"
+                        maxItems: 100
+                  links:
+                    type: object
+                    properties:
+                      prev:
+                        type: string
+                        example: "prevCursorToken"
+                      next:
+                        type: string
+                        example: "nextCursorToken"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+    post:
+      tags:
+        - hosts
+      summary: Returns previews of hosts matching a specified search query
+      description:
+        "Accepts queries for host or service attributes provided in the Censys
+        Search Language and returns a list of matching hosts with some summary fields.
+        \n\n**Cursor Pagination**
+        \n\nSearch endpoints rely on using cursors for efficient pagination.
+        \n\nEach search result may return a `next` and `prev` cursor value
+        which can be used to fetch additional pages of results.
+        \n\n```json
+        \n{\n\t\"links\":{
+        \n\t\t\"prev\":\"prevCursorToken\",
+        \n\t\t\"next\":\"nextCursorToken\"
+        \n\t},
+        \n\t[Rest of Response]\n}
+        \n```
+        \nThe returned cursor token values can be added to the search endpoint as
+        a `cursor` parameter to fetch either the next page of results or the previous page.
+        \n\nThe entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned."
+      externalDocs:
+        url: /search/language
+      operationId: postSearchHosts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                q:
+                  description: Query used to search for certificates with matching attributes. Uses the Censys Search Language.
+                  type: string
+                  example: "services.service_name: HTTP"
+                per_page:
+                  description:
+                    The maximum number of hits to return in each response (minimum of 1, maximum of 100).
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 50
+                virtual_hosts:
+                  description: |
+                    Determine how to query Virtual Hosts. The default is `EXCLUDE` which will ignore any virtual hosts entries.
+                    When set to `INCLUDE` or `ONLY` virtual hosts will be present in the returned list of hits, with the later
+                    returning only virtual hosts.
+
+                    To learn more, see the [Help Desk article on Virtual Hosts](https://support.censys.io/hc/en-us/articles/4411773845524).
+                  type: string
+                  enum: [EXCLUDE, INCLUDE, ONLY]
+                  default: EXCLUDE
+                cursor:
+                  description:
+                    Cursor token from the API response, which fetches the next or previous page of hits when added to the endpoint URL.
+                  type: string
+                sort:
+                  description:
+                    Sort the results
+                  type: string
+                  enum: [RELEVANCE, ASCENDING, DESCENDING]
+                  default: RELEVANCE
+                fields:
+                  description:
+                    Comma separated list of up to 25 fields to be returned for each result. (This parameter is only available to paid users.)
+                  type: string
+                  default: ""
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        example: "service.service_name: HTTP"
+                      total:
+                        type: integer
+                        example: 50000
+                      hits:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: "#/components/schemas/HostHit"
+                            - $ref: "#/components/schemas/VirtualHostHit"
+                        maxItems: 100
+                  links:
+                    type: object
+                    properties:
+                      prev:
+                        type: string
+                        example: "prevCursorToken"
+                      next:
+                        type: string
+                        example: "nextCursorToken"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/aggregate:
+    get:
+      tags:
+        - hosts
+      summary:
+        Returns aggregation of hosts that match the given query string
+      description:
+        Aggregates hosts that match the given query string into buckets
+        based on the given field. See help on the Censys Search Language
+        for help on constructing a search query.
+      externalDocs:
+        url: /search/language
+      operationId: aggregateHosts
+      parameters:
+        - name: q
+          in: query
+          description:
+            Query used to search for Hosts which will be aggregated.
+            Query uses the Censys Search Language.
+          schema:
+            type: string
+            example: "service.service_name: HTTP"
+        - name: field
+          in: query
+          description:
+            The field used to aggregated upon and generate buckets for.
+            If the field is a service level field, the aggregation result
+            will be based on services which belong to hosts which match
+            the query, not the hosts themselves.
+          required: true
+          schema:
+            type: string
+            example: services.port
+        - name: num_buckets
+          in: query
+          description:
+            "The maximum number of buckets used to generate aggregate results."
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 50
+        - name: virtual_hosts
+          in: query
+          description: |
+            Determine how to query Virtual Hosts. The default is `EXCLUDE` which will ignore any virtual hosts entries.
+            When set to `INCLUDE` or `ONLY` virtual hosts will be present in the returned list of hits, with the later
+            returning only virtual hosts.
+
+            To learn more, see the [Help Desk article on Virtual Hosts](https://support.censys.io/hc/en-us/articles/4411773845524).
+          schema:
+            type: string
+            enum: [EXCLUDE, INCLUDE, ONLY]
+            default: EXCLUDE
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 500000
+                      total_omitted:
+                        type: integer
+                        example: 500000
+                      potential_deviation:
+                        type: integer
+                        example: 5000
+                      buckets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              example: "80"
+                            count:
+                              type: integer
+                              example: 50000
+                        maxItems: 200
+                      query:
+                        type: string
+                        example: "service.service_name: HTTP"
+                      field:
+                        type: string
+                        example: services.port
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+                invalidFieldExample:
+                  $ref: "#/components/examples/invalidFieldExample"
+                invalidNumBucketsExample:
+                  $ref: "#/components/examples/invalidNumBucketsExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/{ip}:
+    get:
+      tags:
+        - hosts
+      summary: Returns host information for the specified IP address
+      description: Fetches the entire host entity by IP address and returns the most recent Censys view of the host and its services.
+      operationId: viewHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+            maxLength: 39
+        - name: at_time
+          in: query
+          description:
+            "Fetches the Censys view of a host and its services at the specified point in time.\
+            \ Requires historical API access. \nNanosecond precision is allowed. Uses RFC3339 Timestamp."
+          schema:
+            type: string
+            format: date-time
+            maxLength: 24
+      responses:
+        200:
+          description: The host was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Host"
+                    properties:
+                      last_updated_at:
+                        type: string
+                        format: date-time
+                        maxLength: 24
+                      location_updated_at:
+                        type: string
+                        format: date-time
+                        maxLength: 24
+                      autonomous_system_updated_at:
+                        type: string
+                        format: date-time
+                        maxLength: 24
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid IP address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidIpExample:
+                  $ref: "#/components/examples/invalidIpExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/{ip}/diff:
+    get:
+      tags:
+        - hosts
+      summary: Returns a diff of a host against different points in time or against a different host altogether.
+      description: |
+        The diff endpoint generates a JSONPatch (RFC6902) formatted patch by comparing a host against another host (or itself) at
+        optionally given points in time.
+
+        The host as specified by the IP in the path and the `at_time` parameter is referred to as the original host, or simply "A".
+        The host specified by the parameters `ip_b` and `at_time_b` is referred to as "B".
+
+        The differential generated provides a sequence of steps needed to transform Host A into Host B.
+      operationId: viewHostDiff
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the original host. Referred to as Host A.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+            maxLength: 39
+        - name: ip_b
+          in: query
+          description: The IP Address of the other host. If not set, defaults to the host provided in the path. Referred to as Host B.
+          schema:
+            type: string
+            example: 1.1.1.2
+            maxLength: 39
+        - name: at_time
+          in: query
+          description: |
+            The point in time used as the basis for Host A.
+
+            Requires historical API access.
+            Nanosecond precision is allowed. Uses RFC3339 Timestamp.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 24
+        - name: at_time_b
+          in: query
+          description: |
+            The point in time used as the basis for Host B.
+
+            Requires historical API access.
+            Nanosecond precision is allowed. Uses RFC3339 Timestamp.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 24
+      responses:
+        200:
+          description: A diff was successfully generated for the given host(s).
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      a:
+                        type: object
+                        properties:
+                          ip:
+                            type: string
+                            description: The IP address of the original host.
+                          last_updated_at:
+                            type: string
+                            format: date-time
+                            description: Returned updated timestamp of the original host.
+                      b:
+                        type: object
+                        properties:
+                          ip:
+                            type: string
+                            description: The IP address of the other host.
+                          last_updated_at:
+                            type: string
+                            format: date-time
+                            description: Returned updated timestamp of the other host.
+                      patch:
+                        type: array
+                        format: jsonpatch
+                        items:
+                          type: object
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid IP address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidIpExample:
+                  $ref: "#/components/examples/invalidIpExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/experimental/hosts/{ip}/events:
+    get:
+      tags:
+        - experimental
+        - hosts
+      summary: Returns host events for the specified IP address
+      description: |
+        Fetches a list of events for the host with the specified IP address.
+
+        **Cursor Pagination**
+
+        This endpoint relies on using cursors for efficient pagination. Each result may
+        return a `next` cursor value which can be used to fetch additional pages of results.
+        This endpoint only support forward-pagination.
+
+        ```json
+        {
+          "links": {
+            "next": "nextCursorToken"
+          },
+          [Rest of Response]
+        }
+        ```
+        The returned cursor token values can be added to the endpoint as a `cursor`
+        parameter to fetch the next page of results.
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned.
+      operationId: viewHostEvents
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+            maxLength: 90
+        - name: start_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the beginning
+            chronological point-in-time (inclusive) from which events
+            are returned. This must always be earlier than end_time.
+            Precision up to *nanoseconds* is observed and recommended.
+
+            If not provided, this is assumed to be the historical API maximum.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 24
+        - name: end_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the ending
+            chronological point-in-time (exclusive) from which events
+            are returned. This must always be later than start_time.
+            Precision up to *nanoseconds* is observed and recommended.
+
+            If not provided, this is assumed to be now.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 24
+        - name: per_page
+          in: query
+          description:
+            The maximum number of hits to return in each response (minimum of 1, maximum of 50).
+          schema:
+            type: integer
+            maximum: 50
+            minimum: 1
+            default: 25
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next or previous page of hits when added to the endpoint URL.
+          schema:
+            type: string
+        - name: reversed
+          in: query
+          description:
+            Reverse the order of the return events, that is, return events in reversed chronological order.
+          schema:
+            type: boolean
+      responses:
+        200:
+          description: Events for the host were sucessfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                        example: 1.1.1.1
+                      events:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/HostEvent"
+
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid IP address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidIpExample:
+                  $ref: "#/components/examples/invalidIpExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/{ip}/names:
+    get:
+      tags:
+        - hosts
+      summary: Returns host names for the specified IP address
+      description:
+        Fetches a list of host names for the specified IP address.
+        
+      operationId: viewHostNames
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+            maxLength: 39
+        - name: per_page
+          in: query
+          description:
+            The maximum number of hits to return in each response (minimum of 1, maximum of 1000).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next page of names when added to the endpoint URL.
+          schema:
+            type: string
+      responses:
+        200:
+          description: The host names were successfully retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      names:
+                        type: array
+                        items:
+                          type: string
+                        maxItems: 100
+                        example:
+                          - "google.com"
+                          - "google.co.uk"
+                          - "google.com.au"
+                          - "..."
+                      links:
+                        type: object
+                        properties:
+                          next:
+                            type: string
+                            example: "nextCursorToken"
+                          
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/{ip}/certificates:
+    get:
+      tags:
+        - hosts
+      summary: Returns a list of observations containing certificates which were ever presented on this host.
+      description: |
+        Returns an unordered list of observations that detail certificates which were ever presented by any service on this host.
+
+        **Cursor Pagination**
+
+        This endpoint relies on using cursors for efficient pagination. Each result may
+        return a `next` cursor value which can be used to fetch additional pages of results.
+        This endpoint only support forward-pagination.
+
+        ```json
+        {
+          "links": {
+            "next": "nextCursorToken"
+          },
+          [Rest of Response]
+        }
+        ```
+        The returned cursor token values can be added to the endpoint as a `cursor`
+        parameter to fetch the next page of results.
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned.
+      operationId: getCertsByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+            maxLength: 39
+        - name: per_page
+          in: query
+          description: |
+            The maximum number of results to return per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+        - name: start_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the beginning chronological point-in-time (inclusive) from which observations are returned.
+            This start time filter is applied to the scan observation time.
+            Nanosecond precision is allowed.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 32
+        - name: end_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the most recent chronological point-in-time (exclusive) from which observations are returned.
+            This end time filter is applied to the scan observation time.
+            Nanosecond precision is allowed.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 32
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next page of services when added to the endpoint URL.
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                        description: The IP Address of the requested host.
+                        example: 1.1.1.1
+                      observations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            fingerprint:
+                              type: string
+                              description: The SHA-256 fingerprint of the certificate which was observed on the service.
+                            port:
+                              type: integer
+                              description: Port of the service where the certificate was observed.
+                            service_name:
+                              type: string
+                              description: Name of the service where the certificate was observed.
+                            transport_protocol:
+                              type: string
+                              description: Transport protocol of the service where the certificate was observed.
+                              enum: [TCP, UDP, QUIC]
+                              example: TCP
+                            first_observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when certificate was first observed.
+                            last_observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when the certificate was last observed.
+                            first_updated_at:
+                              type: string
+                              format: date-time
+                              description: Time when the Host was updated the first time the certificate was observed. This timestamp can be used to inspect the host at this point in time using the historical Host lookup API.
+                            last_updated_at:
+                              type: string
+                              format: date-time
+                              description: Time when the Host was updated the last time the certificate was observed. This timestamp can be used to inspect the host at this point in time using the historical Host lookup API.
+                      links:
+                        type: object
+                        properties:
+                          next:
+                            type: string
+                            example: "nextCursorToken"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid argument supplied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+                invalidIpExample:
+                  $ref: "#/components/examples/invalidIpExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/hosts/{ip}/comments:
+    get:
+      tags:
+        - hosts
+        - comments
+      summary: Returns a list of comments on the given host.
+      description: |
+        Returns a list of comments on the given host.
+      operationId: getCommentsByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                        example: 1.1.1.1
+                      comments:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/HostComment"
+    post:
+      tags:
+        - hosts
+        - comments
+      summary: Adds a comment on the given host.
+      description: |
+        Adds a comment on the given host.
+      operationId: addCommentByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contents:
+                  type: string
+                  example: "**This is a comment.**"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/HostComment"
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /v2/hosts/{ip}/comments/{comment_id}:
+    get:
+      tags:
+        - hosts
+        - comments
+      summary: Returns a specific comment on the given host.
+      description: |
+        Returns a specific comment on the given host.
+      operationId: getCommentByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: "1.1.1.1"
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/HostComment"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+    put:
+      tags:
+        - hosts
+        - comments
+      summary: Updates a specific comment on the given host.
+      description: |
+        Updates a specific comment on the given host.
+      operationId: updateCommentByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: "1.1.1.1"
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contents:
+                  type: string
+                  example: "**This is a comment.**"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/HostComment"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+    delete:
+      tags:
+        - hosts
+        - comments
+      summary: Deletes a specific comment on the given host.
+      description: |
+        Deletes a specific comment on the given host.
+      operationId: deleteCommentByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: "1.1.1.1"
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        204:
+          description: No Content
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /v2/metadata/hosts:
+    get:
+      tags:
+        - hosts
+        - metadata
+      summary: Returns host metadata about what Censys scans for
+      description:
+        "The host metadata endpoint returns a list of services Censys scans for.
+        These are the values that can be given as values for
+        the `services.service_name` field in search queries."
+      operationId: getHostMetadata
+      responses:
+        200:
+          description: The metadata was retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      services:
+                        type: array
+                        items:
+                          type: string
+                        example:
+                          - "HTTP"
+                          - "IMAP"
+                          - "MQTT"
+                          - "SSH"
+                          - "..."
+  /v2/certificates/{fingerprint}:
+    get:
+      tags:
+        - certificates v2
+      summary: Returns the certificate record for the specified SHA-256 fingerprint.
+      description: |
+        Fetches the certificate record for the specified SHA-256 fingerprint, including parsed data, certificate transparency log information, root store trust information, zlint results, and Censys observation metadata.
+      operationId: getCertByFingerprint
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9b00121b4e85d50667ded1a8aa39855771bdb67ceca6f18726b49374b41f0041
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/CertificateV2"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid SHA-256 fingerprint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCertExample:
+                  $ref: "#/components/examples/invalidCertExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v2/certificates/bulk:
+    get:
+      tags:
+        - certificates v2
+      summary: Returns certificate records for up to 1000 specified SHA-256 fingerprints.
+      description:
+        "Fetches the certificate records for the specified SHA-256 fingerprints, including parsed data, certificate transparency log information,
+        root store trust information, zlint results, and Censys observation metadata.
+        \n\n
+        If found, each requested certificate will be available in the list of returned certificates. If a certificate is not present in the dataset
+        and is not found, it will be omitted from the list of results. If all certificates cannot be found, an empty list will be returned."
+      operationId: getBulkCerts
+      parameters:
+        - name: fingerprints
+          in: query
+          description: The SHA-256 fingerprints of the requested certificate records.
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+            example:
+              - 9b00121b4e85d50667ded1a8aa39855771bdb67ceca6f18726b49374b41f0041
+              - be722596c9fff071367ff4db5c4495d0bfa035917ffefff0c0c359e536f2ae5b
+              - 8f066c8dfdd3c0bff724f7c77d3c0b375d4c78afcfa2f083883ae47a51cd4d55
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CertificateV2"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid SHA-256 fingerprint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCertExample:
+                  $ref: "#/components/examples/invalidCertExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+    post:
+      tags:
+        - certificates v2
+      summary: Returns certificate records for up to 1000 specified SHA-256 fingerprints.
+      description:
+        "Fetches the certificate records for the specified SHA-256 fingerprints, including parsed data, certificate transparency log information,
+        root store trust information, zlint results, and Censys observation metadata.
+        \n\n
+        If found, each requested certificate will be available in the list of returned certificates. If a certificate is not present in the dataset
+        and is not found, it will be omitted from the list of results. If all certificates cannot be found, an empty list will be returned."
+      operationId: postBulkCerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprints:
+                  description: The SHA-256 fingerprints of the requested certificate records.
+                  required:
+                    - fingerprints
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - 9b00121b4e85d50667ded1a8aa39855771bdb67ceca6f18726b49374b41f0041
+                    - be722596c9fff071367ff4db5c4495d0bfa035917ffefff0c0c359e536f2ae5b
+                    - 8f066c8dfdd3c0bff724f7c77d3c0b375d4c78afcfa2f083883ae47a51cd4d55
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CertificateV2"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid SHA-256 fingerprint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCertExample:
+                  $ref: "#/components/examples/invalidCertExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v2/certificates/search:
+    get:
+      tags:
+        - certificates v2
+      summary: Returns previews of certificate records matching a specified query.
+      description:
+        "Accepts queries for certificate attributes provided in the Censys
+        Search Language and returns a list of matching certificates with some summary fields.
+        \n\n
+        **Cursor Pagination**
+        \n\n
+        Search endpoints rely on using cursors for efficient pagination.
+        \n\n
+        Each search result may return a `next` and `prev` cursor value
+        which can be used to fetch additional pages of results.
+        \n\n
+        ```json
+          \n{\n\t\"links\":{
+          \n\t\t\"prev\":\"prevCursorToken\",
+          \n\t\t\"next\":\"nextCursorToken\"
+          \n\t},
+          \n\t[Rest of Response]\n}
+          \n
+        ```
+        \n
+        The returned cursor token values can be added to the search endpoint as
+        a `cursor` parameter to fetch either the next page of results or the previous page.
+        \n\n
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned."
+      externalDocs:
+        url: /search/language
+      operationId: getSearchCertificates
+      parameters:
+        - name: q
+          in: query
+          description: Query used to search for certificates with matching attributes. Uses the Censys Search Language.
+          schema:
+            type: string
+            example: "parsed.subject.country: AU"
+        - name: per_page
+          in: query
+          description:
+            The maximum number of hits to return in each response (minimum of 1, maximum of 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next or previous page of hits when added to the endpoint URL.
+          schema:
+            type: string
+        - name: fields
+          in: query
+          description: |
+            The names of fields to return for each certificate in the search result, written in dot-delimited notation. It is not necessary to include the SHA-256 fingerprint, which will always be returned. If not specified, default fields are returned.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+            example:
+              - "names"
+              - "fingerprint_sha256"
+              - "parsed.issuer.organization"
+              - "parsed.subject.postal_code"
+        - name: sort
+          in: query
+          description: |
+            A list of fields to sort on. By default, fields will be sorted in ascending order. To sort in
+            descending order, prepend a '-' to the field name, ie: '-fingerprint_sha256'
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+            example:
+              - "parsed.issuer.organization"
+              - "parsed.subject.country"
+              - "-parsed.subject.postal_code"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        example: "parsed.subject.country: AU"
+                      total:
+                        type: integer
+                        example: 50000
+                      duration_ms:
+                        type: integer
+                        example: 356
+                      hits:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: "#/components/schemas/CertHit"
+                        maxItems: 100
+                  links:
+                    type: object
+                    properties:
+                      prev:
+                        type: string
+                        example: "prevCursorToken"
+                      next:
+                        type: string
+                        example: "nextCursorToken"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+    post:
+      tags:
+        - certificates v2
+      summary: Returns previews of certificates matching a specified search query.
+      description:
+        "Accepts queries for certificate attributes provided in the Censys
+        Search Language and returns a list of matching certificates with some summary fields.
+        \n\n
+        **Cursor Pagination**
+        \n\n
+        Search endpoints rely on using cursors for efficient pagination.
+        \n\n
+        Each search result may return a `next` and `prev` cursor value
+        which can be used to fetch additional pages of results.
+        \n\n
+        ```json
+          \n{\n\t\"links\":{
+          \n\t\t\"prev\":\"prevCursorToken\",
+          \n\t\t\"next\":\"nextCursorToken\"
+          \n\t},
+          \n\t[Rest of Response]\n}
+          \n
+        ```
+        \n
+        The returned cursor token values can be added to the search endpoint as
+        a `cursor` parameter to fetch either the next page of results or the previous page.
+        \n\n
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned."
+      externalDocs:
+        url: /search/language
+      operationId: postSearchCertificates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                q:
+                  description: Query used to search for certificates with matching attributes. Uses the Censys Search Language.
+                  type: string
+                  example: "parsed.subject.country: AU"
+                per_page:
+                  description:
+                    The maximum number of hits to return in each response (minimum of 1, maximum of 100).
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 50
+                cursor:
+                  description:
+                    Cursor token from the API response, which fetches the next or previous page of hits when added to the endpoint URL.
+                  type: string
+                  example: eyJ2ZXJzaW9uIjoxLCJzb3J0IjpbeyJmaW5nZXJwcmludF9zaGEyNTYuX19yYXciOnsib3JkZXIiOiJhc2MiLCJtb2RlIjoibWluIiwibWlzc2luZyI6Il9sYXN0In19LHsiX3Njb3JlIjp7Im9yZGVyIjoiZGVzYyJ9fSx7ImZpbmdlcnByaW50X3NoYTI1Ni5fX3JhdyI6eyJvcmRlciI6ImFzYyIsIm1vZGUiOiJtaW4iLCJtaXNzaW5nIjoiX2xhc3QifX1dLCJzZWFyY2hfYWZ0ZXIiOlsiIiwwLjAsIiJdLCJyZXZlcnNlZCI6ZmFsc2V9
+                fields:
+                  description: |
+                    Additional fields to return in the matched certificates outside of the default returned fields.
+                    For a list of additional fields to search on take a look at the data definition for the certs2 model.
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "names"
+                    - "fingerprint_sha256"
+                    - "parsed.issuer.organization"
+                    - "parsed.subject.postal_code"
+                sort:
+                  description: |
+                    A list of fields to sort on. By default, fields will be sorted in ascending order. To sort in
+                    descending order, prepend a '-' to the field name, ie: '-fingerprint_sha256'
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "parsed.issuer.organization"
+                    - "parsed.subject.postal_code"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        example: "parsed.subject.country: AU"
+                      total:
+                        type: integer
+                        example: 50000
+                      duration_ms:
+                        type: integer
+                        example: 356
+                      hits:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: "#/components/schemas/CertHit"
+                        maxItems: 100
+                  links:
+                    type: object
+                    properties:
+                      prev:
+                        type: string
+                        example: "prevCursorToken"
+                      next:
+                        type: string
+                        example: "nextCursorToken"
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        422:
+          description: Invalid cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/certificates/aggregate:
+    get:
+      tags:
+        - certificates v2
+      summary: Returns aggregation of certificates that match the given query string.
+      description: |
+        Aggregates certificate records matching a specified query into buckets based on the given field.
+        See help on the Censys Search Language for help on constructing a search query.
+      externalDocs:
+        url: /search/language
+      operationId: aggregateCertificates
+      parameters:
+        - name: q
+          in: query
+          description:
+            Query used to search for Certificates which will be aggregated.
+            Query uses the Censys Search Language.
+          schema:
+            type: string
+            example: "parsed.subject.country: AU"
+        - name: field
+          in: query
+          description:
+            The field used to aggregated upon and generate buckets for.
+            Buckets will be sorted in descending order from most commonly occuring
+            value to the least based on the number of buckets requested.
+          required: true
+          schema:
+            type: string
+            example: parsed.issuer.organization
+        - name: num_buckets
+          in: query
+          description:
+            The maximum number of buckets used to generate aggregate results.
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            default: 50
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        example: "parsed.subject.country: AU"
+                      field:
+                        type: string
+                        example: parsed.issuer.organization
+                      total:
+                        type: integer
+                        example: 58906.0
+                      duration_ms:
+                        type: integer
+                        example: 690
+                      buckets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            count:
+                              type: integer
+                        maxItems: 100
+                        example:
+                          - key: "Internet Widgits Pty Ltd"
+                            count: 23748.0
+                          - key: "DigiCert Inc"
+                            count: 10885.0
+                          - key: "QuoVadis Limited"
+                            count: 1883.0
+                          - key: "Entrust, Inc."
+                            count: 1475.0
+                          - key: "Webmin"
+                            count: 1071.0
+        400:
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidSearchExample:
+                  $ref: "#/components/examples/invalidSearchExample"
+                invalidFieldExample:
+                  $ref: "#/components/examples/invalidFieldExample"
+                invalidNumBucketsExample:
+                  $ref: "#/components/examples/invalidNumBucketsExample"
+        401:
+          description: You must authenticate with a valid API ID and secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                unauthorizedExample:
+                  $ref: "#/components/examples/unauthorizedExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/certificates/{fingerprint}/observations:
+    get:
+      tags:
+        - certificates v2
+      summary: Returns a list of observations containing hosts and their services which ever presented this certificate.
+      description: |
+        Returns an unordered list of observations that detail all of the host services that ever presented this certificate.
+
+        **Cursor Pagination**
+
+        This endpoint relies on using cursors for efficient pagination. Each result may
+        return a `next` cursor value which can be used to fetch additional pages of results.
+        This endpoint only support forward-pagination.
+
+        ```json
+        {
+          "links": {
+            "next": "nextCursorToken"
+          },
+          [Rest of Response]
+        }
+        ```
+        The returned cursor token values can be added to the endpoint as a `cursor`
+        parameter to fetch the next page of results.
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned.
+      operationId: getCertObservations
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: effd37475fa9a94bef8750377ee19d8fd0f69fa66cf6937f02a232d095c5a07b
+            maxLength: 64
+        - name: per_page
+          in: query
+          description: |
+            The maximum number of results to return per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+        - name: start_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the beginning chronological point-in-time (inclusive) from which observations are returned.
+            This start time filter is applied to the scan observation time.
+            Nanosecond precision is allowed.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 32
+        - name: end_time
+          in: query
+          description: |
+            An optional RFC3339 timestamp which represents the most recent chronological point-in-time (exclusive) from which observations are returned.
+            This end time filter is applied to the scan observation time.
+            Nanosecond precision is allowed.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 32
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next page of services when added to the endpoint URL.
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      fingerprint:
+                        type: string
+                        description: The SHA-256 fingerprint of the certificate.
+                      observations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            ip:
+                              type: string
+                            name:
+                              type: string
+                              description: Name provided if host is a virtual host.
+                            port:
+                              type: integer
+                              description: Port of the service where the certificate was observed.
+                            service_name:
+                              type: string
+                              description: Name of the service where the certificate was observed.
+                            transport_protocol:
+                              type: string
+                              description: Transport protocol of the service where the certificate was observed.
+                              enum: [TCP, UDP, QUIC]
+                              example: TCP
+                            first_observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when certificate was first observed.
+                            last_observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when the certificate was last observed.
+                            first_updated_at:
+                              type: string
+                              format: date-time
+                              description: Time when the Host was updated the first time the certificate was observed. This timestamp can be used to inspect the host at this point in time using the historical Host lookup API.
+                            last_updated_at:
+                              type: string
+                              format: date-time
+                              description: Time when the Host was updated the last time the certificate was observed. This timestamp can be used to inspect the host at this point in time using the historical Host lookup API.
+                      links:
+                        type: object
+                        properties:
+                          next:
+                            type: string
+                            example: "nextCursorToken"
+        422:
+          description: Invalid argument supplied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                invalidCursorExample:
+                  $ref: "#/components/examples/invalidCursorExample"
+                invalidCertExample:
+                  $ref: "#/components/examples/invalidCertExample"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/certificates/{fingerprint}/hosts:
+    get:
+      tags:
+        - certificates v2
+        - deprecated
+      summary: Returns a list of hosts presenting the given certificate.
+      description: |
+        _This API endpoint is __deprecated__ and scheduled for removal during a future release._
+        Users should migrate to using the search endpoint on the Host index using the `services.certificate: {fingerprint}` query
+        to find any hosts currently presenting a certificate.
+
+        Returns a list of hosts which contain services presenting this certificate,
+        including when the certificate was first observed.
+
+        **Cursor Pagination**
+
+        This endpoint relies on using cursors for efficient pagination. Each result may
+        return a `next` cursor value which can be used to fetch additional pages of results.
+        This endpoint only support forward-pagination.
+
+        ```json
+        {
+          "links": {
+            "next": "nextCursorToken"
+          },
+          [Rest of Response]
+        }
+        ```
+        The returned cursor token values can be added to the endpoint as a `cursor`
+        parameter to fetch the next page of results.
+        The entire set of results can be iterated page-by-page using returned
+        cursors. If no cursor is given, the first page will be returned.
+      operationId: getHostsByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+            maxLength: 64
+        - name: cursor
+          in: query
+          description:
+            Cursor token from the API response, which fetches the next page of hosts when added to the endpoint URL.
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      fingerprint:
+                        type: string
+                        description: The SHA-256 fingerprint of the certificate.
+                      hosts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            ip:
+                              type: string
+                            name:
+                              type: string
+                              description: Name provided if host is a virtual host.
+                            observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when certificate was observed.
+                            first_observed_at:
+                              type: string
+                              format: date-time
+                              description: Time when the certificate was first observed.
+                      links:
+                        type: object
+                        properties:
+                          next:
+                            type: string
+                            example: "nextCursorToken"
+        429:
+          description: Too many requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+              examples:
+                tooManyRequestsExample:
+                  $ref: "#/components/examples/tooManyRequestsExample"
+  /v2/certificates/{fingerprint}/comments:
+    get:
+      tags:
+        - certificates v2
+        - comments
+      summary: Returns a list of comments on the given cert.
+      description: |
+        Returns a list of comments on the given certificate.
+      operationId: getCommentsByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      fingerprint:
+                        type: string
+                        example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+                      comments:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CertComment"
+    post:
+      tags:
+        - certificates v2
+        - comments
+      summary: Adds a comment on the given cert.
+      description: |
+        Adds a comment on the given certificate.
+      operationId: addCommentByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contents:
+                  type: string
+                  example: "**This is a comment.**"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/CertComment"
+  /v2/certificates/{fingerprint}/comments/{comment_id}:
+    get:
+      tags:
+        - certificates v2
+        - comments
+      summary: Returns a comment on the given cert.
+      description: |
+        Returns a comment on the given certificate.
+      operationId: getCommentByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/CertComment"
+    put:
+      tags:
+        - certificates v2
+        - comments
+      summary: Updates a comment on the given cert.
+      description: |
+        Updates a comment on the given certificate.
+      operationId: updateCommentByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contents:
+                  type: string
+                  example: "**This is a comment.**"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/CertComment"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  error:
+                    type: string
+                    example: "Not Found"
+    delete:
+      tags:
+        - certificates v2
+        - comments
+      summary: Deletes a comment on the given cert.
+      description: |
+        Deletes a comment on the given certificate.
+      operationId: deleteCommentByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+        - name: comment_id
+          in: path
+          description: The ID of the requested comment.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      fingerprint:
+                        type: string
+                        example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+                      comments:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CertComment"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  error:
+                    type: string
+                    example: "Not Found"
+  /v1/data:
+    get:
+      tags:
+        - data
+      summary: Returns data on the types of scans (series) we perform
+      description:
+        "> The Censys legacy v1 API contains API endpoints which are being maintained until replacement v2 endpoints are available.
+        \n\nThe Get Series endpoint returns a data on the types of scans we regularly perform (series)."
+      operationId: getSeries
+      responses:
+        200:
+          description: We were able to successfully retrieve a list of series.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  primary_series:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  raw_series:
+                    type: object
+                    additionalProperties:
+                      type: string
+              examples:
+                getSeriesExample:
+                  summary: Successful response
+                  value:
+                    primary_series:
+                      certificates:
+                        id: "certificates"
+                        name: "All X.509 Certificates"
+                        description: "..."
+                        details_url: "https://..."
+                        latest_result: {}
+                      domains: {}
+                      ipv4: {}
+                    raw_series:
+                      22-ssh-banner-full_ipv4:
+                        {}
+                      ...: {}
+        429:
+          description: Your query was not executed because you have exceeded your specified rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1RateLimitExceededExample:
+                  $ref: "#/components/examples/v1RateLimitExceededExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v1/data/{series}:
+    get:
+      tags:
+        - data
+      summary: Returns data about a specified scan (series)
+      description:
+        "> The Censys legacy v1 API contains API endpoints which are being maintained until replacement v2 endpoints are available.
+        \n\nThe View Series endpoint returns data we have about a particular series—a scan of the same
+        protocol and destination across time—including the list of scans."
+      operationId: viewSeries
+      parameters:
+        - name: series
+          in: path
+          description: The ID of the series.
+          required: true
+          schema:
+            type: string
+            example: "certificates-daily-added"
+      responses:
+        200:
+          description: We were able to successfully retrieve a series.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "certificates-daily-added"
+                  name:
+                    type: string
+                    example: "Certificates by date added"
+                  description:
+                    type: string
+                    example: "..."
+                  results:
+                    type: object
+                    properties:
+                      historical:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            timestamp:
+                              type: string
+                            details_url:
+                              type: string
+                        example:
+                          - id: "20150912T1329"
+                            timestamp: "20150912T132919"
+                            details_url: "https://..."
+                          - id: "20150930T0056"
+                            timestamp: "20150930T005634"
+                            details_url: "https://..."
+                      latest:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          timestamp:
+                            type: string
+                          details_url:
+                            type: string
+                        example:
+                          id: "20150930T0056"
+                          timestamp: "20150930T005634"
+                          details_url: "https://..."
+        404:
+          description: The requested series does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1NotFoundExample:
+                  $ref: "#/components/examples/v1NotFoundExample"
+        429:
+          description: Your query was not executed because you have exceeded your specified rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1RateLimitExceededExample:
+                  $ref: "#/components/examples/v1RateLimitExceededExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v1/data/{series}/{result}:
+    get:
+      tags:
+        - data
+      summary: Returns data on a particular scan
+      description:
+        "> The Censys legacy v1 API contains API endpoints which are being maintained until replacement v2 endpoints are available.
+        \n\nThe View Result endpoint returns data on a particular scan (result), as found in the Get
+        Series or View Series endpoints."
+      operationId: viewResult
+      parameters:
+        - name: series
+          in: path
+          description: The ID of the series.
+          required: true
+          schema:
+            type: string
+            example: "certificates-daily-added"
+        - name: result
+          in: path
+          description: The ID of the result.
+          required: true
+          schema:
+            type: string
+            example: "20150930T0056"
+      responses:
+        200:
+          description: We were able to successfully retrieve a result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "20150930T0056"
+                  timestamp:
+                    type: string
+                    example: "20150930T005634"
+                  files:
+                    type: object
+                    properties:
+                      zmap-results:
+                        type: object
+                        properties:
+                          file_type:
+                            type: string
+                            example: csv
+                          schema:
+                            type: object
+                          download_path:
+                            type: string
+                            example: "https://..."
+                          sha256_fingerprint:
+                            type: string
+                            example: 693b6bdd6b954aed3981ca9d801bb1317bfdb19f560f968781823b9abef8eaa3
+                          size:
+                            type: integer
+                            example: 304
+                      zgrab-results:
+                        type: object
+                        additionalProperties:
+                          type: object
+                        properties:
+                          file_type:
+                            type: string
+                            example: csv
+                          schema:
+                            type: object
+                            properties:
+                              timestamp:
+                                type: object
+                                properties:
+                                  type:
+                                    type: string
+                                    example: "date"
+                              ip:
+                                type: object
+                                properties:
+                                  type:
+                                    type: string
+                                    example: "ip"
+                          download_path:
+                            type: string
+                            example: "https://..."
+                          sha256_fingerprint:
+                            type: string
+                            example: 693b6bdd6b954aed3981ca9d801bb1317bfdb19f560f968781823b9abef8eaa3
+                          size:
+                            type: integer
+                            example: 304
+                      download_path:
+                        type: string
+                        example: "https://..."
+                      sha256_fingerprint:
+                        type: string
+                        example: cdd962fe956674749ef5d40d59c423a0be77432a246bcd223c3346576c9479ff
+                      size:
+                        type: integer
+                        example: 21707
+        404:
+          description: The requested series or result does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1NotFoundExample:
+                  $ref: "#/components/examples/v1NotFoundExample"
+        429:
+          description: Your query was not executed because you have exceeded your specified rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1RateLimitExceededExample:
+                  $ref: "#/components/examples/v1RateLimitExceededExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v1/account:
+    get:
+      tags:
+        - account
+      summary: Returns information about your account
+      description:
+        "> The Censys legacy v1 API contains API endpoints which are being maintained until replacement v2 endpoints are available.
+        \n\nThe Account endpoint returns information about your Censys account. Most importantly, you
+        can use this endpoint to check on your current query quota usage."
+      operationId: account
+      responses:
+        200:
+          description: Account information was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  login:
+                    type: string
+                    example: "john_doe"
+                  email:
+                    type: string
+                    example: "john@example.com"
+                  first_login:
+                    type: string
+                    example: "2018-01-01 12:00:00"
+                  last_login:
+                    type: string
+                    example: "2021-01-01 12:00:00"
+                  quota:
+                    type: object
+                    properties:
+                      used:
+                        type: integer
+                        example: 10
+                      resets_at:
+                        type: string
+                        example: "2021-02-01 12:00:00"
+                      allowance:
+                        type: integer
+                        example: 250
+        403:
+          description: Your request did not include a valid Authorization header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1ForbiddenExample:
+                  $ref: "#/components/examples/v1ForbiddenExample"
+        429:
+          description: Your query was not executed because you have exceeded your specified rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1RateLimitExceededExample:
+                  $ref: "#/components/examples/v1RateLimitExceededExample"
+        500:
+          description: An unexpected error occurred when trying to execute your query. Try again at a later time or contact us at [support@censys.io](mailto:support@censys.io) if the problem persists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/v1ApiErrorResponse"
+              examples:
+                v1InternalServerErrorExample:
+                  $ref: "#/components/examples/v1InternalServerErrorExample"
+  /v2/tags:
+    get:
+      tags:
+        - tags
+      summary: Returns a list of all tags
+      description: Returns a list of all tags for a team
+      operationId: listTags
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      tags:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Tag"
+    post:
+      tags:
+        - tags
+      summary: Creates a new tag
+      description: Creates a new tag for a team
+      operationId: createTag
+      requestBody:
+        description: Tag to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tag"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/Tag"
+  /v2/tags/{id}:
+    get:
+      tags:
+        - tags
+      summary: Returns a tag
+      description: Returns a tag for a team
+      operationId: getTag
+      parameters:
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/Tag"
+    put:
+      tags:
+        - tags
+      summary: Updates a tag
+      description: Updates a tag for a team
+      operationId: updateTag
+      parameters:
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      requestBody:
+        description: Tag to update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tag"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    $ref: "#/components/schemas/Tag"
+    delete:
+      tags:
+        - tags
+      summary: Deletes a tag
+      description: Deletes a tag for a team
+      operationId: deleteTag
+      parameters:
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        204:
+          description: "No Content"
+  /v2/tags/{id}/hosts:
+    get:
+      tags:
+        - hosts
+        - tags
+      summary: Returns a list of hosts for a tag
+      description: Returns a list of hosts for a tag
+      operationId: listHostsForTag
+      parameters:
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      hosts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            ip:
+                              type: string
+                              example: "1.1.1.1"
+                            tagged_at:
+                              type: string
+                              example: "2021-01-01T12:00:00.000000Z"
+                              format: date-time
+  /v2/tags/{id}/certificates:
+    get:
+      tags:
+        - certificates v2
+        - tags
+      summary: Returns a list of certificates for a tag
+      description: Returns a list of certificates for a tag
+      operationId: listCertificatesForTag
+      parameters:
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "tag-name"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      certs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            fingerprint:
+                              type: string
+                              example: e58e89a726d80bb0219b218c3ab9d818b4be75d77959508400d660ebe1c1be3d
+                            tagged_at:
+                              type: string
+                              example: "2021-01-01T12:00:00.000000Z"
+                              format: date-time
+  /v2/hosts/{ip}/tags:
+    get:
+      tags:
+        - hosts
+        - tags
+      summary: Returns a list of tags on the given host.
+      description: |
+        Returns a list of tags on the given host.
+      operationId: getTagsByHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                        example: 1.1.1.1
+                      tags:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Tag"
+  /v2/hosts/{ip}/tags/{id}:
+    put:
+      tags:
+        - hosts
+        - tags
+      summary: Adds a tag on the given host.
+      description: |
+        Adds a tag on the given host.
+      operationId: tagHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        204:
+          description: "No Content"
+    delete:
+      tags:
+        - hosts
+        - tags
+      summary: Removes a tag on the given host.
+      description: |
+        Removes a tag on the given host.
+      operationId: untagHost
+      parameters:
+        - name: ip
+          in: path
+          description: The IP Address of the requested host.
+          required: true
+          schema:
+            type: string
+            example: 1.1.1.1
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "123"
+      responses:
+        204:
+          description: "No Content"
+  /v2/certificates/{fingerprint}/tags:
+    get:
+      tags:
+        - certificates v2
+        - tags
+      summary: Returns a list of tags on the given certificate.
+      description: |
+        Returns a list of tags on the given certificate.
+      operationId: getTagsByCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      fingerprint:
+                        type: string
+                        example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+                      tags:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Tag"
+  /v2/certificates/{fingerprint}/tags/{id}:
+    put:
+      tags:
+        - certificates v2
+        - tags
+      summary: Adds a tag on the given certificate.
+      description: |
+        Adds a tag on the given certificate.
+      operationId: tagCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "tag-name"
+      responses:
+        204:
+          description: "No Content"
+    delete:
+      tags:
+        - certificates v2
+        - tags
+      summary: Removes a tag on the given certificate.
+      description: |
+        Removes a tag on the given certificate.
+      operationId: untagCert
+      parameters:
+        - name: fingerprint
+          in: path
+          description: The SHA-256 fingerprint of the requested certificate.
+          required: true
+          schema:
+            type: string
+            example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+        - name: id
+          in: path
+          description: The unique ID of the tag.
+          required: true
+          schema:
+            type: string
+            example: "tag-name"
+      responses:
+        204:
+          description: "No Content"
+components:
+  x-partials:
+    hosts:
+      Expired:
+        type: object
+      Resolved:
+        type: object
+        properties:
+          resolved_at:
+            type: string
+            format: date-time
+      PerspectiveID:
+        type: string
+        description: The name of the network from which Censys observed this service.
+        enum: [PERSPECTIVE_NTT, PERSPECTIVE_TELIA, PERSPECTIVE_HE]
+      Location:
+        type: object
+        properties:
+          continent:
+            type: string
+            example: North America
+          country:
+            type: string
+            example: United States
+          country_code:
+            type: string
+            example: US
+          postal_code:
+            type: string
+            example: "48104"
+            maxLength: 10
+          timezone:
+            type: string
+            example: America/Michigan
+          coordinates:
+            type: object
+            properties:
+              latitude:
+                type: string
+                example: "42.273"
+              longitude:
+                type: string
+                example: "-83.751"
+          registered_country:
+            type: string
+            example: United States
+          registered_country_code:
+            type: string
+            example: US
+      Routing:
+        type: object
+        properties:
+          asn:
+            type: integer
+            example: 15169
+          description:
+            type: string
+            example: GOOGLE
+          bgp_prefix:
+            type: string
+            example: 8.8.8.0/24
+          name:
+            type: string
+            example: GOOGLE
+          country_code:
+            type: string
+            example: US
+      ServiceRemovedFromHostNotObserved:
+        type: object
+        required:
+          - _reason
+        properties:
+          _reason:
+            type: string
+            enum: [not_observed,]
+          not_observed:
+            type: object
+            properties:
+              not_observed_at:
+                type: string
+                format: date-time
+              perspective_id:
+                $ref: "#/components/x-partials/hosts/PerspectiveID"
+      ServiceRemovedFromHostExpired:
+        type: object
+        required:
+          - _reason
+        properties:
+          _reason:
+            type: string
+            enum: [expired,]
+          expired:
+            type: object
+            properties:
+              expired_at:
+                type: string
+                format: date-time
+      ServiceID:
+        type: object
+        description: Object used to uniquely identify a service based on its 3-tuple of
+          (port, transport_protocol, service_name) for example `80-TCP-HTTP`.
+        properties:
+          port:
+            type: integer
+            description: Service port number.
+            example: 443
+          transport_protocol:
+            type: string
+            description: Service transport protocol.
+            enum: [TCP, UDP, QUIC]
+            example: TCP
+          service_name:
+            type: string
+            description: Service name.
+            example: HTTP
+      NameRemovedFromHost:
+        type: object
+        properties:
+          name:
+            type: string
+          reason:
+            oneOf:
+              - $ref: "#/components/x-partials/hosts/Expired"
+      LocationUpdatedEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [location_updated,]
+          location_updated:
+            type: object
+            properties:
+              location:
+                $ref: "#/components/x-partials/hosts/Location"
+      RoutingUpdatedEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [routing_updated,]
+          routing_updated:
+            type: object
+            properties:
+              routing:
+                $ref: "#/components/x-partials/hosts/Routing"
+      ServiceObservedEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [service_observed,]
+          service_observed:
+            type: object
+            properties:
+              id:
+                $ref: "#/components/x-partials/hosts/ServiceID"
+              observed_at:
+                type: string
+                format: date-time
+              perspective_id:
+                $ref: "#/components/x-partials/hosts/PerspectiveID"
+              changed_fields:
+                type: array
+                description: A list of fields that changed during this observation.
+                items:
+                  type: object
+                  properties:
+                    field_name:
+                      type: string
+                      example: services.banner
+      ServiceRemovedFromHostEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [service_removed_from_host,]
+          service_removed_from_host:
+            type: object
+            oneOf:
+              - $ref: "#/components/x-partials/hosts/ServiceRemovedFromHostNotObserved"
+              - $ref: "#/components/x-partials/hosts/ServiceRemovedFromHostExpired"
+            discriminator:
+              propertyName: _reason
+              mapping:
+                not_observed: "#/components/x-partials/hosts/ServiceRemovedFromHostNotObserved"
+                expired: "#/components/x-partials/hosts/ServiceRemovedFromHostExpired"
+            properties:
+              _reason:
+                type: string
+                description: Discriminator which provides the type of reason this object represents.
+                example: "not_observed"
+              id:
+                $ref: "#/components/x-partials/hosts/ServiceID"
+      ServiceAddedToHostEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [service_added_to_host,]
+          service_added_to_host:
+            type: object
+            properties:
+              id:
+                $ref: "#/components/x-partials/hosts/ServiceID"
+              observed_at:
+                type: string
+                format: date-time
+              perspective_id:
+                $ref: "#/components/x-partials/hosts/PerspectiveID"
+      ServiceEnrichedEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [service_enriched,]
+          service_enriched:
+            type: object
+            properties:
+              id:
+                $ref: "#/components/x-partials/hosts/ServiceID"
+              enrichment:
+                type: string
+      NameResolvedToHostEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [name_resolved_to_host,]
+          name_resolved_to_host:
+            type: object
+            properties:
+              name:
+                type: string
+              record_type:
+                type: string
+                enum: [unknown, a, aaaa, cname]
+              resolved_at:
+                type: string
+                format: date-time
+      NamesRemovedFromHostEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [names_removed_from_host,]
+          names_removed_from_host:
+            type: object
+            properties:
+              names_removed:
+                type: array
+                items:
+                  $ref: "#/components/x-partials/hosts/NameRemovedFromHost"
+      ReverseDnsUpdatedEvent:
+        type: object
+        required:
+          - _event
+        properties:
+          _event:
+            type: string
+            enum: [reverse_dns_updated,]
+          reverse_dns_updated:
+            type: object
+            properties:
+              names:
+                type: array
+                items:
+                  type: string
+              reason:
+                oneOf:
+                  - $ref: "#/components/x-partials/hosts/Expired"
+                  - $ref: "#/components/x-partials/hosts/Resolved"
+    certificates:
+      CT:
+        type: object
+        properties:
+          entries:
+            type: object
+            properties:
+              index:
+                type: integer
+              added_to_ct_at:
+                type: string
+                format: date-time
+              ct_to_censys_at:
+                type: string
+                format: date-time
+        example:
+          entries:
+            google_xenon_2022:
+              index: 260168847
+              added_to_ct_at: "2021-10-29T23:06:43.036Z"
+              ct_to_censys_at: "2021-10-29T23:08:00.821556099Z"
+            google_argon_2022:
+              index: 176077892
+              added_to_ct_at: "2021-10-29T23:06:42.977Z"
+              ct_to_censys_at: "2021-11-11T22:04:07.689857142Z"
+      Extension:
+        type: object
+        properties:
+          id:
+            type: string
+          critical:
+            type: boolean
+          value:
+            type: string
+      KeyAlgorithm:
+        type: object
+        properties:
+          name:
+            type: string
+            example: "RSA"
+          oid:
+            type: string
+            example: "1.2.840.113549.1.1.1"
+      SubjectKeyInfo:
+        type: object
+        properties:
+          key_algorithm:
+            $ref: "#/components/x-partials/certificates/KeyAlgorithm"
+          key:
+            type: object
+            oneOf:
+              - $ref: "#/components/x-partials/certificates/RSAPublicKey"
+              - $ref: "#/components/x-partials/certificates/DSAPublicKey"
+              - $ref: "#/components/x-partials/certificates/ECDSAPublicKey"
+          fingerprint_sha256:
+            type: string
+            example: "754cb1e2e2088214a5970662bb5a60aec8a2e29b94f53529aa608abee6682c60"
+      RSAPublicKey:
+        type: object
+        properties:
+          exponent:
+            type: integer
+            example: 65537
+          modulus:
+            type: string
+            example: "wLO31ZXiUPy8VMb56BETwS2in+NTUKArirdppeQ/B996yP9yxIKz6DjWTpfLP6FeQVrLz+Z1ik56xAG0pSlOzKatG1g+whNqQIUk7q3KVbpKivSQy5x2Tvvey+WaTKFgkF5ZclSAGPVRlOeslLIVPZe9XwVdWK06vg0dqjs8l/7UkPG7WPxcgZYYiR0Fwy1orqq62jIXNuQX8PpY1wk9NSwYABkWRdG4IPX3yTMBq3yng5PpU7gnGXQbc1pnzmpj+uwKydLZF/A7n8Cgq4AS9HY8UBGGY6+JcpToW6bhHFyg/XSWRcKljd8UrWJxe0C157Yg0la+KHieHr1i6ARqzQ=="
+          length:
+            type: integer
+            example: 2048
+      DSAPublicKey:
+        type: object
+        properties:
+          g:
+            type: string
+          p:
+            type: string
+          q:
+            type: string
+          y:
+            type: string
+      ECDSAPublicKey:
+        type: object
+        properties:
+          b:
+            type: string
+          curve:
+            type: string
+          gx:
+            type: string
+          gy:
+            type: string
+          length:
+            type: integer
+          n:
+            type: string
+          p:
+            type: string
+          pub:
+            type: string
+          x:
+            type: string
+          y:
+            type: string
+      DistinguishedName:
+        type: object
+        properties:
+          common_name:
+            type: array
+            items:
+              type: string
+              example:
+                - "R3"
+          serial_number:
+            type: array
+            items:
+              type: string
+          country:
+            type: array
+            items:
+              type: string
+              example:
+                - "US"
+          locality:
+            type: array
+            items:
+              type: string
+          province:
+            type: array
+            items:
+              type: string
+          street_address:
+            type: array
+            items:
+              type: string
+          organization:
+            type: array
+            items:
+              type: string
+              example:
+                - "Let's Encrypt"
+          organizational_unit:
+            type: array
+            items:
+              type: string
+          postal_code:
+            type: array
+            items:
+              type: string
+          domain_component:
+            type: array
+            items:
+              type: string
+          email_address:
+            type: array
+            items:
+              type: string
+          given_name:
+            type: array
+            items:
+              type: string
+          surname:
+            type: array
+            items:
+              type: string
+          jurisdiction_country:
+            type: array
+            items:
+              type: string
+          jurisdiction_locality:
+            type: array
+            items:
+              type: string
+          jurisdiction_province:
+            type: array
+            items:
+              type: string
+          organization_id:
+            type: array
+            items:
+              type: string
+      RevocationInfo:
+        type: object
+        properties:
+          revoked:
+            type: boolean
+            example: false
+          reason:
+            type: string
+            enum:
+              - UNKNOWN
+              - UNSPECIFIED
+              - KEY_COMPROMISE
+              - CA_COMPROMISE
+              - AFFILIATION_CHANGED
+              - SUPERSEDED
+              - CESSATION_OF_OPERATION
+              - CERTIFICATE_HOLD
+              - REMOVE_FROM_CRL
+              - PRIVILEGE_WITHDRAWN
+              - AA_COMPROMISE
+            default: UNKNOWN
+          next_update:
+            type: string
+            format: date-time
+            example: "2023-01-11T15:59:58Z"
+          revocation_time:
+            type: string
+            format: date-time
+            example: "2024-01-11T16:23:34Z"
+      Chain:
+        type: object
+        properties:
+          sha256fp:
+            type: array
+            items:
+              type: string
+            example:
+              - "46494e30379059df18be52124305e606fc59070e5b21076ce113954b60517cda"
+              - "8b05b68cc659e5ed0fcb38f2c942fbfd200e6f2ff9f85d63c6994ef5e0b02701"
+              - "96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6"
+      Chains:
+        description: Current trusted paths to the root store. Only valid if the certificate has trusted paths.
+        type: array
+        items:
+          $ref: "#/components/x-partials/certificates/Chain"
+      RootStore:
+        type: object
+        properties:
+          is_valid:
+            type: boolean
+            example: true
+          ever_valid:
+            type: boolean
+            example: true
+            description: True if the certificate is valid now or was ever valid in the past.
+          has_trusted_path:
+            type: boolean
+            example: true
+            description: True if there exists a path from the certificate to the root store.
+          had_trusted_path:
+            type: boolean
+            example: true
+            description: True if now or at some point in the past there existed a path from the certificate to the root store.
+          chains:
+            $ref: "#/components/x-partials/certificates/Chains"
+          parents:
+            type: array
+            description: SHA256 fingerprints of immediate parents
+            items:
+              type: string
+            example:
+              - "46494e30379059df18be52124305e606fc59070e5b21076ce113954b60517cda"
+          in_revocation_set:
+            type: boolean
+            example: false
+            description: True if the certificate is in the revocation set (e.g. OneCRL) associated with this root store.
+          type:
+            type: string
+            enum:
+              - UNKNOWN
+              - ROOT
+              - INTERMEDIATE
+              - LEAF
+            default: UNKNOWN
+            description: Indicates if the certificate is a root, intermediate, or leaf.
+      ZLint:
+        type: object
+        properties:
+          version:
+            type: integer
+            example: 3
+          timestamp:
+            type: string
+            format: date-time
+            example: "2023-01-06T12:46:27Z"
+          notices_present:
+            type: boolean
+            example: true
+          warnings_present:
+            type: boolean
+            example: false
+          errors_present:
+            type: boolean
+            example: false
+          fatals_present:
+            type: boolean
+            example: false
+          failed_lints:
+            type: array
+            items:
+              type: string
+              example:
+                - "n_subject_common_name_included"
+      Parsed:
+        type: object
+        properties:
+          issuer_dn:
+            type: string
+            example: "C=US, O=Let's Encrypt, CN=R3"
+          subject_dn:
+            type: string
+            example: "CN=www.kgcontracting.co"
+          validity_period:
+            type: object
+            properties:
+              not_before:
+                type: string
+                format: date-time
+                example: "2022-12-31T11:37:55Z"
+              not_after:
+                type: string
+                format: date-time
+                example: "2023-03-31T11:37:54Z"
+  schemas:
+    ApiResponse:
+      title: Success Response (v2)
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          example: OK
+        result:
+          type: object
+          properties: {}
+    ApiErrorResponse:
+      title: Error Response (v2)
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 422
+        status:
+          type: string
+          example: Unprocessable Entity
+        error:
+          type: string
+    Host:
+      type: object
+      properties:
+        ip:
+          type: string
+          example: 1.1.1.1
+        services:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              port:
+                type: integer
+              service_name:
+                type: string
+              extended_service_name:
+                type: string
+              transport_protocol:
+                type: string
+              software:
+                type: array
+                items:
+                  type: string
+              truncated:
+                type: boolean
+                example: false
+              perspective_id:
+                $ref: "#/components/x-partials/hosts/PerspectiveID"
+          example:
+            - port: 53
+              service_name: DNS
+              transport_protocol: UDP
+              extended_service_name: DNS
+              dns:
+                server_type: "FORWARDING"
+            - port: 443
+              service_name: HTTP
+              transport_protocol: TCP
+              extended_service_name: HTTPS
+              http:
+                request:
+                  method: "GET"
+                  uri: "https://1.1.1.1/"
+                  headers:
+                    User_Agent:
+                      - "Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)"
+                    Accept:
+                      - "*/*"
+                response:
+                  body: "<!DOCTYPE html>..."
+                  protocol: "HTTP/1.1"
+                  body_size: 1000
+                  status_code: 404
+                  status_reason: Not Found
+                  headers:
+                    Content_Length:
+                      
+                      - "<REDACTED>"
+                      
+                    Content_Type:
+                      - "text/html; charset=UTF-8"
+                    Server:
+                      - "HTTP server (unknown)"
+                    Date:
+                      
+                      - "<REDACTED>"
+                      
+                  html_tags:
+                    - "<title>Error 404 (Not Found)!!1</title>"
+                    - "<meta charset=utf-8>"
+                    - "<meta name=viewport content=\"initial-scale=1, minimum-scale=1, width=device-width\">"
+              certificate: "e58e89a726d80bb0219b218c3ab9d818b4be75d77959508400d660ebe1c1be3d"
+              tls: {}
+        location_updated_at:
+          type: string
+          example: "2021-03-30T14:53:12.980328Z"
+        location:
+          $ref: "#/components/x-partials/hosts/Location"
+        autonomous_system_updated_at:
+          type: string
+          example: "2021-04-09T17:33:12.118684Z"
+        autonomous_system:
+          $ref: "#/components/x-partials/hosts/Routing"
+        operating_system:
+          type: object
+          properties:
+            product:
+              type: string
+              example: Linux
+            vendor:
+              type: string
+              example: Ubuntu
+            version:
+              type: string
+              example: "18.04"
+            edition:
+              type: string
+              example: "bionic"
+            uniform_resource_identifier:
+              type: string
+              example: "cpe:2.3:o:*:linux:*:*:*:*:*:*:*:*"
+            other:
+              type: object
+    CertHit:
+      type: object
+      properties:
+        fingerprint_sha256:
+          type: string
+          example: 9b00121b4e85d50667ded1a8aa39855771bdb67ceca6f18726b49374b41f0041
+        parsed:
+          $ref: "#/components/x-partials/certificates/Parsed"
+        names:
+          type: array
+          items:
+            type: string
+            example:
+              - "kgcontracting.co"
+              - "www.kgcontracting.co"
+    HostHit:
+      type: object
+      properties:
+        ip:
+          type: string
+          example: 8.8.8.8
+        services:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              port:
+                type: integer
+              service_name:
+                type: string
+              transport_protocol:
+                type: string
+              certificate:
+                type: string
+          example:
+            - port: 53
+              service_name: DNS
+              transport_protocol: UDP
+            - port: 443
+              service_name: HTTP
+              transport_protocol: TCP
+              certificate: "e58e89a726d80bb0219b218c3ab9d818b4be75d77959508400d660ebe1c1be3d"
+        location:
+          $ref: "#/components/x-partials/hosts/Location"
+        autonomous_system:
+          $ref: "#/components/x-partials/hosts/Routing"
+    VirtualHostHit:
+      allOf:
+        - type: object
+          properties:
+            name:
+              type: string
+              example: "dns.google"
+        - $ref: "#/components/schemas/HostHit"
+    HostEvent:
+      type: object
+      oneOf:
+        - $ref: "#/components/x-partials/hosts/ServiceObservedEvent"
+        - $ref: "#/components/x-partials/hosts/LocationUpdatedEvent"
+        - $ref: "#/components/x-partials/hosts/RoutingUpdatedEvent"
+        - $ref: "#/components/x-partials/hosts/ServiceRemovedFromHostEvent"
+        - $ref: "#/components/x-partials/hosts/ServiceAddedToHostEvent"
+        - $ref: "#/components/x-partials/hosts/ServiceEnrichedEvent"
+        - $ref: "#/components/x-partials/hosts/NameResolvedToHostEvent"
+        - $ref: "#/components/x-partials/hosts/NamesRemovedFromHostEvent"
+        - $ref: "#/components/x-partials/hosts/ReverseDnsUpdatedEvent"
+      discriminator:
+        propertyName: _event
+        mapping:
+          service_observed: "#/components/x-partials/hosts/ServiceObservedEvent"
+          location_updated: "#/components/x-partials/hosts/LocationUpdatedEvent"
+          routing_updated: "#/components/x-partials/hosts/RoutingUpdatedEvent"
+          service_removed_from_host: "#/components/x-partials/hosts/ServiceRemovedFromHostEvent"
+          service_added_to_host: "#/components/x-partials/hosts/ServiceAddedToHostEvent"
+          service_enriched: "#/components/x-partials/hosts/ServiceEnrichedEvent"
+          name_resolved_to_host: "#/components/x-partials/hosts/NameResolvedToHostEvent"
+          names_removed_from_host: "#/components/x-partials/hosts/NamesRemovedFromHostEvent"
+          reverse_dns_update: "#/components/x-partials/hosts/ReverseDnsUpdatedEvent"
+      properties:
+        _event:
+          type: string
+          description: Discriminator which provides the type of event this object represents.
+          example: "service_observed"
+        timestamp:
+          type: string
+          format: date-time
+    HostComment:
+      type: object
+      required:
+        - contents
+      properties:
+        id:
+          type: string
+          example: "comment-id"
+        ip:
+          type: string
+          example: 1.1.1.1
+        author_id:
+          type: string
+        contents:
+          type: string
+          example: "**This is a comment.**"
+        created_at:
+          type: string
+          format: date-time
+          example: "2016-01-01T00:00:00Z"
+    CertComment:
+      type: object
+      required:
+        - contents
+      properties:
+        id:
+          type: string
+          example: "comment-id"
+        fingerprint:
+          type: string
+          example: "9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc"
+        author_id:
+          type: string
+        contents:
+          type: string
+          example: "**This is a comment.**"
+        created_at:
+          type: string
+          format: date-time
+          example: "2016-01-01T00:00:00Z"
+    Tag:
+      type: object
+      required:
+        - name
+      properties:
+        id:
+          type: string
+          format: integer
+          readOnly: true
+        name:
+          type: string
+          example: "tag-name"
+        metadata:
+          type: object
+          properties:
+            color:
+              type: string
+              example: "ff6113"
+        created_at:
+          type: string
+          format: date-time
+          example: "2021-01-01T00:00:00.000000000Z"
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          example: "2021-02-01T00:00:00.000000000Z"
+          readOnly: true
+    v1ApiErrorResponse:
+      title: Error Response (v1)
+      type: object
+      properties:
+        error_code:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "query could not be parsed"
+    Certificate:
+      type: object
+      properties:
+        parsed:
+          type: object
+          properties:
+            fingerprint_sha1:
+              type: string
+              example: 8740f09afc54752b26b295cdc6393c6b8ffd9e6a
+            fingerprint_sha256:
+              type: string
+              example: 9d3b51a6b80daf76e074730f19dc01e643ca0c3127d8f48be64cf3302f6622cc
+            fingerprint_md5:
+              type: string
+              example: 0f263d5e56288c37ade29f7b9977f38d
+            serial_number:
+              type: string
+              example: 5878999135690490607
+            subject_key_info:
+              type: object
+            names:
+              type: array
+              items:
+                type: string
+                example: "*.google.com"
+            subject_dn:
+              type: string
+              example: "C=US, ST=California, L=Mountain View, O=Google Inc, CN=*.google.com"
+            subject:
+              type: object
+            issuer_dn:
+              type: string
+              example: "C=US, O=Google Inc, CN=Google Internet Authority G2"
+            issuer:
+              type: object
+            signature:
+              type: object
+            redacted:
+              type: boolean
+              example: false
+            validity:
+              type: object
+            version:
+              type: integer
+              example: 3
+            extensions:
+              type: object
+        ct:
+          type: object
+    CertificateV2:
+      type: object
+      properties:
+        fingerprint_sha256:
+          type: string
+          example: 9b00121b4e85d50667ded1a8aa39855771bdb67ceca6f18726b49374b41f0041
+        fingerprint_sha1:
+          type: string
+          example: d508e7f8163fb67434f84091dc7c2ca8afd5234d
+        fingerprint_md5:
+          type: string
+          example: 3818d99263b47ab28f7de5b293ee1418
+        tbs_fingerprint_sha256:
+          type: string
+          example: 4b098b6bd9459340fb0f3cfb80f0bc3283370c455d57ca20da40e7eecce341d5
+        tbs_no_ct_fingerprint_sha256:
+          type: string
+          example: 5c095a40e76c245323086d26d1fa428d3b443b42fb58c7dbb19b32dfe516b749
+        spki_subject_fingerprint_sha256:
+          type: string
+          example: 754cb1e2e2088214a5970662bb5a60aec8a2e29b94f53529aa608abee6682c60
+        parent_spki_subject_fingerprint_sha256:
+          type: string
+          example: 390bc358202771a65e7be7a87924d7f2a079de04feb5ffd4163fae4fbf9b11e9
+        parsed:
+          $ref: "#/components/x-partials/certificates/Parsed"
+        precert:
+          type: boolean
+          example: false
+        revoked:
+          type: boolean
+          example: false
+        names:
+          type: array
+          items:
+            type: string
+            example:
+              - "kgcontracting.co"
+              - "www.kgcontracting.co"
+        validation_level:
+          type: string
+          enum:
+            - UNKNOWN
+            - DV
+            - OV
+            - EV
+          default: UNKNOWN
+        validation:
+          type: object
+          properties:
+            nss:
+              $ref: "#/components/x-partials/certificates/RootStore"
+            microsoft:
+              $ref: "#/components/x-partials/certificates/RootStore"
+            apple:
+              $ref: "#/components/x-partials/certificates/RootStore"
+            chrome:
+              $ref: "#/components/x-partials/certificates/RootStore"
+        revocation:
+          type: object
+          properties:
+            ocsp:
+              $ref: "#/components/x-partials/certificates/RevocationInfo"
+            crl:
+              $ref: "#/components/x-partials/certificates/RevocationInfo"
+        ct:
+          $ref: "#/components/x-partials/certificates/CT"
+        ever_seen_in_scan:
+          type: boolean
+          example: false
+        raw:
+          type: string
+        added_at:
+          type: string
+          format: date-time
+          example: "2023-01-06T12:46:27Z"
+        modified_at:
+          type: string
+          format: date-time
+          example: "2023-01-06T12:46:27Z"
+        validated_at:
+          type: string
+          format: date-time
+          example: "2023-01-06T12:46:27Z"
+        parse_status:
+          type: string
+          enum:
+            - CERTIFICATE_PARSE_STATUS_UNKNOWN
+            - CERTIFICATE_PARSE_STATUS_SUCCESS
+            - CERTIFICATE_PARSE_STATUS_FAIL
+            - CERTIFICATE_PARSE_STATUS_CORRUPTED
+          default: CERTIFICATE_PARSE_STATUS_UNKNOWN
+        zlint:
+          $ref: "#/components/x-partials/certificates/ZLint"
+        labels:
+          type: array
+          items:
+            type: string
+            example:
+              - "ever-trusted"
+              - "trusted"
+              - "leaf"
+              - "dv"
+              - "unexpired"
+  examples:
+    unauthorizedExample:
+      summary: "Unauthorized Request"
+      value:
+        code: 401
+        status: "Unauthorized"
+        error: "You must authenticate with a valid API ID and secret."
+    invalidIpExample:
+      summary: "Invalid IP"
+      value:
+        code: 422
+        status: "Unprocessable Entity"
+        error: "Invalid ip address"
+    invalidSearchExample:
+      summary: "Invalid Search"
+      value:
+        code: 400
+        status: "Bad Request"
+        error: "Invalid search. Your query could not be parsed"
+    invalidCertExample:
+      summary: "Invalid SHA-256 fingerprint"
+      value:
+        code: 422
+        status: "Unprocessable Entity"
+        error: "Invalid SHA-256 fingerprint"
+    invalidCursorExample:
+      summary: "Invalid Cursor"
+      value:
+        code: 422
+        status: "Unprocessable Entity"
+        error: "Invalid cursor"
+    invalidFieldExample:
+      summary: "Invalid Field"
+      value:
+        code: 400
+        status: "Bad Request"
+        error: "Invalid field: ''. Did you mean ''?"
+    tooManyRequestsExample:
+      summary: "Too Many Requests"
+      value:
+        code: 429
+        status: "Too Many Requests"
+        error: "You have used your full quota for this billing period."
+    invalidNumBucketsExample:
+      summary: "Invalid Num Buckets"
+      value:
+        code: 400
+        status: "Bad Request"
+        error: "Reports allow for a maximum of 1000 buckets."
+    v1BadRequestExample:
+      summary: "Bad Request"
+      value:
+        error_code: 400
+        error: "query could not be parsed"
+    v1ForbiddenExample:
+      summary: "Forbidden"
+      value:
+        status: error
+        error_type: "unauthorized"
+        error: "Unauthorized. You must authenticate with a valid API ID and secret."
+    v1NotFoundExample:
+      summary: "Not Found"
+      value:
+        error_code: 404
+        error: "page not found"
+    v1RateLimitExceededExample:
+      summary: "Rate Limit Exceeded"
+      value:
+        error_code: 429
+        error: "rate limit exceeded"
+    v1InternalServerErrorExample:
+      summary: "Internal Server Error"
+      value:
+        error_code: 500
+        error: "unknown error occurred"
+  securitySchemes:
+    basicAuth:
+      type: http
+      description: Authenticate using your API ID and secret
+      scheme: basic

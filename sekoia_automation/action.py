@@ -12,6 +12,7 @@ from uuid import uuid4
 import orjson
 import requests
 import sentry_sdk
+from aiohttp import BasicAuth
 from pydantic.v1 import validate_arguments
 from requests import RequestException, Response
 from tenacity import (
@@ -30,6 +31,7 @@ from sekoia_automation.exceptions import (
 )
 from sekoia_automation.module import LogLevelStr, Module, ModuleItem
 from sekoia_automation.storage import UPLOAD_CHUNK_SIZE
+from sekoia_automation.typing import SupportedAuthentications
 from sekoia_automation.utils import chunks, returns
 
 
@@ -271,42 +273,61 @@ class Action(ModuleItem):
 
 class GenericAPIAction(Action):
     # Endpoint Specific Information, should be defined in subclasses
+    base_url = ""
     verb: str
     endpoint: str
     query_parameters: list[str]
     timeout: int = 5
 
+    authentication: SupportedAuthentications = None
+    auth_header: str | None = None
+    auth_query_param: str | None = None
+
     def get_headers(self):
         headers = {"Accept": "application/json"}
-        api_key = self.module.configuration.get("api_key")
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        match self.authentication:
+            case "basic":
+                headers[self.auth_header or "Authorization"] = BasicAuth(
+                    login=self._module_configuration_value("username"),
+                    password=self._module_configuration_value("password"),
+                ).encode()
+            case "apiKey":
+                # API keys can be passed as headers or query parameters
+                if self.auth_header:
+                    headers[self.auth_header] = self._module_configuration_value(
+                        "api_key"
+                    )
+            case "bearer":
+                headers[self.auth_header or "Authorization"] = (
+                    f"Bearer {self._module_configuration_value('api_key')}"
+                )
         return headers
 
-    def get_url(self, arguments):
-        # Specific Informations, should be defined in the Module Configuration
-        url = self.module.configuration["base_url"]
+    def get_url(self, arguments) -> str:
+        # Specific Information, should be defined in the Module Configuration
+        if base_url := self._module_configuration_value("base_url"):
+            url = base_url
+        else:
+            url = self.base_url
 
         match = re.findall("{(.*?)}", self.endpoint)
         for replacement in match:
             self.endpoint = self.endpoint.replace(
                 f"{{{replacement}}}", str(arguments.pop(replacement)), 1
             )
+        return urljoin(url, self.endpoint.lstrip("/"))
 
-        path = urljoin(url, self.endpoint.lstrip("/"))
-
+    def get_query_parameters(self, arguments: dict) -> dict | None:
+        query_parameters = {}
+        if self.authentication == "apiKey" and self.auth_query_param:
+            query_parameters[self.auth_query_param] = self._module_configuration_value(
+                "api_key"
+            )
         if self.query_parameters:
-            query_arguments: list = []
-
-            for k in self.query_parameters:
-                if k in arguments:
-                    value = arguments.pop(k)
-                    if isinstance(value, bool):
-                        value = int(value)
-                    query_arguments.append(f"{k}={value}")
-
-            path += f"?{'&'.join(query_arguments)}"
-        return path
+            query_parameters |= {
+                k: arguments.pop(k) for k in self.query_parameters if k in arguments
+            }
+        return query_parameters if query_parameters else None
 
     def log_request_error(self, url: str, arguments: dict, response: Response):
         message = f"HTTP Request failed: {url} with {response.status_code}"
@@ -361,6 +382,7 @@ class GenericAPIAction(Action):
     def run(self, arguments) -> dict | None:
         headers = self.get_headers()
         url = self.get_url(arguments)
+        params = self.get_query_parameters(arguments)
         body = self.get_body(arguments)
 
         try:
@@ -371,7 +393,12 @@ class GenericAPIAction(Action):
             ):
                 with attempt:
                     response: Response = requests.request(
-                        self.verb, url, json=body, headers=headers, timeout=self.timeout
+                        self.verb,
+                        url,
+                        json=body,
+                        headers=headers,
+                        timeout=self.timeout,
+                        params=params,
                     )
                     if not response.ok:
                         if (
@@ -392,3 +419,8 @@ class GenericAPIAction(Action):
 
     def _wait_param(self) -> wait_base:
         return wait_exponential(multiplier=2, min=2, max=300)
+
+    def _module_configuration_value(self, key: str) -> Any:
+        if isinstance(self.module.configuration, dict):
+            return self.module.configuration.get(key)
+        return getattr(self.module.configuration, key, None)

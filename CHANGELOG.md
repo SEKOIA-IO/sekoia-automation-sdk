@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.18.5
+
+### Fixed
+- Fixed duplicate trigger callback processing by implementing unique request_id
+
 ## 1.18.4
 
 ### Changed

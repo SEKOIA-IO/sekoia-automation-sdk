@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix the pydantic import in models.py of the template used to generate new modules
+
 ## 1.18.4
 
 ### Changed

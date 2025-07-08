@@ -86,8 +86,11 @@ class DocumentationGenerator:
         # Copy the logo
         module_logo_filename = self._copy_logo(module_path, module_manifest)
 
+        # Copy the assets
+        assets_location = self._copy_assets(module_path, module_manifest)
+
         # Copy content of CONFIGURE.md
-        setup = self._copy_configure_md(module_path, module_manifest)
+        setup = self._copy_configure_md(module_path, assets_location)
 
         current_dir = Path(os.path.dirname(__file__)).resolve()
         file_loader = FileSystemLoader(current_dir / "templates")
@@ -136,27 +139,14 @@ class DocumentationGenerator:
                 return module_logo_filename
         return None
 
-    def _copy_configure_md(
-        self, module_path: Path, module_manifest: dict
-    ) -> str | None:
+    def _copy_assets(self, module_path: Path, module_manifest: dict) -> str | None:
         """
-        Copy and return the CONFIGURE.md content
-
-        Read the content of CONFIGURE.md in the automation module directory.
-        Copy the items in docs/assets into the documentation and replace the
-        paths in the content.
+        Copy the assets from the module directory to the documentation directory.
+        Return the new location of the assets
         """
-        # Is the SETUP.md exists
-        if not (module_path / "CONFIGURE.md").exists():
-            return None
-
-        # Read it content
-        with (module_path / "CONFIGURE.md").open("r") as fd:
-            content = fd.read()
-
-        # Copy the assets for the documentation and update the path
         assets_dir = "docs/assets"
         assets_path = module_path / assets_dir
+
         if assets_path.exists():
             new_location = (
                 f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
@@ -167,7 +157,29 @@ class DocumentationGenerator:
             for item in assets_path.iterdir():
                 copyfile(item, new_location_path / item.name)
 
-            content = content.replace(assets_dir, f"/{new_location}")
+            return new_location
+
+        return None
+
+    def _copy_configure_md(
+        self, module_path: Path, assets_location: str | None
+    ) -> str | None:
+        """
+        Copy and return the CONFIGURE.md content
+
+        Read the content of CONFIGURE.md in the automation module directory.
+        """
+        # Is the SETUP.md exists
+        if not (module_path / "CONFIGURE.md").exists():
+            return None
+
+        # Read it content
+        with (module_path / "CONFIGURE.md").open("r") as fd:
+            content = fd.read()
+
+        if assets_location:
+            assets_dir = "docs/assets"
+            content = content.replace(assets_dir, f"/{assets_location}")
 
         return content
 

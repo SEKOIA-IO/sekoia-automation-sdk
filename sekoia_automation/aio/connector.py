@@ -19,7 +19,7 @@ from sekoia_automation.module import Module
 class AsyncConnector(Connector, ABC):
     """Async version of Connector."""
 
-    configuration: DefaultConnectorConfiguration
+    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
     _session: ClientSession | None = None
     _rate_limiter: AsyncLimiter | None = None

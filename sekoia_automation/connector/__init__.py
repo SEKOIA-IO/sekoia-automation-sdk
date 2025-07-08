@@ -44,9 +44,9 @@ class Connector(Trigger, ABC):
     seconds_without_events = 3600 * 6
 
     # Required for Pydantic to correctly type the configuration object
-    configuration: DefaultConnectorConfiguration
+    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
-    @property  # type: ignore[override, no-redef]
+    @property  # type: ignore[no-redef]
     def configuration(self) -> DefaultConnectorConfiguration:
         if self._configuration is None:
             try:
@@ -57,7 +57,7 @@ class Connector(Trigger, ABC):
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 
-    @configuration.setter
+    @configuration.setter  # type: ignore[override]
     def configuration(self, configuration: dict) -> None:
         """
         Set the connector configuration.

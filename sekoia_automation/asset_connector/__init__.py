@@ -115,7 +115,8 @@ class AssetConnector(Trigger):
             return int(frequency)
         return self.configuration.frequency
 
-    def _retry(self):
+    @staticmethod
+    def _retry():
         return Retrying(
             stop=stop_after_delay(3600),
             wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -137,7 +138,7 @@ class AssetConnector(Trigger):
         return {
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
-            "User-Agent": f"sekoiaio-asset-connnector-" \
+            "User-Agent": f"sekoiaio-asset-connnector-"
                           f"{self.connector_configuration_uuid}",
         }
 
@@ -148,7 +149,8 @@ class AssetConnector(Trigger):
         )
         return f"{base}/api/v1/asset-connectors/{self.connector_configuration_uuid}"
 
-    def handle_api_error(self, error_code: int) -> str:
+    @staticmethod
+    def handle_api_error( error_code: int) -> str:
         error = {
             400: "Invalid request format",
             401: "Unauthorized access",

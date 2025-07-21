@@ -1,5 +1,3 @@
-from collections.abc import Sequence
-
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.device import DeviceOCSFModel
@@ -9,7 +7,7 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityOCSFModel,
 )
 
-AssetItem = VulnerabilityOCSFModel | DeviceOCSFModel | UserOCSFModel | SoftwareOCSFModel
+AssetItem: VulnerabilityOCSFModel | DeviceOCSFModel | UserOCSFModel | SoftwareOCSFModel
 
 
 class DefaultAssetConnectorConfiguration(BaseModel):
@@ -19,7 +17,7 @@ class DefaultAssetConnectorConfiguration(BaseModel):
     for asset connectors.
     Attributes:
         sekoia_base_url (str | None): The base URL for the Sekoia.io API.
-        api_key (str): The API key for authentication with the Sekoia.io API.
+        sekoia_api_key (str): The API key for authentication with the Sekoia.io API.
         frequency (int): The frequency in seconds at which the connector should run.
     """
 
@@ -40,4 +38,4 @@ class AssetList(BaseModel):
     """
 
     version: int
-    items: Sequence[AssetItem] = []
+    items: AssetItem = []

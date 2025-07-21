@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -95,7 +96,7 @@ def new_module(
         extra_context={
             "module_name": module_name,
             "module_description": description,
-            "module_dir": module_name,
+            "module_dir": module_name.replace(" ", ""),
         },
         accept_hooks=not skip_hooks,
     )
@@ -124,11 +125,25 @@ def generate_documentation(
     ).generate()
 
 
+class AuthenticationMode(str, Enum):
+    basic = "basic"
+    api_key = "apiKey"
+    bearer = "bearer"
+
+
 @app.command(name="openapi-to-module")
 def openapi_to_module(
     modules_path: Path = typer.Argument(..., help="Path to the playbook modules"),
     swagger: str = typer.Argument(..., help="Path or URL to the swagger file"),
     tags: bool = typer.Option(False, help="Use Swagger Tags to get unique names"),
+    authentication: AuthenticationMode | None = typer.Option(
+        None,
+        help="Authentication method to use."
+        " It will override the one defined in the openapi file",
+    ),
+    auth_header: str = typer.Option(
+        "Authorization", help="Authentication header to use"
+    ),
 ):
     """
     This script generates a new module from an OpenAPI specification
@@ -136,7 +151,11 @@ def openapi_to_module(
     It will generate the module with the required code from a swagger file.
     """
     OpenApiToModule(
-        modules_path=modules_path, swagger_file=swagger, use_tags=tags
+        modules_path=modules_path,
+        swagger_file=swagger,
+        use_tags=tags,
+        authentication=authentication.value if authentication else None,
+        auth_header=auth_header,
     ).run()
 
 

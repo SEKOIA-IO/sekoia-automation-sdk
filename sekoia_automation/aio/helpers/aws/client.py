@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 
 from aiobotocore.session import AioCredentials, AioSession, ClientCreatorContext
 from botocore.credentials import CredentialProvider
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 
 
 class AwsConfiguration(BaseModel):

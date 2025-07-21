@@ -12,7 +12,7 @@ from typing import Any
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
 

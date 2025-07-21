@@ -128,7 +128,7 @@ class AssetConnector(Trigger):
         return requests.Session()
 
     @cached_property
-    def http_header(self) -> dict[str, str]:
+    def _http_header(self) -> dict[str, str]:
         """
         Get the headers for the connector.
 
@@ -170,16 +170,17 @@ class AssetConnector(Trigger):
             dict[str, str] | None: Response from the API or None if an error occurred.
         """
 
+        # Serialize the assets to a dictionary
         assets_object_to_dict = assets.model_dump()
-        request_body = {
-            "assets": assets_object_to_dict,
-        }
+
+        request_body = assets_object_to_dict
 
         try:
             for attempt in self._retry():
                 with attempt:
                     res: Response = self._http_session.post(
                         asset_connector_api_url,
+                        headers=self._http_header,
                         json=request_body,
                         timeout=30,
                     )

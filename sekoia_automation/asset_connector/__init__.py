@@ -30,7 +30,7 @@ class AssetConnector(Trigger):
     ASSET_BATCH_SIZE = 1000
     OCSF_SCHEMA_VERSION = 1
 
-    configuration: DefaultAssetConnectorConfiguration
+    configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

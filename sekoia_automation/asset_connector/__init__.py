@@ -61,7 +61,7 @@ class AssetConnector(Trigger):
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 
-    @configuration.setter
+    @configuration.setter  # type: ignore[override]
     def configuration(self, configuration: dict) -> None:
         """
         Set the module configuration.
@@ -139,7 +139,7 @@ class AssetConnector(Trigger):
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
             "User-Agent": f"sekoiaio-asset-connnector-"
-                          f"{self.connector_configuration_uuid}",
+                          f"{self.connector_configuration_uuid}",  # type: ignore[attr-defined]
         }
 
     @cached_property
@@ -147,7 +147,7 @@ class AssetConnector(Trigger):
         base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
             "/"
         )
-        return f"{base}/api/v1/asset-connectors/{self.connector_configuration_uuid}"
+        return f"{base}/api/v1/asset-connectors/{self.connector_configuration_uuid}"  # type: ignore[attr-defined]
 
     @staticmethod
     def handle_api_error( error_code: int) -> str:

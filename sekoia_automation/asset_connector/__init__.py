@@ -74,7 +74,7 @@ class AssetConnector(Trigger):
                 get_annotation_for(self.__class__, "configuration"), configuration
             )
         except Exception as e:
-            raise TriggerConfigurationError(str(e))
+            raise TriggerConfigurationError(str(e)) from e
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context(
@@ -138,7 +138,7 @@ class AssetConnector(Trigger):
         return {
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
-            "User-Agent": f"sekoiaio-asset-connnector-"
+            "User-Agent": f"sekoiaio-asset-connector-"
                           f"{self.connector_configuration_uuid}",  # type: ignore[attr-defined]
         }
 
@@ -172,7 +172,7 @@ class AssetConnector(Trigger):
 
         assets_object_to_dict = assets.model_dump()
         request_body = {
-            "assets": assets.model_dump(),
+            "assets": assets_object_to_dict,
         }
 
         try:

@@ -1,28 +1,28 @@
 import os
 import time
-import sentry_sdk
-from pydantic import BaseModel
-
-import requests
-from requests import Response
-from tenacity import Retrying, stop_after_delay, wait_exponential
-
 from abc import abstractmethod
 from collections.abc import Generator
 from functools import cached_property
 
-from .models.connector import DefaultAssetConnectorConfiguration, AssetList, AssetItem
+import requests
+import sentry_sdk
+from pydantic import BaseModel
+from requests import Response
+from tenacity import Retrying, stop_after_delay, wait_exponential
 
-from sekoia_automation.trigger import Trigger
 from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
+
+from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
 
 
 class AssetConnector(Trigger):
     """
     Base class for all asset connectors.
 
-    Asset connectors are used to collect data from an asset and send it to the Sekoia.io platform.
+    Asset connectors are used to collect data from
+    an asset and send it to the Sekoia.io platform.
     """
 
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
@@ -54,7 +54,9 @@ class AssetConnector(Trigger):
         """
         if self._configuration is None:
             try:
-                self.configuration = self.module.load_config(self.CONNECTOR_CONFIGURATION_FILE_NAME, "json")
+                self.configuration = self.module.load_config(
+                    self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
+                )
             except FileNotFoundError:
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
@@ -68,12 +70,16 @@ class AssetConnector(Trigger):
             configuration: dict
         """
         try:
-            self._configuration = get_as_model(get_annotation_for(self.__class__, "configuration"), configuration)
+            self._configuration = get_as_model(
+                get_annotation_for(self.__class__, "configuration"), configuration
+            )
         except Exception as e:
             raise TriggerConfigurationError(str(e))
 
         if isinstance(self._configuration, BaseModel):
-            sentry_sdk.set_context(self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump())
+            sentry_sdk.set_context(
+                self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump()
+            )
 
     @property
     def batch_size(self) -> int:
@@ -93,7 +99,9 @@ class AssetConnector(Trigger):
         Returns:
             str: Production base URL
         """
-        return os.getenv("ASSET_CONNECTOR_PRODUCTION_BASE_URL", self.PRODUCTION_BASE_URL)
+        return os.getenv(
+            "ASSET_CONNECTOR_PRODUCTION_BASE_URL", self.PRODUCTION_BASE_URL
+        )
 
     @property
     def frequency(self) -> int:
@@ -129,12 +137,15 @@ class AssetConnector(Trigger):
         return {
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
-            "User-Agent": f"sekoiaio-asset-connnector-{self.connector_configuration_uuid}",
+            "User-Agent": f"sekoiaio-asset-connnector-" \
+                          f"{self.connector_configuration_uuid}",
         }
 
     @cached_property
     def asset_connector_endpoint(self) -> str:
-        base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip("/")
+        base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
+            "/"
+        )
         return f"{base}/api/v1/asset-connectors/{self.connector_configuration_uuid}"
 
     def handle_api_error(self, error_code: int) -> str:
@@ -145,7 +156,9 @@ class AssetConnector(Trigger):
         }
         return error.get(error_code, "An unknown error occurred")
 
-    def post_assets_to_api(self, assets: AssetList, asset_connector_api_url: str) -> dict[str, str] | None:
+    def post_assets_to_api(
+        self, assets: AssetList, asset_connector_api_url: str
+    ) -> dict[str, str] | None:
         """
         Post assets to the Sekoia.io asset connector API.
         Args:
@@ -171,7 +184,7 @@ class AssetConnector(Trigger):
         except requests.Timeout as ex:
             self.log_exception(
                 ex,
-                message=f"Timeout while pushing assets to Sekoia.io asset connector API",
+                message="Timeout while pushing assets to Sekoia.io asset connector API",
             )
             return None
 
@@ -184,7 +197,8 @@ class AssetConnector(Trigger):
             return None
 
         self.log(
-            message=f"Successfully posted {len(assets_object_to_dict)} assets to Sekoia.io asset connector API",
+            message=rf"Successfully posted {len(assets_object_to_dict)} assets\ "
+            f"to Sekoia.io asset connector API",
             level="info",
         )
         return res.json()
@@ -215,7 +229,8 @@ class AssetConnector(Trigger):
 
         if response is None:
             self.log(
-                message=f"Failed to push assets to Sekoia.io asset connector API at {url}",
+                message=f"Failed to push assets to Sekoia.io " \
+                        f"asset connector API at {url}",
                 level="error",
             )
             return
@@ -238,7 +253,8 @@ class AssetConnector(Trigger):
         """
 
         self.log(
-            message=f"Starting a new asset fetch cycle for connector {self.connector_name}",
+            message=f"Starting a new asset fetch cycle " \
+                    f"for connector {self.connector_name}",
             level="info",
         )
 
@@ -279,5 +295,6 @@ class AssetConnector(Trigger):
             except Exception as e:
                 self.log_exception(
                     e,
-                    message=f"Error while running asset connector {self.connector_name}",
+                    message=f"Error while running asset connector " \
+                            f"{self.connector_name}",
                 )

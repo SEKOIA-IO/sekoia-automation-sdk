@@ -8,6 +8,7 @@ class Group(BaseModel):
     Group model represents a user group.
     https://schema.ocsf.io/1.5.0/objects/group
     """
+
     name: str
     desc: str | None = None
     privileges: list[str] | None = None
@@ -28,4 +29,5 @@ class UserOCSFModel(OCSFBaseModel):
     UserOCSFModel represents a user in the OCSF format.
     https://schema.ocsf.io/1.5.0/classes/user_inventory
     """
+
     user: User

@@ -1,13 +1,21 @@
 import os
-import pytest
-from unittest.mock import Mock
 from collections.abc import Generator
+from unittest.mock import Mock
+
+import pytest
 
 from sekoia_automation.asset_connector import AssetConnector
-from sekoia_automation.asset_connector.models.connector import AssetList, AssetItem
-from sekoia_automation.asset_connector.models.ocsf.base import Product, Metadata
-from sekoia_automation.asset_connector.models.ocsf.device import OperatingSystem, OSTypeStr, OSTypeId, Device, \
-    DeviceTypeId, DeviceTypeStr, DeviceOCSFModel
+from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
+from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
+from sekoia_automation.asset_connector.models.ocsf.device import (
+    Device,
+    DeviceOCSFModel,
+    DeviceTypeId,
+    DeviceTypeStr,
+    OperatingSystem,
+    OSTypeId,
+    OSTypeStr,
+)
 
 
 class FakeAssetConnector(AssetConnector):
@@ -51,7 +59,9 @@ def test_asset_connector():
 def asset_object_1():
     product = Product(name="Harfanglab EDR", version="24.12")
     metadata_object = Metadata(product=product, version="1.5.0")
-    os_object = OperatingSystem(name="Windows 10", type=OSTypeStr.WINDOWS, type_id=OSTypeId.WINDOWS)
+    os_object = OperatingSystem(
+        name="Windows 10", type=OSTypeStr.WINDOWS, type_id=OSTypeId.WINDOWS
+    )
 
     device_object = Device(
         type_id=DeviceTypeId.DESKTOP,
@@ -80,7 +90,9 @@ def asset_object_1():
 def asset_object_2():
     product = Product(name="Harfanglab EDR", version="24.12")
     metadata_object = Metadata(product=product, version="1.5.0")
-    os_object = OperatingSystem(name="Linux test", type=OSTypeStr.LINUX, type_id=OSTypeId.LINUX)
+    os_object = OperatingSystem(
+        name="Linux test", type=OSTypeStr.LINUX, type_id=OSTypeId.LINUX
+    )
 
     device_object = Device(
         type_id=DeviceTypeId.DESKTOP,
@@ -110,7 +122,9 @@ def asset_list(asset_object_1, asset_object_2):
     return AssetList(version=1, items=[asset_object_1, asset_object_2])
 
 
-@pytest.mark.skipif("{'ASSET_CONNECTOR_BATCH_SIZE'}" ".issubset(os.environ.keys()) == False")
+@pytest.mark.skipif(
+    "{'ASSET_CONNECTOR_BATCH_SIZE'}" ".issubset(os.environ.keys()) == False"
+)
 def test_batch_size_env_var_exist(test_asset_connector):
     connector_batch_size = test_asset_connector.batch_size
     assert connector_batch_size == os.environ.get("ASSET_CONNECTOR_BATCH_SIZE")
@@ -121,7 +135,9 @@ def test_batch_size_env_var_not_exist(test_asset_connector):
     assert connector_batch_size == 1000
 
 
-@pytest.mark.skipif("{'ASSET_CONNECTOR_PRODUCTION_BASE_URL'}" ".issubset(os.environ.keys()) == False")
+@pytest.mark.skipif(
+    "{'ASSET_CONNECTOR_PRODUCTION_BASE_URL'}" ".issubset(os.environ.keys()) == False"
+)
 def test_base_url_env_var_exist(test_asset_connector):
     connector_base_url = test_asset_connector.production_base_url
     assert connector_base_url == os.environ.get("ASSET_CONNECTOR_PRODUCTION_BASE_URL")
@@ -132,7 +148,9 @@ def test_base_url_env_var_not_exist(test_asset_connector):
     assert connector_base_url == "https://api.sekoia.io"
 
 
-@pytest.mark.skipif("{'ASSET_CONNECTOR_FREQUENCY'}" ".issubset(os.environ.keys()) == False")
+@pytest.mark.skipif(
+    "{'ASSET_CONNECTOR_FREQUENCY'}" ".issubset(os.environ.keys()) == False"
+)
 def test_frequency_env_var_exist(test_asset_connector):
     connector_frequency = test_asset_connector.frequency
     assert connector_frequency == int(os.environ.get("ASSET_CONNECTOR_FREQUENCY"))
@@ -144,11 +162,16 @@ def test_frequency_env_var_not_exist(test_asset_connector):
 
 
 def test_http_header(test_asset_connector):
-    test_asset_connector.connector_configuration_uuid = "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    test_asset_connector.connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
     headers = test_asset_connector.http_header
     assert headers["Authorization"] == "Bearer fake_api_key"
     assert headers["Content-Type"] == "application/json"
-    assert headers["User-Agent"] == "sekoiaio-asset-connnector-04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    assert (
+        headers["User-Agent"]
+        == "sekoiaio-asset-connnector-04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
 
 
 def test_handle_api_error(test_asset_connector):
@@ -173,19 +196,25 @@ def test_post_assets_to_api_success(test_asset_connector, asset_list):
     test_asset_connector._http_session.post = Mock(
         return_value=Mock(status_code=200, json=lambda: {"result": "success"})
     )
-    response = test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
     assert response == {"result": "success"}
 
 
 def test_post_assets_to_api_failure(test_asset_connector, asset_list):
     test_asset_connector._http_session.post = Mock(return_value=Mock(status_code=400))
-    response = test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
     assert response is None
 
 
 def test_push_assets_to_sekoia(test_asset_connector):
     test_asset_connector.post_assets_to_api = Mock(return_value={"result": "success"})
-    test_asset_connector.connector_configuration_uuid = "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    test_asset_connector.connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
     assets = [{"type": "account", "name": "Asset1"}, {"type": "host", "name": "Asset2"}]
     test_asset_connector.push_assets_to_sekoia(assets)
     test_asset_connector.post_assets_to_api.assert_called_once()
@@ -198,8 +227,12 @@ def test_push_assets_to_sekoia(test_asset_connector):
     )
 
 
-def test_asset_fetch_cycle(test_asset_connector, asset_object_1, asset_object_2, asset_list):
-    test_asset_connector.set_assets(AssetList(version=1, items=[asset_object_1, asset_object_2]))
+def test_asset_fetch_cycle(
+    test_asset_connector, asset_object_1, asset_object_2, asset_list
+):
+    test_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2])
+    )
 
     test_asset_connector.push_assets_to_sekoia = Mock()
     test_asset_connector.asset_fetch_cycle()

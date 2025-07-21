@@ -1,11 +1,9 @@
-from typing import Literal
 from enum import Enum, IntEnum
+from typing import Literal
 
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
-
-
 
 
 class GeoLocation(BaseModel):
@@ -104,6 +102,7 @@ class Device(BaseModel):
     Device model represents a device object in the OCSF format.
     https://schema.ocsf.io/1.5.0/objects/device
     """
+
     type_id: DeviceTypeId
     type: DeviceTypeStr
     uid: str
@@ -118,8 +117,10 @@ class EncryptionObject(BaseModel):
 
 class DataObject(BaseModel):
     """
-    DataObject represents some data related to a device. ( Firewall and Storage encryption )
+    DataObject represents some data related to a device.
+    ( Firewall and Storage encryption )
     """
+
     Firewall_status: Literal["Disabled", "Enabled"] | None = None
     Storage_encryption: EncryptionObject | None = None
 
@@ -128,6 +129,7 @@ class EnrichmentObject(BaseModel):
     """
     Enrichment Object represents additional information about a device.
     """
+
     name: str
     value: str
     data: DataObject
@@ -137,6 +139,7 @@ class Enrichments(BaseModel):
     """
     List of enrichments for a device.
     """
+
     enrichments: list[EnrichmentObject] | None = None
 
 

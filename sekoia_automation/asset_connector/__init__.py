@@ -73,7 +73,7 @@ class AssetConnector(Trigger):
             raise TriggerConfigurationError(str(e))
 
         if isinstance(self._configuration, BaseModel):
-            sentry_sdk.set_context(self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.dict())
+            sentry_sdk.set_context(self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump())
 
     @property
     def batch_size(self) -> int:
@@ -155,9 +155,9 @@ class AssetConnector(Trigger):
             dict[str, str] | None: Response from the API or None if an error occurred.
         """
 
-        assets_object_to_dict = assets.dict()
+        assets_object_to_dict = assets.model_dump()
         request_body = {
-            "assets": assets.dict(),
+            "assets": assets.model_dump(),
         }
 
         try:

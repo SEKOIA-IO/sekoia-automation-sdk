@@ -146,7 +146,8 @@ class AssetConnector(Trigger):
         base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
             "/"
         )
-        return f"{base}/api/v1/asset-connectors/{self.module.connector_configuration_uuid}"
+        return f"{base}/api/v1/asset-connectors/"\
+               f"{self.module.connector_configuration_uuid}"
 
     @staticmethod
     def handle_api_error( error_code: int) -> str:

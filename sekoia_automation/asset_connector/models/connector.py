@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.device import DeviceOCSFModel
@@ -7,14 +8,12 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityOCSFModel,
 )
 
-from typing import Union
-
-AssetItem = Union[
-    VulnerabilityOCSFModel,
-    DeviceOCSFModel,
-    UserOCSFModel,
-    SoftwareOCSFModel,
-]
+AssetItem = (
+    VulnerabilityOCSFModel|
+    DeviceOCSFModel|
+    UserOCSFModel|
+    SoftwareOCSFModel
+)
 
 
 class DefaultAssetConnectorConfiguration(BaseModel):

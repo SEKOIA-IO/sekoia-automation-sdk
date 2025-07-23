@@ -243,15 +243,28 @@ class AssetConnector(Trigger):
     ) -> Generator[AssetItem, None, None]:
         """
         Get assets from the connector.
+        It can be a Device, User, Software or a vulnerability asset.
         Yields:
-            AssetObject: Asset object.
+            AssetItem: Asset item ( DeviceOSCFModel, UserOCSFModel, etc. )
         """
         raise NotImplementedError("This method should be implemented in a subclass")
 
     def asset_fetch_cycle(self) -> None:
         """
-        Fetch assets from the connector and push them to Sekoia.io.
-        This method is called in a loop until the connector is stopped.
+        Continuously fetch assets from the connector and push them to Sekoia.io.
+
+        This method runs in a loop until the connector is stopped. On each cycle, it:
+          1. Retrieves assets from the connector.
+          2. Batches the retrieved assets.
+          3. Sends the batch to Sekoia.io.
+          4. Waits for the next cycle according to the configured frequency.
+
+        If no assets are fetched during a cycle, the method sleeps for a short
+        interval to avoid overwhelming the API with repeated requests.
+
+        Note:
+            This implementation assumes the connector provides a checkpointing
+            mechanism to prevent re-fetching the same assets.
         """
 
         self.log(

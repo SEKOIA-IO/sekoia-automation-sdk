@@ -7,12 +7,14 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityOCSFModel,
 )
 
-AssetItem = (
-    VulnerabilityOCSFModel
-    | DeviceOCSFModel
-    | UserOCSFModel
-    | SoftwareOCSFModel
-)
+from typing import Union
+
+AssetItem = Union[
+    VulnerabilityOCSFModel,
+    DeviceOCSFModel,
+    UserOCSFModel,
+    SoftwareOCSFModel,
+]
 
 
 class DefaultAssetConnectorConfiguration(BaseModel):

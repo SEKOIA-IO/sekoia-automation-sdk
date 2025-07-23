@@ -115,7 +115,7 @@ class EncryptionObject(BaseModel):
     partitions: dict[str, Literal["Disabled", "Enabled"]]
 
 
-class DataObject(BaseModel):
+class DeviceDataObject(BaseModel):
     """
     DataObject represents some data related to a device.
     ( Firewall and Storage encryption )
@@ -132,7 +132,7 @@ class EnrichmentObject(BaseModel):
 
     name: str
     value: str
-    data: DataObject
+    data: DeviceDataObject
 
 
 class Enrichments(BaseModel):

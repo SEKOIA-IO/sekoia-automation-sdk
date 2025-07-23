@@ -32,9 +32,6 @@ class AssetConnector(Trigger):
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @property
     def connector_name(self) -> str:
         """
@@ -84,7 +81,7 @@ class AssetConnector(Trigger):
     @property
     def batch_size(self) -> int:
         """
-        Get the batch size for the os env.
+        Get the batch size from the os env.
 
         Returns:
             int: Batch size
@@ -94,7 +91,7 @@ class AssetConnector(Trigger):
     @property
     def production_base_url(self) -> str:
         """
-        Get the production base URL for os env.
+        Get the production base URL from os env.
 
         Returns:
             str: Production base URL
@@ -125,7 +122,9 @@ class AssetConnector(Trigger):
 
     @cached_property
     def _http_session(self) -> requests.Session:
-        return requests.Session()
+        session = requests.Session()
+        session.headers.update(self._http_header)
+        return session
 
     @cached_property
     def _http_header(self) -> dict[str, str]:
@@ -139,7 +138,7 @@ class AssetConnector(Trigger):
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
             "User-Agent": f"sekoiaio-asset-connector-"
-                          f"{self.connector_configuration_uuid}",  # type: ignore[attr-defined]
+                          f"{self.module.connector_configuration_uuid}",
         }
 
     @cached_property
@@ -147,7 +146,7 @@ class AssetConnector(Trigger):
         base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
             "/"
         )
-        return f"{base}/api/v1/asset-connectors/{self.connector_configuration_uuid}"  # type: ignore[attr-defined]
+        return f"{base}/api/v1/asset-connectors/{self.module.connector_configuration_uuid}"
 
     @staticmethod
     def handle_api_error( error_code: int) -> str:
@@ -180,7 +179,6 @@ class AssetConnector(Trigger):
                 with attempt:
                     res: Response = self._http_session.post(
                         asset_connector_api_url,
-                        headers=self._http_header,
                         json=request_body,
                         timeout=30,
                     )

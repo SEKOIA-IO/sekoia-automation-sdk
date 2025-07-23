@@ -3,6 +3,36 @@ from pydantic import BaseModel
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 
 
+class UserDataObject(BaseModel):
+    """
+    DataObject represents some data related to a device.
+    ( Firewall and Storage encryption )
+    """
+
+    is_enabled: bool | None = None
+    last_logon: str | None = None
+    bad_password_count: int | None = None
+    number_of_logons: int | None = None
+
+
+class EnrichmentObject(BaseModel):
+    """
+    Enrichment Object represents additional information about a device.
+    """
+
+    name: str
+    value: str
+    data: UserDataObject
+
+
+class Enrichments(BaseModel):
+    """
+    List of enrichments for a device.
+    """
+
+    enrichments: list[EnrichmentObject] | None = None
+
+
 class Group(BaseModel):
     """
     Group model represents a user group.
@@ -31,3 +61,4 @@ class UserOCSFModel(OCSFBaseModel):
     """
 
     user: User
+    enrichments: Enrichments | None = None

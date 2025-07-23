@@ -162,7 +162,7 @@ def test_frequency_env_var_not_exist(test_asset_connector):
 
 
 def test_http_header(test_asset_connector):
-    test_asset_connector.connector_configuration_uuid = (
+    test_asset_connector.module._connector_configuration_uuid = (
         "04716e25-c97f-4a22-925e-8b636ad9c8a4"
     )
     headers = test_asset_connector._http_header
@@ -212,9 +212,7 @@ def test_post_assets_to_api_failure(test_asset_connector, asset_list):
 
 def test_push_assets_to_sekoia(test_asset_connector, asset_list):
     test_asset_connector.post_assets_to_api = Mock(return_value={"result": "success"})
-    test_asset_connector.connector_configuration_uuid = (
-        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
-    )
+    test_asset_connector.module._connector_configuration_uuid = "04716e25-c97f-4a22-925e-8b636ad9c8a4"
     test_asset_connector.push_assets_to_sekoia(asset_list)
     test_asset_connector.post_assets_to_api.assert_called_once()
     call_args = test_asset_connector.post_assets_to_api.call_args

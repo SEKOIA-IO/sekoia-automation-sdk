@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.19.0 - 2025-07-21
+
+### Added
+
+- Add the asset connectors to the SDK
+
+## 1.18.5
+
 ### Fixed
 
 - Fix the pydantic import in models.py of the template used to generate new modules

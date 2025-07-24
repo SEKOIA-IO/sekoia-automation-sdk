@@ -125,7 +125,7 @@ class DeviceDataObject(BaseModel):
     Storage_encryption: EncryptionObject | None = None
 
 
-class EnrichmentObject(BaseModel):
+class DeviceEnrichmentObject(BaseModel):
     """
     Enrichment Object represents additional information about a device.
     """
@@ -135,14 +135,6 @@ class EnrichmentObject(BaseModel):
     data: DeviceDataObject
 
 
-class Enrichments(BaseModel):
-    """
-    List of enrichments for a device.
-    """
-
-    enrichments: list[EnrichmentObject] | None = None
-
-
 class DeviceOCSFModel(OCSFBaseModel):
     """
     DeviceOCSFModel represents a device in the OCSF format.
@@ -150,4 +142,4 @@ class DeviceOCSFModel(OCSFBaseModel):
     """
 
     device: Device
-    enrichments: Enrichments | None = None
+    enrichments: list[DeviceEnrichmentObject] | None = None

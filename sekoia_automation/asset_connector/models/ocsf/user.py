@@ -5,8 +5,8 @@ from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 
 class UserDataObject(BaseModel):
     """
-    DataObject represents some data related to a device.
-    ( Firewall and Storage encryption )
+    DataObject represents some data related to a user.
+    logon information, activation, ...
     """
 
     is_enabled: bool | None = None
@@ -15,22 +15,14 @@ class UserDataObject(BaseModel):
     number_of_logons: int | None = None
 
 
-class EnrichmentObject(BaseModel):
+class UserEnrichmentObject(BaseModel):
     """
-    Enrichment Object represents additional information about a device.
+    Enrichment Object represents additional information about a user.
     """
 
     name: str
     value: str
     data: UserDataObject
-
-
-class Enrichments(BaseModel):
-    """
-    List of enrichments for a device.
-    """
-
-    enrichments: list[EnrichmentObject] | None = None
 
 
 class Group(BaseModel):
@@ -61,4 +53,4 @@ class UserOCSFModel(OCSFBaseModel):
     """
 
     user: User
-    enrichments: Enrichments | None = None
+    enrichments: list[UserEnrichmentObject] | None = None

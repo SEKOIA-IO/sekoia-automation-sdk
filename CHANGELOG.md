@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Changed
 
 - Add a default logo in the template used to generate new modules
+- Remove `[]` around `Unreleased` entry in the changelog
 
 ### Fixed
 

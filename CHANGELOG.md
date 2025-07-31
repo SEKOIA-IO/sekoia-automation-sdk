@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## Changed
+### Changed
 
 - Add a default logo in the template used to generate new modules
 - Remove `[]` around `Unreleased` entry in the changelog
+
+## 1.19.1 - 2025-07-30
+
+### Fixed
+
+- Set aiohttp as a mandatory dependency for the SDK
 
 ## 1.19.0 - 2025-07-21
 

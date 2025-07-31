@@ -45,7 +45,7 @@ Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
 poetry = "*" # To lock requirements when creating new module
 prometheus-client = "^0.21.0"
-aiohttp = { version = "^3.8.4" }
+aiohttp = "^3.8.4" 
 aiolimiter = { version = "^1.1.0", optional = true }
 aiobotocore = { version = "^2.20.0", optional = true }
 boto3 = { version = "^1.36.23", optional = true }
@@ -74,7 +74,6 @@ mypy = "*"
 
 [tool.poetry.extras]
 all = [
-    "aiohttp",
     "aiolimiter",
     "aiobotocore",
     "boto3",
@@ -87,7 +86,6 @@ async-aws = [
     "boto3",
 ]
 async-http = [
-    "aiohttp",
     "aiolimiter",
     "aiofiles",
 ]

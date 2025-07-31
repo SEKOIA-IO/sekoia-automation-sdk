@@ -13,7 +13,7 @@ from typing import Any, TypeAlias
 import orjson
 import requests
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
@@ -40,7 +40,7 @@ class Connector(Trigger, MetricsMixin, ABC):
     seconds_without_events = 3600 * 6
 
     # Required for Pydantic to correctly type the configuration object
-    configuration: DefaultConnectorConfiguration
+    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
     @property
     def connector_name(self) -> str:
@@ -52,7 +52,7 @@ class Connector(Trigger, MetricsMixin, ABC):
         """
         return self.__class__.__name__
 
-    @property  # type: ignore[override, no-redef]
+    @property  # type: ignore[no-redef]
     def configuration(self) -> DefaultConnectorConfiguration:
         if self._configuration is None:
             try:
@@ -63,7 +63,7 @@ class Connector(Trigger, MetricsMixin, ABC):
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 
-    @configuration.setter
+    @configuration.setter  # type: ignore[override]
     def configuration(self, configuration: dict) -> None:
         """
         Set the connector configuration.

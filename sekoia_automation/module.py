@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import RequestException, Response
 
 from sekoia_automation.config import load_config

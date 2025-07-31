@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Add a default logo in the template used to generate new modules
+- Remove `[]` around `Unreleased` entry in the changelog
+
 ## 1.19.1 - 2025-07-30
 
 ### Fixed
@@ -24,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix the pydantic import in models.py of the template used to generate new modules
+- Fix the typing of the `send_event` method in the `Trigger` class
 
 ## 1.18.4
 

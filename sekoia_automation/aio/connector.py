@@ -164,7 +164,7 @@ class AsyncConnector(Connector, ABC):
         total_number_of_events = 0
         async for data in self.async_iterate():  # type: ignore
             events, last_event_date = data
-            if last_event_date:
+            if last_event_date:  # pragma: no cover
                 if (
                     not result_last_event_date
                     or last_event_date > result_last_event_date

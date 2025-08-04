@@ -123,6 +123,7 @@ class DeviceDataObject(BaseModel):
 
     Firewall_status: Literal["Disabled", "Enabled"] | None = None
     Storage_encryption: EncryptionObject | None = None
+    Users: list[str] | None = None
 
 
 class DeviceEnrichmentObject(BaseModel):

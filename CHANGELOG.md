@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.19.2 - 2025-07-31
+
+### Fixed
+
+- Fix aiohttp dependency
+
 ## 1.19.1 - 2025-07-30
 
 ### Fixed

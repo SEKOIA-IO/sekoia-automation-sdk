@@ -269,6 +269,43 @@ class SyncLibrary:
 
         return manifests
 
+    def set_type(self, connectors_conf: list) -> list:
+        """
+        Loops over the connectors and sets their type to either 'event' or 'asset'
+
+        Args:
+            connectors_conf (list): List of connector configurations to be modified
+
+        Returns:
+            list: Modified list of connector configurations with updated types
+        """
+        for connector in connectors_conf:
+            connector_type = connector["type"]
+            if "type" not in connector or connector_type == "event":
+                connector["type"] = "event"
+            else:
+                connector["type"] = "asset"
+
+        return connectors_conf
+
+    def set_connectors_fields(
+        self, module_path: Path, module_docker_image: str
+    ) -> list:
+        """
+        Load connectors from a module and set their Docker image and type
+
+        Args:
+            module_path (Path): Path to the module containing connectors
+            module_docker_image (str): Docker image of the module
+
+        Returns:
+            list: List of connectors with updated Docker image and type
+        """
+        connectors_conf: list = self.load_connectors(module_path)
+        set_docker_connectors = self.set_docker(connectors_conf, module_docker_image)
+        set_type_connectors = self.set_type(set_docker_connectors)
+        return set_type_connectors
+
     def get_module_logo(self, module_path: Path) -> str | None:
         """Checks if a logo exists for a given module and returns its path
 
@@ -377,9 +414,7 @@ class SyncLibrary:
         module_docker_image = f"{docker_name}:{module_info['version']}"
         module_info["docker"] = module_docker_image
         triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
-        connectors = self.set_docker(
-            self.load_connectors(module_path), module_docker_image
-        )
+        connectors = self.set_connectors_fields(module_path, module_docker_image)
         actions = self.set_docker(self.load_actions(module_path), module_docker_image)
 
         module_uuid: str = module_info["uuid"]

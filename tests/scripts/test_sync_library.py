@@ -46,6 +46,13 @@ def connector():
 
 
 @pytest.fixture
+def fetched_connector():
+    with open("tests/data/sample_module/fetched_connector_test.json") as f:
+        fetched_connector = json.load(f)
+        return fetched_connector
+
+
+@pytest.fixture
 def tmp_module(tmp_path):
     copytree(Path("tests/data"), str(tmp_path), dirs_exist_ok=True)
     tmp_path.joinpath("sample_module").joinpath("trigger_test.json").unlink()
@@ -380,3 +387,45 @@ def test_sync_module_update_error(requests_mock):
                 "version": "0.2",
             }
         )
+
+def test_sync_list_already_updated(requests_mock, module, connector, capsys):
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=connector,
+    )
+
+    module_uuid = module.get("uuid")
+    module_name = module.get("name")
+    sync_lib.sync_list(module_name, module_uuid, [connector], "connector")
+
+    captured = capsys.readouterr()
+    assert "Already Up-To-Date" in captured.out
+
+
+def test_sync_list_not_updated(requests_mock, module, fetched_connector, connector, capsys):
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=fetched_connector,
+    )
+    requests_mock.patch(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=connector,
+    )
+
+    module_uuid = module.get("uuid")
+    module_name = module.get("name")
+    sync_lib.sync_list(module_name, module_uuid, [connector], "connector")
+
+    captured = capsys.readouterr()
+    assert "Updated" in captured.out
+    assert requests_mock.request_history[-1].json() == connector
+    assert requests_mock.request_history[-1].method == "PATCH"
+    assert requests_mock.request_history[-1].json().get("type") == "asset"
+    assert requests_mock.request_history[-1].json().get("slug") == "slug-connector-test"

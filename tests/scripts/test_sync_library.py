@@ -388,6 +388,7 @@ def test_sync_module_update_error(requests_mock):
             }
         )
 
+
 def test_sync_list_already_updated(requests_mock, module, connector, capsys):
     sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
 
@@ -405,7 +406,9 @@ def test_sync_list_already_updated(requests_mock, module, connector, capsys):
     assert "Already Up-To-Date" in captured.out
 
 
-def test_sync_list_not_updated(requests_mock, module, fetched_connector, connector, capsys):
+def test_sync_list_not_updated(
+    requests_mock, module, fetched_connector, connector, capsys
+):
     sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
 
     requests_mock.get(

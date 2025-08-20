@@ -222,7 +222,7 @@ def test_push_assets_to_sekoia(test_asset_connector, asset_list):
     assert kw_args["assets"] == asset_list
     assert (
         kw_args["asset_connector_api_url"]
-        == "http://example.com/api/v1/asset-connectors/04716e25-c97f-4a22-925e-8b636ad9c8a4"
+        == "http://example.com/api/v2/asset-management/asset-connector/04716e25-c97f-4a22-925e-8b636ad9c8a4"
     )
 
 

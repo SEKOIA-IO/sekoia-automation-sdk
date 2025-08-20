@@ -62,7 +62,7 @@ class SyncLibrary:
         """
         tab = "\t"
         if created:
-            print(f"[green]{tab*nb_tabs}Crated: {', '.join(created)}[/green]")
+            print(f"[green]{tab*nb_tabs}Created: {', '.join(created)}[/green]")
         if updated:
             print(f"[green]{tab*nb_tabs}Updated: {', '.join(updated)}[/green]")
         if up_to_date:
@@ -179,6 +179,8 @@ class SyncLibrary:
                 if k in module_info and value == module_info[k]:
                     del module_info[k]
 
+            print(f"[yellow]Updating module fields {module_info}[/yellow]")
+
             if not module_info:
                 print("Already-Up-To-Date")
             else:
@@ -263,48 +265,21 @@ class SyncLibrary:
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        for manifest in manifests:
+        updated_manifests = self.set_missing_fields(manifests)
+        for manifest in updated_manifests:
             if "docker" not in manifest or manifest["docker"] != module_docker_image:
                 manifest["docker"] = module_docker_image
 
         return manifests
 
-    def set_type(self, connectors_conf: list) -> list:
-        """
-        Loops over the connectors and sets their type to either 'event' or 'asset'
+    def set_missing_fields(self, confs: list):
+        for conf in confs:
+            if "slug" not in conf:
+                conf["slug"] = ""
+            if "type" not in conf:
+                conf["type"] = "event"
 
-        Args:
-            connectors_conf (list): List of connector configurations to be modified
-
-        Returns:
-            list: Modified list of connector configurations with updated types
-        """
-        for connector in connectors_conf:
-            connector_type = connector["type"]
-            if "type" not in connector or connector_type == "event":
-                connector["type"] = "event"
-            else:
-                connector["type"] = "asset"
-
-        return connectors_conf
-
-    def set_connectors_fields(
-        self, module_path: Path, module_docker_image: str
-    ) -> list:
-        """
-        Load connectors from a module and set their Docker image and type
-
-        Args:
-            module_path (Path): Path to the module containing connectors
-            module_docker_image (str): Docker image of the module
-
-        Returns:
-            list: List of connectors with updated Docker image and type
-        """
-        connectors_conf: list = self.load_connectors(module_path)
-        set_docker_connectors = self.set_docker(connectors_conf, module_docker_image)
-        set_type_connectors = self.set_type(set_docker_connectors)
-        return set_type_connectors
+        return confs
 
     def get_module_logo(self, module_path: Path) -> str | None:
         """Checks if a logo exists for a given module and returns its path
@@ -414,7 +389,7 @@ class SyncLibrary:
         module_docker_image = f"{docker_name}:{module_info['version']}"
         module_info["docker"] = module_docker_image
         triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
-        connectors = self.set_connectors_fields(module_path, module_docker_image)
+        connectors = self.set_docker(self.load_triggers(module_path), module_docker_image)
         actions = self.set_docker(self.load_actions(module_path), module_docker_image)
 
         module_uuid: str = module_info["uuid"]

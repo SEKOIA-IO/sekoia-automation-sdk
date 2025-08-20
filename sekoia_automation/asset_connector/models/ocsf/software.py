@@ -1,8 +1,10 @@
+from pydantic import BaseModel
+
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 from sekoia_automation.asset_connector.models.ocsf.device import Device
 
 
-class SoftwarePackage:
+class SoftwarePackage(BaseModel):
     name: str
     version: str
     uid: str | None = None
@@ -14,7 +16,7 @@ class SoftwarePackage:
     type_id: int | None = None
 
 
-class SoftwareComponent:
+class SoftwareComponent(BaseModel):
     version: str
     name: str
     author: str | None = None
@@ -22,7 +24,7 @@ class SoftwareComponent:
     type_id: int | None = None
 
 
-class SoftwareBillOfMaterials:
+class SoftwareBillOfMaterials(BaseModel):
     package: SoftwarePackage
     software_components: list[SoftwareComponent] | None = None
     type: str | None = None

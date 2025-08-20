@@ -138,7 +138,7 @@ class AssetConnector(Trigger):
             "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
             "Content-Type": "application/json",
             "User-Agent": f"sekoiaio-asset-connector-"
-                          f"{self.module.connector_configuration_uuid}",
+            f"{self.module.connector_configuration_uuid}",
         }
 
     @cached_property
@@ -146,11 +146,13 @@ class AssetConnector(Trigger):
         base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
             "/"
         )
-        return f"{base}/api/v1/asset-connectors/"\
-               f"{self.module.connector_configuration_uuid}"
+        return (
+            f"{base}/api/v2/asset-management/asset-connector/"
+            f"{self.module.connector_configuration_uuid}"
+        )
 
     @staticmethod
-    def handle_api_error( error_code: int) -> str:
+    def handle_api_error(error_code: int) -> str:
         error = {
             400: "Invalid request format",
             401: "Unauthorized access",
@@ -231,8 +233,8 @@ class AssetConnector(Trigger):
 
         if response is None:
             self.log(
-                message=f"Failed to push assets to Sekoia.io " \
-                        f"asset connector API at {url}",
+                message=f"Failed to push assets to Sekoia.io "
+                f"asset connector API at {url}",
                 level="error",
             )
             return
@@ -268,8 +270,8 @@ class AssetConnector(Trigger):
         """
 
         self.log(
-            message=f"Starting a new asset fetch cycle " \
-                    f"for connector {self.connector_name}",
+            message=f"Starting a new asset fetch cycle "
+            f"for connector {self.connector_name}",
             level="info",
         )
 
@@ -310,6 +312,6 @@ class AssetConnector(Trigger):
             except Exception as e:
                 self.log_exception(
                     e,
-                    message=f"Error while running asset connector " \
-                            f"{self.connector_name}",
+                    message=f"Error while running asset connector "
+                    f"{self.connector_name}",
                 )

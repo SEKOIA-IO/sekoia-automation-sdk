@@ -40,7 +40,7 @@ class Group(BaseModel):
 class User(BaseModel):
     has_mfa: bool
     name: str
-    uid: int
+    uid: str
     groups: list[Group]
     full_name: str
     email_addr: str

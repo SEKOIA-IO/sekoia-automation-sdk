@@ -390,7 +390,7 @@ class SyncLibrary:
         module_info["docker"] = module_docker_image
         triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
         connectors = self.set_docker(
-            self.load_triggers(module_path), module_docker_image
+            self.load_connectors(module_path), module_docker_image
         )
         actions = self.set_docker(self.load_actions(module_path), module_docker_image)
 

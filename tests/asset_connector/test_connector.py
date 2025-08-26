@@ -16,6 +16,14 @@ from sekoia_automation.asset_connector.models.ocsf.device import (
     OSTypeId,
     OSTypeStr,
 )
+from sekoia_automation.asset_connector.models.ocsf.user import (
+    User,
+    UserOCSFModel,
+    Account,
+    AccountTypeId,
+    AccountTypeStr,
+    Group,
+)
 
 
 class FakeAssetConnector(AssetConnector):
@@ -118,8 +126,50 @@ def asset_object_2():
 
 
 @pytest.fixture
-def asset_list(asset_object_1, asset_object_2):
-    return AssetList(version=1, items=[asset_object_1, asset_object_2])
+def asset_object_3():
+    product = Product(name="AWS IAM", version="1.5.0")
+    metadata_object = Metadata(product=product, version="1.5.0")
+
+    user_object = User(
+        has_mfa=True,
+        name="John Doe",
+        uid="user-123",
+        account=Account(
+            name="john.doe@example.com",
+            type_id=AccountTypeId.AWS_ACCOUNT,
+            type=AccountTypeStr.AWS_ACCOUNT,
+            uid="account-123",
+        ),
+        groups=[
+            Group(
+                name="Admins",
+                desc="Administrator group",
+                privileges=["read", "write", "delete"],
+                uid="group-123",
+            )
+        ],
+        full_name="Johnathan Doe",
+        email_addr="john.doe@example.com",
+    )
+
+    return UserOCSFModel(
+        activity_id=2,
+        activity_name="Collect",
+        category_name="Discovery",
+        category_uid=5,
+        class_name="User Inventory Info",
+        class_uid=5003,
+        type_name="User Inventory Info: Collect",
+        type_uid=500302,
+        time=1633036800,
+        metadata=metadata_object,
+        user=user_object,
+    )
+
+
+@pytest.fixture
+def asset_list(asset_object_1, asset_object_2, asset_object_3):
+    return AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
 
 
 @pytest.mark.skipif(

@@ -218,14 +218,16 @@ async def test_async_connector_raise_error(
 
 
 @pytest.mark.parametrize(
-    'base_url,expected_batchapi_url',
+    "base_url,expected_batchapi_url",
     [
-        ('http://intake.fake.url/', 'http://intake.fake.url/batch'),
-        ('http://fake.url/intake/', 'http://fake.url/intake/batch'),
-        ('http://fake.url/intake', 'http://fake.url/intake/batch'),
-    ]
+        ("http://intake.fake.url/", "http://intake.fake.url/batch"),
+        ("http://fake.url/intake/", "http://fake.url/intake/batch"),
+        ("http://fake.url/intake", "http://fake.url/intake/batch"),
+    ],
 )
-def test_async_connector_batchapi_url(storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str):
+def test_async_connector_batchapi_url(
+    storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str
+):
     with patch("sentry_sdk.set_tag"):
         async_connector = DummyAsyncConnector(data_path=storage)
 

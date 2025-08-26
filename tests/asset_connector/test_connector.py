@@ -277,10 +277,10 @@ def test_push_assets_to_sekoia(test_asset_connector, asset_list):
 
 
 def test_asset_fetch_cycle(
-    test_asset_connector, asset_object_1, asset_object_2, asset_list
+    test_asset_connector, asset_object_1, asset_object_2, asset_object_3, asset_list
 ):
     test_asset_connector.set_assets(
-        AssetList(version=1, items=[asset_object_1, asset_object_2])
+        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
     )
 
     test_asset_connector.push_assets_to_sekoia = Mock()

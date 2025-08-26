@@ -116,7 +116,8 @@ class FilesGenerator:
 
             for connector in connectors:
                 out.write(
-                    f'    module.register({connector.__name__}, "{connector.__name__}")\n'
+                    f"    module.register({connector.__name__},"
+                    f' "{connector.__name__}")\n'
                 )
 
             for action in actions:

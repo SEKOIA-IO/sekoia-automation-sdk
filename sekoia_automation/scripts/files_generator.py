@@ -72,7 +72,7 @@ class FilesGenerator:
             raise typer.Exit(code=1)
         module = next(iter(modules))
 
-        self.generate_main(module, actions, triggers)
+        self.generate_main(module, actions, triggers, connectors)
         self.generate_action_manifests(actions)
         self.generate_trigger_manifests(triggers)
         self.generate_connector_manifests(connectors)
@@ -90,6 +90,7 @@ class FilesGenerator:
         module: type[Module],
         actions: set[type[Action]],
         triggers: set[type[Trigger]],
+        connectors: set[type[Connector]],
     ):
         main = self.base_path / "main.py"
 
@@ -98,6 +99,9 @@ class FilesGenerator:
 
             for trigger in triggers:
                 out.write(f"from {trigger.__module__} import {trigger.__name__}\n")
+
+            for connector in connectors:
+                out.write(f"from {connector.__module__} import {connector.__name__}\n")
 
             for action in actions:
                 out.write(f"from {action.__module__} import {action.__name__}\n")
@@ -108,6 +112,12 @@ class FilesGenerator:
             for trigger in triggers:
                 out.write(
                     f'    module.register({trigger.__name__}, "{trigger.__name__}")\n'
+                )
+
+            for connector in connectors:
+                out.write(
+                    f"    module.register({connector.__name__},"
+                    f' "{connector.__name__}")\n'
                 )
 
             for action in actions:
@@ -126,7 +136,7 @@ class FilesGenerator:
 
             manifest: dict[str, str | dict | None] = {
                 "name": name,
-                "description": action.description,
+                "description": action.description or name,
                 "uuid": str(uuid5(self.module_uuid, name)),
                 "docker_parameters": action.__name__,
                 "arguments": {},
@@ -152,7 +162,7 @@ class FilesGenerator:
 
             manifest: dict[str, str | dict | None] = {
                 "name": name,
-                "description": trigger.description,
+                "description": trigger.description or name,
                 "uuid": str(uuid5(self.module_uuid, name)),
                 "docker_parameters": trigger.__name__,
                 "arguments": {},
@@ -179,15 +189,11 @@ class FilesGenerator:
 
             manifest: dict[str, str | dict | None] = {
                 "name": name,
-                "description": connector.description,
+                "description": connector.description or name,
                 "uuid": str(uuid5(self.module_uuid, name)),
                 "docker_parameters": connector.__name__,
                 "arguments": {},
-                "results": {},
             }
-
-            if connector.results_model:
-                manifest["results"] = connector.results_model.schema()
 
             if configuration_model := get_annotation_for(connector, "configuration"):
                 manifest["arguments"] = configuration_model.schema()

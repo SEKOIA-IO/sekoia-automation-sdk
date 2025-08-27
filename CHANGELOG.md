@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Include CONFIGURE.md into the generated documentation of automation modules
+
 ## 1.19.3 - 2025-08-04
 
 ### Fixed

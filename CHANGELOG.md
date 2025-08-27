@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a default logo in the template used to generate new modules
 - Remove `[]` around `Unreleased` entry in the changelog
 
+## 1.19.3 - 2025-08-04
+
+### Fixed
+
+- Add users fields to enrichment 
+
+## 1.19.2 - 2025-07-31
+
+### Fixed
+
+- Fix aiohttp dependency
+
 ## 1.19.1 - 2025-07-30
 
 ### Fixed

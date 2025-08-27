@@ -278,7 +278,7 @@ class Trigger(ModuleItem):
     def send_event(
         self,
         event_name: str,
-        event: dict,
+        event: dict | BaseModel,
         directory: str | None = None,
         remove_directory: bool = False,
     ) -> None:

@@ -11,6 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Include CONFIGURE.md into the generated documentation of automation modules
 
+## 1.19.3 - 2025-08-04
+
+### Fixed
+
+- Add users fields to enrichment 
+
+## 1.19.2 - 2025-07-31
+
+### Fixed
+
+- Fix aiohttp dependency
+
+## 1.19.1 - 2025-07-30
+
+### Fixed
+
+- Set aiohttp as a mandatory dependency for the SDK
+
+## 1.19.0 - 2025-07-21
+
+### Added
+
+- Add the asset connectors to the SDK
+
+## 1.18.5
+
 ### Fixed
 
 - Fix the pydantic import in models.py of the template used to generate new modules

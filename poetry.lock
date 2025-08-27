@@ -86,7 +86,6 @@ files = [
     {file = "aiohappyeyeballs-2.6.1-py3-none-any.whl", hash = "sha256:f349ba8f4b75cb25c99c5c2d84e997e485204d2902a9597802b0371f09331fb8"},
     {file = "aiohappyeyeballs-2.6.1.tar.gz", hash = "sha256:c3f9d0113123803ccadfdf3f0faa505bc78e6a72d1cc4806cbd719826e943558"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [[package]]
 name = "aiohttp"
@@ -183,7 +182,6 @@ files = [
     {file = "aiohttp-3.12.13-cp39-cp39-win_amd64.whl", hash = "sha256:29e08111ccf81b2734ae03f1ad1cb03b9615e7d8f616764f22f71209c094f122"},
     {file = "aiohttp-3.12.13.tar.gz", hash = "sha256:47e2da578528264a12e4e3dd8dd72a7289e5f812758fe086473fab037a10fcce"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [package.dependencies]
 aiohappyeyeballs = ">=2.5.0"
@@ -258,7 +256,6 @@ files = [
     {file = "aiosignal-1.3.2-py2.py3-none-any.whl", hash = "sha256:45cde58e409a301715980c2b01d0c28bdde3770d8290b5eb2173759d9acb31a5"},
     {file = "aiosignal-1.3.2.tar.gz", hash = "sha256:a8c255c66fafb1e499c9351d0bf32ff2d8a0321595ebac3b93713656d2436f54"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [package.dependencies]
 frozenlist = ">=1.1.0"
@@ -340,11 +337,11 @@ description = "Timeout context manager for asyncio programs"
 optional = false
 python-versions = ">=3.8"
 groups = ["main", "dev"]
+markers = "python_version < \"3.11\""
 files = [
     {file = "async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"},
     {file = "async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"},
 ]
-markers = {main = "python_version < \"3.11\" and (extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\")", dev = "python_version < \"3.11\""}
 
 [[package]]
 name = "attrs"
@@ -1279,7 +1276,6 @@ files = [
     {file = "frozenlist-1.7.0-py3-none-any.whl", hash = "sha256:9a5af342e34f7e97caf8c995864c7a396418ae2859cc6fdf1b1073020d516a7e"},
     {file = "frozenlist-1.7.0.tar.gz", hash = "sha256:2e310d81923c2437ea8670467121cc3e9b0f76d3043cc1d2331d56c7fb7a3a8f"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [[package]]
 name = "h11"
@@ -2087,7 +2083,6 @@ files = [
     {file = "multidict-6.5.1-py3-none-any.whl", hash = "sha256:895354f4a38f53a1df2cc3fa2223fa714cff2b079a9f018a76cad35e7f0f044c"},
     {file = "multidict-6.5.1.tar.gz", hash = "sha256:a835ea8103f4723915d7d621529c80ef48db48ae0c818afcabe0f95aa1febc3a"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [package.dependencies]
 typing-extensions = {version = ">=4.1.0", markers = "python_version < \"3.11\""}
@@ -2552,7 +2547,6 @@ files = [
     {file = "propcache-0.3.2-py3-none-any.whl", hash = "sha256:98f1ec44fb675f5052cccc8e609c46ed23a35a1cfd18545ad4e29002d858a43f"},
     {file = "propcache-0.3.2.tar.gz", hash = "sha256:20d7d62e4e7ef05f221e0db2856b979540686342e7dd9973b815599c7057e168"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [[package]]
 name = "pycparser"
@@ -4059,7 +4053,6 @@ files = [
     {file = "yarl-1.20.1-py3-none-any.whl", hash = "sha256:83b8eb083fe4683c6115795d9fc1cfaf2cbbefb19b3a1cb68f6527460f483a77"},
     {file = "yarl-1.20.1.tar.gz", hash = "sha256:d017a4997ee50c91fd5466cef416231bb82177b93b029906cefc542ce14c35ac"},
 ]
-markers = {main = "extra == \"all\" or extra == \"async-http\" or extra == \"async-aws\""}
 
 [package.dependencies]
 idna = ">=2.0"
@@ -4201,13 +4194,13 @@ cffi = {version = ">=1.11", markers = "platform_python_implementation == \"PyPy\
 cffi = ["cffi (>=1.11)"]
 
 [extras]
-all = ["aiobotocore", "aiocsv", "aiofiles", "aiohttp", "aiolimiter", "boto3", "loguru"]
+all = ["aiobotocore", "aiocsv", "aiofiles", "aiolimiter", "boto3", "loguru"]
 async-aws = ["aiobotocore", "boto3"]
 async-files = ["aiocsv", "aiofiles"]
-async-http = ["aiofiles", "aiohttp", "aiolimiter"]
+async-http = ["aiofiles", "aiolimiter"]
 logging = ["loguru"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "5093e4553b502d172404430cc1032bfcf53802c971149221b758e03d690265b8"
+content-hash = "39cb81c64e26d6f284694ce33b9737f61e72a8f9b773a38bb60480da747eefa5"

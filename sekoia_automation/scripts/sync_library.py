@@ -265,21 +265,12 @@ class SyncLibrary:
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        updated_manifests = self.set_missing_fields(manifests)
-        for manifest in updated_manifests:
+
+        for manifest in manifests:
             if "docker" not in manifest or manifest["docker"] != module_docker_image:
                 manifest["docker"] = module_docker_image
 
         return manifests
-
-    def set_missing_fields(self, confs: list):
-        for conf in confs:
-            if "slug" not in conf:
-                conf["slug"] = ""
-            if "type" not in conf:
-                conf["type"] = "event"
-
-        return confs
 
     def get_module_logo(self, module_path: Path) -> str | None:
         """Checks if a logo exists for a given module and returns its path

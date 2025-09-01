@@ -16,6 +16,14 @@ from sekoia_automation.asset_connector.models.ocsf.device import (
     OSTypeId,
     OSTypeStr,
 )
+from sekoia_automation.asset_connector.models.ocsf.user import (
+    User,
+    UserOCSFModel,
+    Account,
+    AccountTypeId,
+    AccountTypeStr,
+    Group,
+)
 
 
 class FakeAssetConnector(AssetConnector):
@@ -118,8 +126,50 @@ def asset_object_2():
 
 
 @pytest.fixture
-def asset_list(asset_object_1, asset_object_2):
-    return AssetList(version=1, items=[asset_object_1, asset_object_2])
+def asset_object_3():
+    product = Product(name="AWS IAM", version="1.5.0")
+    metadata_object = Metadata(product=product, version="1.5.0")
+
+    user_object = User(
+        has_mfa=True,
+        name="John Doe",
+        uid="user-123",
+        account=Account(
+            name="john.doe@example.com",
+            type_id=AccountTypeId.AWS_ACCOUNT,
+            type=AccountTypeStr.AWS_ACCOUNT,
+            uid="account-123",
+        ),
+        groups=[
+            Group(
+                name="Admins",
+                desc="Administrator group",
+                privileges=["read", "write", "delete"],
+                uid="group-123",
+            )
+        ],
+        full_name="Johnathan Doe",
+        email_addr="john.doe@example.com",
+    )
+
+    return UserOCSFModel(
+        activity_id=2,
+        activity_name="Collect",
+        category_name="Discovery",
+        category_uid=5,
+        class_name="User Inventory Info",
+        class_uid=5003,
+        type_name="User Inventory Info: Collect",
+        type_uid=500302,
+        time=1633036800,
+        metadata=metadata_object,
+        user=user_object,
+    )
+
+
+@pytest.fixture
+def asset_list(asset_object_1, asset_object_2, asset_object_3):
+    return AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
 
 
 @pytest.mark.skipif(
@@ -212,8 +262,9 @@ def test_post_assets_to_api_failure(test_asset_connector, asset_list):
 
 def test_push_assets_to_sekoia(test_asset_connector, asset_list):
     test_asset_connector.post_assets_to_api = Mock(return_value={"result": "success"})
-    test_asset_connector.module._connector_configuration_uuid = \
-            "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    test_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
     test_asset_connector.push_assets_to_sekoia(asset_list)
     test_asset_connector.post_assets_to_api.assert_called_once()
     call_args = test_asset_connector.post_assets_to_api.call_args
@@ -221,15 +272,15 @@ def test_push_assets_to_sekoia(test_asset_connector, asset_list):
     assert kw_args["assets"] == asset_list
     assert (
         kw_args["asset_connector_api_url"]
-        == "http://example.com/api/v1/asset-connectors/04716e25-c97f-4a22-925e-8b636ad9c8a4"
+        == "http://example.com/api/v2/asset-management/asset-connector/04716e25-c97f-4a22-925e-8b636ad9c8a4"
     )
 
 
 def test_asset_fetch_cycle(
-    test_asset_connector, asset_object_1, asset_object_2, asset_list
+    test_asset_connector, asset_object_1, asset_object_2, asset_object_3, asset_list
 ):
     test_asset_connector.set_assets(
-        AssetList(version=1, items=[asset_object_1, asset_object_2])
+        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
     )
 
     test_asset_connector.push_assets_to_sekoia = Mock()

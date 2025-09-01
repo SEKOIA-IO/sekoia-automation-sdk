@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove `[]` around `Unreleased` entry in the changelog
 - Include CONFIGURE.md into the generated documentation of automation modules
 
+### Fixed
+
+- Fix asset connector post url 
+- Update OCSF fields for software, user and vulnerability
+- Fix some typos
+- Add some extra tests for updating connector fields
+
 ## 1.19.3 - 2025-08-04
 
 ### Fixed

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.19.3 - 2025-09-01
+
 ### Changed
 
 - Add a default logo in the template used to generate new modules
@@ -15,16 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Add users fields to enrichment 
 - Fix asset connector post url 
 - Update OCSF fields for software, user and vulnerability
 - Fix some typos
 - Add some extra tests for updating connector fields
-
-## 1.19.3 - 2025-08-04
-
-### Fixed
-
-- Add users fields to enrichment 
 
 ## 1.19.2 - 2025-07-31
 

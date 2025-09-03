@@ -37,7 +37,7 @@ tenacity = "*"
 s3path = "^0.5"
 orjson = "^3.8"
 pydantic = "^2.10"
-typer = { extras = ["all"], version = "^0.12"}
+typer = {extras = ["all"], version = "^0.17.3"}
 cookiecutter = "^2.1"
 python-slugify = "^5.0.2"
 PyYAML = "^6.0"

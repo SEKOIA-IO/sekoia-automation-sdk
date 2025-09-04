@@ -3374,14 +3374,14 @@ files = [
 
 [[package]]
 name = "s3path"
-version = "0.5.8"
+version = "0.6.4"
 description = ""
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "s3path-0.5.8-py3-none-any.whl", hash = "sha256:6b2b1e53a2440c53332c09f0a10813ccaef64799093e6b627e973310f612e211"},
-    {file = "s3path-0.5.8.tar.gz", hash = "sha256:af5a46ae67694f4fff70b0975cb292a9c557282fae6ffb246d082ade2985e48f"},
+    {file = "s3path-0.6.4-py3-none-any.whl", hash = "sha256:689232a9df906a7c90e2a00c347c34c4c3dad25cde89b050dd6cf5b6f00c723e"},
+    {file = "s3path-0.6.4.tar.gz", hash = "sha256:1006cf38e17c5af031ed8808f8aa9bb7ced06fc8ce3ea92a7e3639290711e5d2"},
 ]
 
 [package.dependencies]
@@ -4203,4 +4203,4 @@ logging = ["loguru"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "39cb81c64e26d6f284694ce33b9737f61e72a8f9b773a38bb60480da747eefa5"
+content-hash = "78e23d1b0d0094b88e24948cd8d3d1dc0627a1b8da7a87cefd36bc468db45449"

@@ -40,12 +40,13 @@ class FilesGenerator:
             if not isabstract(obj):
                 if issubclass(obj, Action):
                     actions.add(obj)
-                elif issubclass(obj, Connector):
+                elif issubclass(obj, Connector) and obj != Connector:
                     connectors.add(obj)
-                elif issubclass(obj, Trigger):
+                elif issubclass(obj, Trigger) and obj not in {Trigger, Connector}:
                     triggers.add(obj)
                 elif issubclass(obj, Module) and obj != Module:
                     modules.add(obj)
+
 
     def execute(self):
         # Make sure we are in a module directory by verifying that there is a manifest

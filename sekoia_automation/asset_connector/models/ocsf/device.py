@@ -31,7 +31,7 @@ class OSTypeId(IntEnum):
     HPUX = 402
 
 
-class OSTypeStr(Enum):
+class OSTypeStr(str, Enum):
     UNKNOWN = "unknown"
     OTHER = "other"
     WINDOWS = "windows"
@@ -77,7 +77,7 @@ class DeviceTypeId(IntEnum):
     OTHER = 99
 
 
-class DeviceTypeStr(Enum):
+class DeviceTypeStr(str, Enum):
     UNKNOWN = "Unknown"
     SERVER = "Server"
     DESKTOP = "Desktop"

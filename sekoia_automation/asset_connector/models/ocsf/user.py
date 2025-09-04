@@ -59,7 +59,7 @@ class AccountTypeId(IntEnum):
     OTHER = 99
 
 
-class AccountTypeStr(Enum):
+class AccountTypeStr(str, Enum):
     UNKNOWN = "Unknown"
     LDAP_ACCOUNT = "LDAP Account"
     WINDOWS_ACCOUNT = "Windows Account"

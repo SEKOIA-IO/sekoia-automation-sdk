@@ -14,7 +14,7 @@ class SBOMTypeId(IntEnum):
     OTHER = 99
 
 
-class SBOMTypeStr(Enum):
+class SBOMTypeStr(str, Enum):
     UNKNOWN = "Unknown"
     SPDX = "SPDX"
     CYCLOEDX = "CycloDX"
@@ -30,7 +30,7 @@ class ComponentTypeId(IntEnum):
     OTHER = 99
 
 
-class ComponentTypeStr(Enum):
+class ComponentTypeStr(str, Enum):
     UNKNOWN = "Unknown"
     FRAMEWORK = "Framework"
     LIBRARY = "Library"
@@ -45,7 +45,7 @@ class PackageTypeId(IntEnum):
     OTHER = 99
 
 
-class PackageTypeStr(Enum):
+class PackageTypeStr(str, Enum):
     UNKNOWN = "Unknown"
     APPLICATION = "Application"
     OPERATINGSYSTEM = "Operating System"

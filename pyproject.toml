@@ -34,7 +34,7 @@ requests = "^2.25"
 requests-ratelimiter = "^0.7.0"
 sentry-sdk = "*"
 tenacity = "*"
-s3path = "^0.5"
+s3path = "^0.6.4"
 orjson = "^3.8"
 pydantic = "^2.10"
 typer = {extras = ["all"], version = "^0.17.3"}

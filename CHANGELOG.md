@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Improvements for AsyncConnector.
+- Improvements for Async Http workflow
+- Remove duplicated parts and make the code more uniform for async http workflow
+
 ### Fixed
 
 - Updated typer version to fix CLI issues

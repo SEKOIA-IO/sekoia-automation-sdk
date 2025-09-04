@@ -62,7 +62,7 @@ class SyncLibrary:
         """
         tab = "\t"
         if created:
-            print(f"[green]{tab*nb_tabs}Crated: {', '.join(created)}[/green]")
+            print(f"[green]{tab*nb_tabs}Created: {', '.join(created)}[/green]")
         if updated:
             print(f"[green]{tab*nb_tabs}Updated: {', '.join(updated)}[/green]")
         if up_to_date:
@@ -179,6 +179,8 @@ class SyncLibrary:
                 if k in module_info and value == module_info[k]:
                     del module_info[k]
 
+            print(f"[yellow]Updating module fields {module_info}[/yellow]")
+
             if not module_info:
                 print("Already-Up-To-Date")
             else:
@@ -263,6 +265,7 @@ class SyncLibrary:
         Returns:
             list: Modified version of the manifests received as parameter
         """
+
         for manifest in manifests:
             if "docker" not in manifest or manifest["docker"] != module_docker_image:
                 manifest["docker"] = module_docker_image

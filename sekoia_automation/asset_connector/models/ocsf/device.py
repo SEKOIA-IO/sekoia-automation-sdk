@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum
+from enum import StrEnum, IntEnum
 from typing import Literal
 
 from pydantic import BaseModel
@@ -31,7 +31,7 @@ class OSTypeId(IntEnum):
     HPUX = 402
 
 
-class OSTypeStr(str, Enum):
+class OSTypeStr(StrEnum):
     UNKNOWN = "unknown"
     OTHER = "other"
     WINDOWS = "windows"
@@ -77,7 +77,7 @@ class DeviceTypeId(IntEnum):
     OTHER = 99
 
 
-class DeviceTypeStr(str, Enum):
+class DeviceTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     SERVER = "Server"
     DESKTOP = "Desktop"

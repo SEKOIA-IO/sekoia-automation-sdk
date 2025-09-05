@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.19.3"
+version = "1.19.4"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -29,7 +29,7 @@ classifiers = [
 sekoia-automation = 'sekoia_automation.cli:app'
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 requests = "^2.25"
 requests-ratelimiter = "^0.7.0"
 sentry-sdk = "*"
@@ -113,7 +113,7 @@ testpaths = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 fix = true
 exclude = [
     "tests/expectations/sample_module/main.py",
@@ -128,7 +128,7 @@ select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
 "tests/*" = ["ARG"]  # Ignore unusued args because of pytest fixtures
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 install_types = true
 non_interactive = true
 ignore_missing_imports = true

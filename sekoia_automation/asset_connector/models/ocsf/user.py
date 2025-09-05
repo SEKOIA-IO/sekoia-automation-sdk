@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
@@ -59,7 +59,7 @@ class AccountTypeId(IntEnum):
     OTHER = 99
 
 
-class AccountTypeStr(Enum):
+class AccountTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     LDAP_ACCOUNT = "LDAP Account"
     WINDOWS_ACCOUNT = "Windows Account"

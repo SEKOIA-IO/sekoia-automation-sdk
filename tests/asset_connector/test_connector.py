@@ -18,15 +18,22 @@ from sekoia_automation.asset_connector.models.ocsf.device import (
     OSTypeStr,
 )
 from sekoia_automation.asset_connector.models.ocsf.user import (
-    User,
-    UserOCSFModel,
     Account,
     AccountTypeId,
     AccountTypeStr,
     Group,
+    User,
+    UserOCSFModel,
 )
-from sekoia_automation.asset_connector.models.ocsf.vulnerability import FindingInformation, CVE, VulnerabilityDetails, \
-    VulnerabilityOCSFModel, KillChain, KillChainPhaseID, KillChainPhase
+from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
+    CVE,
+    FindingInformation,
+    KillChain,
+    KillChainPhase,
+    KillChainPhaseID,
+    VulnerabilityDetails,
+    VulnerabilityOCSFModel,
+)
 
 
 class FakeAssetConnector(AssetConnector):
@@ -169,14 +176,19 @@ def asset_object_3():
         user=user_object,
     )
 
+
 @pytest.fixture
 def vulnerability_asset():
     product = Product(name="Tenable", version="1.0.0")
     metadata = Metadata(product=product, version="1.5.0")
 
     finding_product = Product(name="Tenable Vulnerability Management", version="1.0.0")
-    kill_chain_object_1 = KillChain( phase=KillChainPhase.DELIVERY, phase_id=KillChainPhaseID.DELIVERY)
-    kill_chain_object_2 = KillChain(phase=KillChainPhase.EXPLOITATION, phase_id=KillChainPhaseID.EXPLOITATION)
+    kill_chain_object_1 = KillChain(
+        phase=KillChainPhase.DELIVERY, phase_id=KillChainPhaseID.DELIVERY
+    )
+    kill_chain_object_2 = KillChain(
+        phase=KillChainPhase.EXPLOITATION, phase_id=KillChainPhaseID.EXPLOITATION
+    )
     kill_chain = [kill_chain_object_1, kill_chain_object_2]
     finding_information = FindingInformation(
         uid="123456788",

@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import Generator
 from unittest.mock import Mock
@@ -17,12 +18,21 @@ from sekoia_automation.asset_connector.models.ocsf.device import (
     OSTypeStr,
 )
 from sekoia_automation.asset_connector.models.ocsf.user import (
-    User,
-    UserOCSFModel,
     Account,
     AccountTypeId,
     AccountTypeStr,
     Group,
+    User,
+    UserOCSFModel,
+)
+from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
+    CVE,
+    FindingInformation,
+    KillChain,
+    KillChainPhase,
+    KillChainPhaseID,
+    VulnerabilityDetails,
+    VulnerabilityOCSFModel,
 )
 
 
@@ -168,6 +178,54 @@ def asset_object_3():
 
 
 @pytest.fixture
+def vulnerability_asset():
+    product = Product(name="Tenable", version="1.0.0")
+    metadata = Metadata(product=product, version="1.5.0")
+
+    finding_product = Product(name="Tenable Vulnerability Management", version="1.0.0")
+    kill_chain_object_1 = KillChain(
+        phase=KillChainPhase.DELIVERY, phase_id=KillChainPhaseID.DELIVERY
+    )
+    kill_chain_object_2 = KillChain(
+        phase=KillChainPhase.EXPLOITATION, phase_id=KillChainPhaseID.EXPLOITATION
+    )
+    kill_chain = [kill_chain_object_1, kill_chain_object_2]
+    finding_information = FindingInformation(
+        uid="123456788",
+        types=["Vulnerability", "Vulnerability_2"],
+        data_sources=["DataSource1", "DataSource2"],
+        title="Sample Vulnerability",
+        desc="A sample vulnerability for testing purposes.",
+        first_seen_time=1632036800,
+        last_seen_time=1632036900,
+        product=finding_product,
+        kill_chain=kill_chain,
+    )
+
+    cve = CVE(uid="CVE-12345", type="")
+    vulnerabilities = VulnerabilityDetails(
+        cve=cve,
+        title="Sample Vulnerability Title Details",
+        references=["http://example.com/vuln-details", "http://example.com/more-info"],
+    )
+
+    return VulnerabilityOCSFModel(
+        activity_id=2,
+        activity_name="Collect",
+        category_name="Findings",
+        category_uid=2,
+        class_name="Vulnerability Finding",
+        class_uid=2002,
+        type_name="Vulnerability Finding: Collect",
+        type_uid=200201,
+        time=1633036800,
+        metadata=metadata,
+        finding_info=finding_information,
+        vulnerabilities=vulnerabilities,
+    )
+
+
+@pytest.fixture
 def asset_list(asset_object_1, asset_object_2, asset_object_3):
     return AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
 
@@ -289,3 +347,28 @@ def test_asset_fetch_cycle(
 
     assert test_asset_connector.push_assets_to_sekoia.call_count == 1
     assert test_asset_connector.push_assets_to_sekoia.call_args[0][0] == asset_list
+
+
+def test_jsonify_device_asset(asset_object_1):
+    json_data = asset_object_1.model_dump()
+    serialized_json = json.dumps(json_data)
+
+    assert serialized_json
+    assert json_data["activity_name"] == "Collect"
+    assert json_data["device"]["hostname"] == "example-host"
+    assert json_data["device"]["type_id"] == 2
+    assert json_data["device"]["type"] == "Desktop"
+    assert json_data["device"]["os"]["type"] == "windows"
+    assert json_data["device"]["os"]["type_id"] == 100
+    assert json_data["metadata"]["product"]["name"] == "Harfanglab EDR"
+
+
+def test_jsonify_vulnerability_asset(vulnerability_asset):
+    json_data = vulnerability_asset.model_dump()
+    serialized_json = json.dumps(json_data)
+
+    assert serialized_json
+    assert json_data["vulnerabilities"]["title"] == "Sample Vulnerability Title Details"
+    assert json_data["vulnerabilities"]["cve"]["uid"] == "CVE-12345"
+    assert json_data["finding_info"]["kill_chain"][0]["phase"] == "Delivery"
+    assert json_data["finding_info"]["kill_chain"][1]["phase"] == "Exploitation"

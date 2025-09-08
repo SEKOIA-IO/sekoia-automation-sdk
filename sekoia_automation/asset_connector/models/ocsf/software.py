@@ -1,4 +1,4 @@
-from enum import IntEnum, Enum
+from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel
 
@@ -14,7 +14,7 @@ class SBOMTypeId(IntEnum):
     OTHER = 99
 
 
-class SBOMTypeStr(Enum):
+class SBOMTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     SPDX = "SPDX"
     CYCLOEDX = "CycloDX"
@@ -30,7 +30,7 @@ class ComponentTypeId(IntEnum):
     OTHER = 99
 
 
-class ComponentTypeStr(Enum):
+class ComponentTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     FRAMEWORK = "Framework"
     LIBRARY = "Library"
@@ -45,7 +45,7 @@ class PackageTypeId(IntEnum):
     OTHER = 99
 
 
-class PackageTypeStr(Enum):
+class PackageTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     APPLICATION = "Application"
     OPERATINGSYSTEM = "Operating System"

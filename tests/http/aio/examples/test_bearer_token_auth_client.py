@@ -123,3 +123,5 @@ async def test_get_events_example_method(session_faker: Faker):
         mocked_responses.get(request_url, status=402)
         mocked_responses.get(request_url, status=200, payload=data)
         assert await client.get_events_retry_example({"key": "value"}) == data
+
+    await client.close()

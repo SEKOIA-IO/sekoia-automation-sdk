@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.18.5"
+version = "1.20.0"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -29,15 +29,15 @@ classifiers = [
 sekoia-automation = 'sekoia_automation.cli:app'
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 requests = "^2.25"
 requests-ratelimiter = "^0.7.0"
 sentry-sdk = "*"
 tenacity = "*"
-s3path = "^0.5"
+s3path = "^0.6.4"
 orjson = "^3.8"
 pydantic = "^2.10"
-typer = { extras = ["all"], version = "^0.12"}
+typer = {extras = ["all"], version = "^0.17.3"}
 cookiecutter = "^2.1"
 python-slugify = "^5.0.2"
 PyYAML = "^6.0"
@@ -45,7 +45,7 @@ Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
 poetry = "*" # To lock requirements when creating new module
 prometheus-client = "^0.21.0"
-aiohttp = { version = "^3.8.4", optional = true }
+aiohttp = "^3.8.4" 
 aiolimiter = { version = "^1.1.0", optional = true }
 aiobotocore = { version = "^2.20.0", optional = true }
 boto3 = { version = "^1.36.23", optional = true }
@@ -74,7 +74,6 @@ mypy = "*"
 
 [tool.poetry.extras]
 all = [
-    "aiohttp",
     "aiolimiter",
     "aiobotocore",
     "boto3",
@@ -87,7 +86,6 @@ async-aws = [
     "boto3",
 ]
 async-http = [
-    "aiohttp",
     "aiolimiter",
     "aiofiles",
 ]
@@ -115,7 +113,7 @@ testpaths = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 fix = true
 exclude = [
     "tests/expectations/sample_module/main.py",
@@ -130,7 +128,7 @@ select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
 "tests/*" = ["ARG"]  # Ignore unusued args because of pytest fixtures
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 install_types = true
 non_interactive = true
 ignore_missing_imports = true

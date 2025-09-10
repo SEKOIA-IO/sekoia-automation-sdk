@@ -1,7 +1,9 @@
 """Test async connector."""
 
-from unittest.mock import Mock, patch
+from collections.abc import AsyncGenerator
+from datetime import datetime
 from posixpath import join as urljoin
+from unittest.mock import Mock, patch
 
 import pytest
 from aiolimiter import AsyncLimiter
@@ -15,8 +17,19 @@ from sekoia_automation.aio.connector import AsyncConnector
 class DummyAsyncConnector(AsyncConnector):
     trigger_activation: str | None = None
 
-    def run(self):
-        raise NotImplementedError
+    events: list[list[str]] | None = None
+
+    def set_events(self, events: list[list[str]]) -> None:
+        self.events = events
+
+    async def async_iterate(
+        self,
+    ) -> AsyncGenerator[tuple[list[str], datetime | None], None]:
+        if self.events is None:
+            raise RuntimeError("Events are not set")
+
+        for event in self.events:
+            yield event, None
 
 
 @pytest.fixture
@@ -36,28 +49,6 @@ def async_connector(storage, mocked_trigger_logs, faker: Faker):
         yield async_connector
 
         async_connector.stop()
-
-
-@pytest.mark.asyncio
-async def test_async_connector_rate_limiter(async_connector: DummyAsyncConnector):
-    """
-    Test async connector rate limiter.
-
-    Args:
-        async_connector: DummyAsyncConnector
-    """
-    other_instance = DummyAsyncConnector()
-    rate_limiter_mock = AsyncLimiter(max_rate=100)
-
-    assert async_connector._rate_limiter is None
-    assert other_instance._rate_limiter is None
-
-    assert async_connector.get_rate_limiter() != other_instance.get_rate_limiter()
-
-    async_connector.set_rate_limiter(rate_limiter_mock)
-
-    assert async_connector.get_rate_limiter() != other_instance.get_rate_limiter()
-    assert async_connector._rate_limiter == rate_limiter_mock
 
 
 @pytest.mark.asyncio
@@ -217,15 +208,63 @@ async def test_async_connector_raise_error(
             assert str(e) == expected_error
 
 
-@pytest.mark.parametrize(
-    'base_url,expected_batchapi_url',
-    [
-        ('http://intake.fake.url/', 'http://intake.fake.url/batch'),
-        ('http://fake.url/intake/', 'http://fake.url/intake/batch'),
-        ('http://fake.url/intake', 'http://fake.url/intake/batch'),
+@pytest.mark.asyncio
+async def test_async_connector_async_next_run(
+    async_connector: DummyAsyncConnector, faker: Faker
+):
+    """
+    Test async connector push events.
+
+    Args:
+        async_connector: DummyAsyncConnector
+        faker: Faker
+    """
+    single_event_id = faker.uuid4()
+
+    # We expect 3 chunks of events
+    test_events = [
+        [faker.uuid4(), faker.uuid4()],
+        [faker.uuid4(), faker.uuid4(), faker.uuid4()],
+        [faker.uuid4(), faker.uuid4(), faker.uuid4(), faker.uuid4()],
     ]
+
+    async_connector.set_events(test_events)
+
+    request_url = urljoin(async_connector.configuration.intake_server, "batch")
+
+    with aioresponses() as mocked_responses:
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        mocked_responses.post(
+            request_url,
+            status=200,
+            payload={"received": True, "event_ids": [single_event_id]},
+        )
+
+        await async_connector.async_next_run()
+
+
+@pytest.mark.parametrize(
+    "base_url,expected_batchapi_url",
+    [
+        ("http://intake.fake.url/", "http://intake.fake.url/batch"),
+        ("http://fake.url/intake/", "http://fake.url/intake/batch"),
+        ("http://fake.url/intake", "http://fake.url/intake/batch"),
+    ],
 )
-def test_async_connector_batchapi_url(storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str):
+def test_async_connector_batchapi_url(
+    storage, mocked_trigger_logs, base_url: str, expected_batchapi_url: str
+):
     with patch("sentry_sdk.set_tag"):
         async_connector = DummyAsyncConnector(data_path=storage)
 

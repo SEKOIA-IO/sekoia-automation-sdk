@@ -7,10 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Fixed duplicate trigger callback processing by implementing unique request_id
+
+## 1.20.0 - 2025-09-09
+
+### Changed
+
+- Improvements for AsyncConnector.
+- Improvements for Async Http workflow
+- Remove duplicated parts and make the code more uniform for async http workflow
+
+### Fixed
+
+- Fix some typing issues
+- Updated typer version to fix CLI issues
+
+## 1.19.3 - 2025-09-01
+
+### Changed
+
+- Add a default logo in the template used to generate new modules
+- Remove `[]` around `Unreleased` entry in the changelog
+- Include CONFIGURE.md into the generated documentation of automation modules
+
+### Fixed
+
+- Add users fields to enrichment 
+- Fix asset connector post url 
+- Update OCSF fields for software, user and vulnerability
+- Fix some typos
+- Add some extra tests for updating connector fields
+
+## 1.19.2 - 2025-07-31
+
+### Fixed
+
+- Fix aiohttp dependency
+
+## 1.19.1 - 2025-07-30
+
+### Fixed
+
+- Set aiohttp as a mandatory dependency for the SDK
+
+## 1.19.0 - 2025-07-21
+
+### Added
+
+- Add the asset connectors to the SDK
+
 ## 1.18.5
 
 ### Fixed
-- Fixed duplicate trigger callback processing by implementing unique request_id
+
+- Fix the pydantic import in models.py of the template used to generate new modules
+- Fix the typing of the `send_event` method in the `Trigger` class
+>>>>>>> main
 
 ## 1.18.4
 

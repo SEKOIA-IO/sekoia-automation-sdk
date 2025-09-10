@@ -8,6 +8,7 @@ from aioresponses import aioresponses
 from faker import Faker
 
 from sekoia_automation.http.aio.http_client import AsyncHttpClient
+from sekoia_automation.http.http_client import Method
 
 
 @pytest.mark.asyncio
@@ -38,6 +39,8 @@ async def test_simple_workflow_async_http_client(base_url: str, session_faker: F
             async with session.get(base_url) as response:
                 assert response.status == 200
                 assert await response.json() == json.loads(data)
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -72,6 +75,8 @@ async def test_rate_limited_workflow_async_http_client(
                 async with session.get(base_url) as response:
                     assert response.status == 200
                     assert await response.json() == json.loads(data)
+
+        await client.close()
 
         time_end = time.time()
 
@@ -111,6 +116,8 @@ async def test_rate_limited_workflow_async_http_client_1(
                     assert response.status == 200
                     assert await response.json() == json.loads(data)
 
+        await client.close()
+
         time_end = time.time()
 
         assert time_end - time_start >= 2
@@ -143,7 +150,7 @@ async def test_retry_workflow_get_async_http_client(
         mocked_responses.get(url=base_url, status=status_2)
         mocked_responses.get(url=base_url, status=status_3)
 
-        async with client.request_retry("GET", base_url) as response:
+        async with client.request_retry(Method.GET, base_url) as response:
             # As a result, the last response should be 412
             assert response.status == status_3
 
@@ -154,6 +161,8 @@ async def test_retry_workflow_get_async_http_client(
         async with client.get(base_url) as response:
             # As a result, the last response should be 412
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -190,7 +199,7 @@ async def test_retry_workflow_post_async_http_client(
         mocked_responses.post(url=base_url, payload=data, status=status_2)
         mocked_responses.post(url=base_url, payload=data, status=status_3)
 
-        async with client.request_retry("POST", base_url, json=data) as response:
+        async with client.request_retry(Method.POST, base_url, json=data) as response:
             assert response.status == status_3
 
         mocked_responses.post(url=base_url, payload=data, status=status_1)
@@ -199,6 +208,8 @@ async def test_retry_workflow_post_async_http_client(
 
         async with client.post(base_url, json=data) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -235,7 +246,7 @@ async def test_retry_workflow_put_async_http_client(
         mocked_responses.put(url=base_url, payload=data, status=status_2)
         mocked_responses.put(url=base_url, payload=data, status=status_3)
 
-        async with client.request_retry("PUT", base_url, json=data) as response:
+        async with client.request_retry(Method.PUT, base_url, json=data) as response:
             assert response.status == status_3
 
         mocked_responses.put(url=base_url, payload=data, status=status_1)
@@ -244,6 +255,8 @@ async def test_retry_workflow_put_async_http_client(
 
         async with client.put(base_url, json=data) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -273,7 +286,7 @@ async def test_retry_workflow_head_async_http_client(
         mocked_responses.head(url=base_url, status=status_2)
         mocked_responses.head(url=base_url, status=status_3)
 
-        async with client.request_retry("HEAD", base_url) as response:
+        async with client.request_retry(Method.HEAD, base_url) as response:
             assert response.status == status_3
 
         mocked_responses.head(url=base_url, status=status_1)
@@ -282,6 +295,8 @@ async def test_retry_workflow_head_async_http_client(
 
         async with client.head(base_url) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -311,7 +326,7 @@ async def test_retry_workflow_delete_async_http_client(
         mocked_responses.delete(url=base_url, status=status_2)
         mocked_responses.delete(url=base_url, status=status_3)
 
-        async with client.request_retry("delete", base_url) as response:
+        async with client.request_retry(Method.DELETE, base_url) as response:
             assert response.status == status_3
 
         mocked_responses.delete(url=base_url, status=status_1)
@@ -320,6 +335,8 @@ async def test_retry_workflow_delete_async_http_client(
 
         async with client.delete(base_url) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -349,7 +366,7 @@ async def test_retry_workflow_patch_async_http_client(
         mocked_responses.patch(url=base_url, status=status_2)
         mocked_responses.patch(url=base_url, status=status_3)
 
-        async with client.request_retry("PATCH", base_url) as response:
+        async with client.request_retry(Method.PATCH, base_url) as response:
             assert response.status == status_3
 
         mocked_responses.patch(url=base_url, status=status_1)
@@ -358,6 +375,8 @@ async def test_retry_workflow_patch_async_http_client(
 
         async with client.patch(base_url) as response:
             assert response.status == status_3
+
+    await client.close()
 
 
 @pytest.mark.asyncio
@@ -414,4 +433,6 @@ async def test_complete_configurable_async_http_client(
             assert response.status == status_1
             end_time = time.time()
 
-        assert end_time - start_time >= 3
+    await client.close()
+
+    assert end_time - start_time >= 3

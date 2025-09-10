@@ -63,7 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix the pydantic import in models.py of the template used to generate new modules
 - Fix the typing of the `send_event` method in the `Trigger` class
->>>>>>> main
 
 ## 1.18.4
 

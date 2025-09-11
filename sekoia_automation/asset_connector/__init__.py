@@ -32,6 +32,10 @@ class AssetConnector(Trigger):
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._latest_time = None
+
     @property
     def connector_name(self) -> str:
         """
@@ -153,12 +157,11 @@ class AssetConnector(Trigger):
 
     @staticmethod
     def handle_api_error(error_code: int) -> str:
-        error = {
-            400: "Invalid request format",
-            401: "Unauthorized access",
-            404: "Connector not found",
-        }
-        return error.get(error_code, "An unknown error occurred")
+        if 400 <= error_code < 500:
+            return f"Client error - HTTP ({error_code})"
+        if 500 <= error_code < 600:
+            return f"Server error - HTTP ({error_code})"
+        return f"Unexpected error ({error_code})"
 
     def post_assets_to_api(
         self, assets: AssetList, asset_connector_api_url: str
@@ -194,11 +197,15 @@ class AssetConnector(Trigger):
 
         if res.status_code != 200:
             error_message = self.handle_api_error(res.status_code)
+            body_excerpt = res.text or ""
+
             self.log(
-                message=f"Error while pushing assets to Sekoia.io: {error_message}",
+                message=f"Error while pushing assets to Sekoia.io - {error_message} : {body_excerpt}",
                 level="error",
             )
             return None
+
+        self.update_checkpoint()
 
         self.log(
             message=rf"Successfully posted {len(assets_object_to_dict)} assets\ "
@@ -238,6 +245,14 @@ class AssetConnector(Trigger):
                 level="error",
             )
             return
+
+    @abstractmethod
+    def update_checkpoint(self) -> None:
+        """
+        Update the checkpoint for the connector.
+        This method should be implemented in the subclass.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass")
 
     @abstractmethod
     def get_assets(

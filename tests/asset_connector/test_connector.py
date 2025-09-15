@@ -44,7 +44,6 @@ class ContextDict(dict):
         return False
 
 
-
 class FakeAssetConnector(AssetConnector):
     assets: AssetList | None = None
 
@@ -74,7 +73,6 @@ class FakeAssetConnector(AssetConnector):
         self._latest_time = "2023-10-01T00:00:00Z"
 
         yield from self.assets.items
-
 
 
 @pytest.fixture
@@ -380,7 +378,9 @@ def test_update_checkpoint(
 
     test_asset_connector.asset_fetch_cycle()
 
-    assert test_asset_connector.context["most_recent_date_seen"] == "2023-10-01T00:00:00Z"
+    assert (
+        test_asset_connector.context["most_recent_date_seen"] == "2023-10-01T00:00:00Z"
+    )
 
 
 def test_jsonify_device_asset(asset_object_1):

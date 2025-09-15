@@ -201,6 +201,9 @@ def sync_library(
 def update_sekoia_library(
     modules_path: Path = typer.Option(".", help="Path to the playbook modules"),
 ):
+    """
+    Update SDK and bump version
+    """
     SDKUpdater(modules_path=modules_path).update_sdk_version()
 
 
@@ -212,6 +215,9 @@ def run_action(
     class_name: str = typer.Option(..., help="Class name of the action to test"),
     args: list[str] = typer.Argument(None, help="Module/Action configuration fields"),
 ):
+    """
+    Run an Action locally
+    """
     kwargs = (
         {arg.split("=", maxsplit=1)[0]: arg.split("=", maxsplit=1)[1] for arg in args}
         if args

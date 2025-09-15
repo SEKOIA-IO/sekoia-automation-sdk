@@ -36,11 +36,27 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
 )
 
 
+class ContextDict(dict):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+
 class FakeAssetConnector(AssetConnector):
     assets: AssetList | None = None
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context = ContextDict({})
+
     def set_assets(self, assets: AssetList) -> None:
         self.assets = assets
+
+    def update_checkpoint(self):
+        with self.context as cache:
+            cache["most_recent_date_seen"] = self._latest_time
 
     def get_assets(
         self,
@@ -53,6 +69,8 @@ class FakeAssetConnector(AssetConnector):
 
         if self.assets is None:
             raise ValueError("Assets not set")
+
+        self._latest_time = "2023-10-01T00:00:00Z"
 
         yield from self.assets.items
 
@@ -285,19 +303,19 @@ def test_http_header(test_asset_connector):
 def test_handle_api_error(test_asset_connector):
     error_code = 400
     error_message = test_asset_connector.handle_api_error(error_code)
-    assert error_message == "Invalid request format"
+    assert error_message == "Client error - HTTP (400)"
 
     error_code = 401
     error_message = test_asset_connector.handle_api_error(error_code)
-    assert error_message == "Unauthorized access"
+    assert error_message == "Client error - HTTP (401)"
 
     error_code = 404
     error_message = test_asset_connector.handle_api_error(error_code)
-    assert error_message == "Connector not found"
+    assert error_message == "Client error - HTTP (404)"
 
     error_code = 500
     error_message = test_asset_connector.handle_api_error(error_code)
-    assert error_message == "An unknown error occurred"
+    assert error_message == "Server error - HTTP (500)"
 
 
 def test_post_assets_to_api_success(test_asset_connector, asset_list):
@@ -340,13 +358,29 @@ def test_asset_fetch_cycle(
     test_asset_connector.set_assets(
         AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
     )
-
     test_asset_connector.push_assets_to_sekoia = Mock()
     test_asset_connector.asset_fetch_cycle()
     test_asset_connector.push_assets_to_sekoia.assert_called_once()
 
     assert test_asset_connector.push_assets_to_sekoia.call_count == 1
     assert test_asset_connector.push_assets_to_sekoia.call_args[0][0] == asset_list
+
+
+def test_update_checkpoint(
+    test_asset_connector, asset_object_1, asset_object_2, asset_object_3, asset_list
+):
+    test_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
+    )
+    test_asset_connector._http_session.post = Mock(
+        return_value=Mock(status_code=200, json=lambda: {"result": "success"})
+    )
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert (
+        test_asset_connector.context["most_recent_date_seen"] == "2023-10-01T00:00:00Z"
+    )
 
 
 def test_jsonify_device_asset(asset_object_1):

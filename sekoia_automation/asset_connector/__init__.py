@@ -200,7 +200,8 @@ class AssetConnector(Trigger):
             body_excerpt = res.text or ""
 
             self.log(
-                message=f"Error while pushing assets to Sekoia.io - {error_message} : {body_excerpt}",
+                message="Error while pushing assets to Sekoia.io\ "
+                f"- {error_message} : {body_excerpt}",
                 level="error",
             )
             return None

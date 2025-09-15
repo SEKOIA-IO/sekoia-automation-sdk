@@ -197,12 +197,19 @@ class AssetConnector(Trigger):
 
         if res.status_code != 200:
             error_message = self.handle_api_error(res.status_code)
-            body_excerpt = res.text or ""
+            # In case the response body is empty or not a json
+            if res :
+                error_response = res.json()
+                error_message = error_response.get("message", "")
+                error_code = error_response.get("code", "")
+                body_message = f" - {error_code} : {error_message}"
+            else :
+                body_message = res.text or ""
 
             self.log(
                 message=(
                     "Error while pushing assets to Sekoia.io "
-                    f"- {error_message} : {body_excerpt}"
+                    f"- {error_message} : {body_message}"
                 ),
                 level="error",
             )

@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed duplicate trigger callback processing by implementing unique request_id
 
+## 1.20.1 - 2025-09-15
+
+### Fixed
+
+- Fix checkpoint updates
+- Improve error handling for asset connectors
+
 ## 1.20.0 - 2025-09-09
 
 ### Changed

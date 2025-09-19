@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Provide a request identifier when calling a trigger callback
+
 ### Fixed
-- Fixed duplicate trigger callback processing by implementing unique request_id
+
+- Updated new module template with correct dependencies
+- Added absent descriptions to CLI commands
 
 ## 1.20.1 - 2025-09-15
 

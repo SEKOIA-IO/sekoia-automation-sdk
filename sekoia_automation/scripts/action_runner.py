@@ -100,11 +100,11 @@ class ModuleItemRunner:
                 docker_param: str | None = None
                 if len(node.args) > 1 and isinstance(node.args[1], ast.Str):
                     # provided as positional arg
-                    docker_param = node.args[1].s
+                    docker_param = node.args[1].s  # type: ignore
 
                 elif len(node.keywords) > 0:
                     # provided as keyword arg
-                    docker_param = node.keywords[0].value.s
+                    docker_param = node.keywords[0].value.s  # type: ignore
 
                 module_item_to_docker_param[action_class] = docker_param
 

@@ -35,7 +35,7 @@ class FissionConfiguration(Configuration):
             return None
 
         # If the configuration is not found, raise an error
-        raise KeyError(f"{name} does not exists.")
+        raise KeyError(f"{name} does not exist.")
 
     def __hash__(self):
         return hash(frozenset(self.configurations.items()))

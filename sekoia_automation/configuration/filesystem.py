@@ -38,7 +38,7 @@ class FileSystemConfiguration(Configuration):
             return None
 
         # If the configuration is not found, raise an error
-        raise FileNotFoundError(f"{path} does not exists.")
+        raise FileNotFoundError(f"{path} does not exist.")
 
     def __hash__(self):
         return hash(self.VOLUME_PATH)

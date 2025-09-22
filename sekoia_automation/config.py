@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 VOLUME_PATH = "/symphony"
-TLS_VOLUME_PATH = "/tmp/tls"
 
 
 def _json_load(value: str):

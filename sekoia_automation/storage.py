@@ -10,7 +10,7 @@ from s3path import S3Path, register_configuration_parameter
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sekoia_automation import constants
-from sekoia_automation.config import TLS_VOLUME_PATH, load_config
+from sekoia_automation.config import load_config
 from sekoia_automation.utils import capture_retry_error, chunks
 
 FilePath = Path | str
@@ -71,7 +71,7 @@ def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None
         * client.key
         * ca.crt
     """
-    volume = Path(TLS_VOLUME_PATH)
+    volume = Path(constants.TLS_VOLUME_PATH)
     volume.mkdir(parents=True, exist_ok=True)
 
     ca_path = None

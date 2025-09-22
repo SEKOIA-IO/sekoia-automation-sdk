@@ -9,7 +9,7 @@ import pytest
 import requests_mock
 from faker import Faker
 
-from sekoia_automation import config
+from sekoia_automation.configuration import get_configuration
 from sekoia_automation import constants
 from sekoia_automation import storage as storage_module
 from sekoia_automation.module import Module
@@ -52,7 +52,12 @@ def mock_volume():
 
 
 @pytest.fixture
-def config_storage():
+def config():
+    return get_configuration()
+
+
+@pytest.fixture
+def config_storage(config):
     old_config_storage = config.VOLUME_PATH
     config.VOLUME_PATH = mkdtemp()
     storage_module.VOLUME_PATH = config.VOLUME_PATH

@@ -13,7 +13,7 @@ from botocore.exceptions import ClientError
 from pydantic.v1 import BaseModel
 from requests import RequestException, Response
 
-from sekoia_automation.config import load_config
+from sekoia_automation.configuration import get_configuration, Configuration
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
     ModuleConfigurationError,
@@ -56,6 +56,7 @@ class Module:
         self._trigger_configuration_uuid: str | None = None
         self._connector_configuration_uuid: str | None = None
         self._name = None
+        self._config = get_configuration()
         self.init_sentry()
 
     @property
@@ -266,7 +267,7 @@ class Module:
         return self._connector_configuration_uuid
 
     def load_config(self, file_name: str, type_: str = "str", non_exist_ok=False):
-        return load_config(file_name, type_, non_exist_ok=non_exist_ok)
+        return self._config.load(file_name, type_, non_exist_ok=non_exist_ok)
 
     def register(self, item: type["ModuleItem"], name: str = ""):
         if not item.name:

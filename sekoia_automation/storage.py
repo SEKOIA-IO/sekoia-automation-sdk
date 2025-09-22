@@ -55,7 +55,9 @@ def get_s3_data_path(configuration: Configuration | None = None) -> Path:
     return base_path
 
 
-def _get_tls_client_credentials(configuration: Configuration | None = None) -> tuple[Path | None, Path | None, Path | None]:
+def _get_tls_client_credentials(
+    configuration: Configuration | None = None,
+) -> tuple[Path | None, Path | None, Path | None]:
     """
     Get the TLS client credentials if set. It returns the path to:
         * The certificate authority certificate

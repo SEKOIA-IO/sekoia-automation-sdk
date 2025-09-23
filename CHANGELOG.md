@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.20.3a1 - 2025-09-23
+
+### Added
+
+- Add support for Fission-based runtime configuration
+
+### Changed
+
+- Introduce a unified configuration abstraction
+
 ## 1.20.2 - 2025-09-19
 
 ### Added

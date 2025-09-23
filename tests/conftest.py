@@ -9,7 +9,8 @@ import pytest
 import requests_mock
 from faker import Faker
 
-from sekoia_automation import config
+from sekoia_automation.configuration import get_configuration
+from sekoia_automation import constants
 from sekoia_automation import storage as storage_module
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
@@ -51,7 +52,12 @@ def mock_volume():
 
 
 @pytest.fixture
-def config_storage():
+def config():
+    return get_configuration()
+
+
+@pytest.fixture
+def config_storage(config):
     old_config_storage = config.VOLUME_PATH
     config.VOLUME_PATH = mkdtemp()
     storage_module.VOLUME_PATH = config.VOLUME_PATH
@@ -64,14 +70,14 @@ def config_storage():
 
 @pytest.fixture
 def tls_storage():
-    old_tls_storage = config.TLS_VOLUME_PATH
-    config.TLS_VOLUME_PATH = mkdtemp()
-    storage_module.TLS_VOLUME_PATH = config.TLS_VOLUME_PATH
+    old_tls_storage = constants.TLS_VOLUME_PATH
+    constants.TLS_VOLUME_PATH = mkdtemp()
+    storage_module.TLS_VOLUME_PATH = constants.TLS_VOLUME_PATH
 
-    yield Path(config.TLS_VOLUME_PATH)
+    yield Path(constants.TLS_VOLUME_PATH)
 
-    rmtree(config.TLS_VOLUME_PATH)
-    config.TLS_VOLUME_PATH = old_tls_storage
+    rmtree(constants.TLS_VOLUME_PATH)
+    constants.TLS_VOLUME_PATH = old_tls_storage
 
 
 @pytest.fixture

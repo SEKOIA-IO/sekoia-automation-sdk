@@ -25,10 +25,7 @@ class FileSystemConfiguration(Configuration):
         path = Path(f"{self.VOLUME_PATH}/{name}")
         if path.is_file():
             with path.open("r") as fd:
-                if type_ == "json":
-                    return json.load(fd)
-                return fd.read()
-
+                return json.load(fd) if type_ == "json" else fd.read()
         # Then try to load from environment variables
         if value := os.environ.get(name.upper()):
             return json_load(value) if type_ == "json" else value

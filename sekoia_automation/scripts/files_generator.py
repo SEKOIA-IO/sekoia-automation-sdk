@@ -47,7 +47,6 @@ class FilesGenerator:
                 elif issubclass(obj, Module) and obj != Module:
                     modules.add(obj)
 
-
     def execute(self):
         # Make sure we are in a module directory by verifying that there is a manifest
         if not self.manifest_path.is_file():

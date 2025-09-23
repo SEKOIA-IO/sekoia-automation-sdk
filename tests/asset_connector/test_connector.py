@@ -249,7 +249,7 @@ def asset_list(asset_object_1, asset_object_2, asset_object_3):
 
 
 @pytest.mark.skipif(
-    "{'ASSET_CONNECTOR_BATCH_SIZE'}" ".issubset(os.environ.keys()) == False"
+    "{'ASSET_CONNECTOR_BATCH_SIZE'}.issubset(os.environ.keys()) == False"
 )
 def test_batch_size_env_var_exist(test_asset_connector):
     connector_batch_size = test_asset_connector.batch_size
@@ -262,7 +262,7 @@ def test_batch_size_env_var_not_exist(test_asset_connector):
 
 
 @pytest.mark.skipif(
-    "{'ASSET_CONNECTOR_PRODUCTION_BASE_URL'}" ".issubset(os.environ.keys()) == False"
+    "{'ASSET_CONNECTOR_PRODUCTION_BASE_URL'}.issubset(os.environ.keys()) == False"
 )
 def test_base_url_env_var_exist(test_asset_connector):
     connector_base_url = test_asset_connector.production_base_url
@@ -275,7 +275,7 @@ def test_base_url_env_var_not_exist(test_asset_connector):
 
 
 @pytest.mark.skipif(
-    "{'ASSET_CONNECTOR_FREQUENCY'}" ".issubset(os.environ.keys()) == False"
+    "{'ASSET_CONNECTOR_FREQUENCY'}.issubset(os.environ.keys()) == False"
 )
 def test_frequency_env_var_exist(test_asset_connector):
     connector_frequency = test_asset_connector.frequency

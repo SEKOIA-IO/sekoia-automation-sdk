@@ -25,8 +25,8 @@ class SBOMTypeStr(StrEnum):
 class ComponentTypeId(IntEnum):
     UNKNOWN = 0
     FRAMEWORK = 1
-    LIBRARY= 2
-    OPERATINGSYSTEM= 3
+    LIBRARY = 2
+    OPERATINGSYSTEM = 3
     OTHER = 99
 
 
@@ -41,7 +41,7 @@ class ComponentTypeStr(StrEnum):
 class PackageTypeId(IntEnum):
     UNKNOWN = 0
     APPLICATION = 1
-    OPERATINGSYSTEM= 2
+    OPERATINGSYSTEM = 2
     OTHER = 99
 
 

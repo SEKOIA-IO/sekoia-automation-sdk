@@ -62,17 +62,17 @@ class SyncLibrary:
         """
         tab = "\t"
         if created:
-            print(f"[green]{tab*nb_tabs}Created: {', '.join(created)}[/green]")
+            print(f"[green]{tab * nb_tabs}Created: {', '.join(created)}[/green]")
         if updated:
-            print(f"[green]{tab*nb_tabs}Updated: {', '.join(updated)}[/green]")
+            print(f"[green]{tab * nb_tabs}Updated: {', '.join(updated)}[/green]")
         if up_to_date:
             print(
-                f"[green]{tab*nb_tabs}Already Up-To-Date: \
+                f"[green]{tab * nb_tabs}Already Up-To-Date: \
 {', '.join(up_to_date)}[/green]"
             )
         if errors:
             err: str = "Error" if len(errors) == 1 else "Errors"
-            print(f"[red]{tab*nb_tabs}{err}: {', '.join(errors)}[/red]")
+            print(f"[red]{tab * nb_tabs}{err}: {', '.join(errors)}[/red]")
 
     def sync_list(
         self, module_name: str, module_uuid: str, list_objects: list, name: str

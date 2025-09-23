@@ -121,8 +121,7 @@ def get_data_path(configuration: Configuration | None = None) -> Path:
     else:
         path = get_s3_data_path()
 
-    sub_folder = configuration.load("sub_folder", non_exist_ok=True)
-    if sub_folder:
+    if sub_folder := configuration.load("sub_folder", non_exist_ok=True):
         path = path / sub_folder
     return path
 

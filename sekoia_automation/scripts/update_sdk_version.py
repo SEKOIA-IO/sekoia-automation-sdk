@@ -55,7 +55,7 @@ class SDKUpdater:
         if r.returncode != 0:
             error = r.stderr.decode() if r.stderr else "Unknown error"
             print(
-                f"  [bold red][!] Error while updating the project SDK.Error : {error}"
+                f"  [bold red][!] Error while updating the project SDK. Error : {error}"
             )
             return error
         return None

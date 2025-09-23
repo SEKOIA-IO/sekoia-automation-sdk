@@ -105,7 +105,7 @@ class DocumentationGenerator:
             setup=setup,
         )
 
-        module_doc_filename = f'{slugify(module_manifest["name"])}.md'
+        module_doc_filename = f"{slugify(module_manifest['name'])}.md"
 
         module_doc_path = (
             self.documentation_path
@@ -127,7 +127,7 @@ class DocumentationGenerator:
         for ext in ["png", "svg"]:
             module_logo_path = module_path / f"logo.{ext}"
             if module_logo_path.exists():
-                module_logo_filename = f'{slugify(module_manifest["name"])}.{ext}'
+                module_logo_filename = f"{slugify(module_manifest['name'])}.{ext}"
                 copyfile(
                     module_logo_path,
                     (

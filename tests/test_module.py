@@ -41,6 +41,24 @@ def test_command():
         assert module.command == "bar"
 
 
+@pytest.fixture
+def app():
+    from flask import Flask
+
+    app = Flask(__name__)
+    return app
+
+
+def test_command_for_fission(app, monkeypatch):
+    module = Module()
+    # Set SYMPHONY_RUNTIME to "Fission"
+    monkeypatch.setenv("SYMPHONY_RUNTIME", "Fission")
+
+    # Use a test request context to simulate a Flask request
+    with app.test_request_context("/", headers={"command": "some_command"}):
+        assert module.command == "some_command"
+
+
 def test_no_command():
     module = Module()
 

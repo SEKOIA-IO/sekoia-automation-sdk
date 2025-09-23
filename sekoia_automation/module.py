@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sys
 import time
 from abc import ABC, abstractmethod
@@ -10,10 +11,11 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
+from flask import request
 from pydantic.v1 import BaseModel
 from requests import RequestException, Response
 
-from sekoia_automation.configuration import get_configuration, Configuration
+from sekoia_automation.configuration import get_configuration
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
     ModuleConfigurationError,
@@ -61,8 +63,12 @@ class Module:
 
     @property
     def command(self) -> str | None:
-        if not self._command and len(sys.argv) >= 2:
-            self._command = sys.argv[1]
+        if not self._command:
+            runtime = os.environ.get("SYMPHONY_RUNTIME")
+            if runtime is not None and runtime.lower() == "fission":
+                self._command = request.headers.get("command")
+            elif len(sys.argv) >= 2:
+                self._command = sys.argv[1]
 
         return self._command
 

@@ -59,6 +59,7 @@ class Module:
         self._connector_configuration_uuid: str | None = None
         self._name = None
         self._config = get_configuration()
+        self._working_directory = Path.cwd()
         self.init_sentry()
 
     @property
@@ -72,11 +73,22 @@ class Module:
 
         return self._command
 
+    def set_working_directory(self, path: Path) -> None:
+        """Set the working directory for the module.
+
+        This is used to load configuration files from a specific directory.
+
+        :param path: Path to set as working directory
+        :type path: Path
+        """
+        self._working_directory = path
+
     @property
     def manifest(self):
         if self._manifest is None:
             try:
-                with open("manifest.json") as fp:
+                manifest_path = self._working_directory / "manifest.json"
+                with manifest_path.open() as fp:
                     self._manifest = json.load(fp)
             except FileNotFoundError:
                 self._manifest = {}

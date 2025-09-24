@@ -65,7 +65,6 @@ class Action(ModuleItem):
         self._result_as_file = True
         self._update_secrets = False
         logging.getLogger().addHandler(ActionLogHandler(self))
-        logging.basicConfig(level=logging.DEBUG)
 
         # Make sure arguments are validated/coerced by pydantic.v1
         # if a type annotation is defined

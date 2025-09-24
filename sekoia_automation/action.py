@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from abc import abstractmethod
 from datetime import datetime
@@ -64,6 +65,7 @@ class Action(ModuleItem):
         self._result_as_file = True
         self._update_secrets = False
         logging.getLogger().addHandler(ActionLogHandler(self))
+        logging.basicConfig(level=logging.DEBUG)
 
         # Make sure arguments are validated/coerced by pydantic.v1
         # if a type annotation is defined
@@ -234,6 +236,7 @@ class Action(ModuleItem):
         if self.module.has_secrets():
             data["need_secrets"] = True
             response = self._send_request(data, verb="PATCH")
+            logging.debug(f"Response from setting task as running: {response.text}")
             secrets = {
                 k: v
                 for k, v in response.json()["module_configuration"]["value"].items()
@@ -385,6 +388,27 @@ class GenericAPIAction(Action):
         params = self.get_query_parameters(arguments)
         body = self.get_body(arguments)
 
+        local_directory = os.getcwd()
+        logging.debug(f"Current working directory: {local_directory}")
+        files = [
+            f.path
+            for f in os.scandir(local_directory)
+            if f.is_file() and not f.name.startswith(".")
+        ]
+        logging.debug(f"Files in the current working directory: {files}")
+        logging.debug(
+            "Module configuration:" f"\n- {self.module.configuration}"
+        )
+
+        logging.debug(
+            "Prepared request:"
+            f"\n- URL: {url}"
+            f"\n- VERB: {self.verb}"
+            f"\n- HEADERS: {headers}"
+            f"\n- PARAMS: {params}"
+            f"\n- BODY: {body if body else None}"
+        )
+
         try:
             for attempt in Retrying(
                 stop=stop_after_attempt(10),
@@ -399,6 +423,12 @@ class GenericAPIAction(Action):
                         headers=headers,
                         timeout=self.timeout,
                         params=params,
+                    )
+                    logging.debug(
+                        "Response: "
+                        f"\n- STATUS: {response.status_code}"
+                        f"\n- HEADERS: {response.headers}"
+                        f"\n- BODY: {response.text}"
                     )
                     if not response.ok:
                         if (

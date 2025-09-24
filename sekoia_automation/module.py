@@ -363,7 +363,7 @@ class ModuleItem(ABC):
         logging.basicConfig(
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.INFO,
+            level=logging.DEBUG,
         )
         self._logger = logging.getLogger(self.name)
         sentry_sdk.set_tag("name", self.name)

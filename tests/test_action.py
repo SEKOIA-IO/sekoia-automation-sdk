@@ -452,7 +452,7 @@ def test_generic_api_action(storage):
         action.run(arguments)
         assert mock.request_history[0].qs == {"key": ["api_key"]}
 
-    # API key definied without authentication method, should be backward compatible
+    # API key defined without authentication method, should be backward compatible
     action = init_action()
     action.module.configuration["api_key"] = "api_key"
     arguments = {"uuid": 10}

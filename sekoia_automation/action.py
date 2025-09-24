@@ -289,8 +289,14 @@ class GenericAPIAction(Action):
         """
         Set the authentication header based on the authentication method.
         """
-        # If no authentication method is set, do nothing
+        # If no authentication method is set
         if not self.authentication:
+            # If an API key is set in the configuration, use it as a
+            # Bearer token (backward compatibility)
+            if api_key := self.module.configuration.get("api_key"):
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            # Do nothing more
             return
 
         match self.authentication.lower():

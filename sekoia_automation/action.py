@@ -293,7 +293,9 @@ class GenericAPIAction(Action):
         if not self.authentication:
             # If an API key is set in the configuration, use it as a
             # Bearer token (backward compatibility)
-            if api_key := self.module.configuration.get("api_key"):
+            if self.module.configuration and (
+                api_key := self.module.configuration.get("api_key")
+            ):
                 headers["Authorization"] = f"Bearer {api_key}"
 
             # Do nothing more
@@ -411,9 +413,7 @@ class GenericAPIAction(Action):
             if f.is_file() and not f.name.startswith(".")
         ]
         logging.debug(f"Files in the current working directory: {files}")
-        logging.debug(
-            "Module configuration:" f"\n- {self.module.configuration}"
-        )
+        logging.debug("Module configuration:" f"\n- {self.module.configuration}")
 
         logging.debug(
             "Prepared request:"

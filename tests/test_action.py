@@ -411,7 +411,7 @@ def test_generic_api_action(storage):
 
     # Basic auth
     action = init_action()
-    action.authentication = "basic"
+    action.authentication = "baSic"
     action.module.configuration["username"] = "user"
     action.module.configuration["password"] = "pass"
     arguments = {"uuid": 10}
@@ -422,7 +422,7 @@ def test_generic_api_action(storage):
 
     # API Key
     action = init_action()
-    action.authentication = "apiKey"
+    action.authentication = "aPiKey"
     action.auth_header = "X-API-Key"
     action.module.configuration["api_key"] = "api_key"
     arguments = {"uuid": 10}
@@ -433,7 +433,7 @@ def test_generic_api_action(storage):
 
     # Bearer Token
     action = init_action()
-    action.authentication = "bearer"
+    action.authentication = "Bearer"
     action.module.configuration["api_key"] = "api_key"
     arguments = {"uuid": 10}
     with requests_mock.Mocker() as mock:

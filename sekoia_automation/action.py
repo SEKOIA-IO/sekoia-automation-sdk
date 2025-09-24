@@ -286,13 +286,20 @@ class GenericAPIAction(Action):
     auth_query_param: str | None = None
 
     def __set_authentication_header(self, headers: dict):
-        match self.authentication:
+        """
+        Set the authentication header based on the authentication method.
+        """
+        # If no authentication method is set, do nothing
+        if not self.authentication:
+            return
+
+        match self.authentication.lower():
             case "basic":
                 headers[self.auth_header or "Authorization"] = BasicAuth(
                     login=self._module_configuration_value("username"),
                     password=self._module_configuration_value("password"),
                 ).encode()
-            case "apiKey":
+            case "apikey":
                 # API keys can be passed as headers or query parameters
                 if self.auth_header:
                     headers[self.auth_header] = self._module_configuration_value(

@@ -411,7 +411,7 @@ def test_generic_api_action(storage):
 
     # Basic auth
     action = init_action()
-    action.authentication = "basic"
+    action.authentication = "baSic"
     action.module.configuration["username"] = "user"
     action.module.configuration["password"] = "pass"
     arguments = {"uuid": 10}
@@ -422,7 +422,7 @@ def test_generic_api_action(storage):
 
     # API Key
     action = init_action()
-    action.authentication = "apiKey"
+    action.authentication = "aPiKey"
     action.auth_header = "X-API-Key"
     action.module.configuration["api_key"] = "api_key"
     arguments = {"uuid": 10}
@@ -433,7 +433,7 @@ def test_generic_api_action(storage):
 
     # Bearer Token
     action = init_action()
-    action.authentication = "bearer"
+    action.authentication = "Bearer"
     action.module.configuration["api_key"] = "api_key"
     arguments = {"uuid": 10}
     with requests_mock.Mocker() as mock:
@@ -451,6 +451,15 @@ def test_generic_api_action(storage):
         mock.get("http://base_url/resource/10/count", json=expected_response)
         action.run(arguments)
         assert mock.request_history[0].qs == {"key": ["api_key"]}
+
+    # API key defined without authentication method, should be backward compatible
+    action = init_action()
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
 
 
 def test_action_with_arguments_model():

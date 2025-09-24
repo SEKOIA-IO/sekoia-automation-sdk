@@ -5,15 +5,6 @@ from sekoia_automation.configuration.filesystem import FileSystemConfiguration
 from sekoia_automation.configuration.fission import FissionConfiguration
 
 
-@pytest.fixture(autouse=True)
-def clear_lru_cache():
-    # Execute the test...
-    yield
-
-    # ...then clear the LRU cache.
-    get_configuration.cache_clear()
-
-
 @pytest.fixture
 def app():
     from flask import Flask

@@ -285,15 +285,29 @@ class GenericAPIAction(Action):
     auth_header: str | None = None
     auth_query_param: str | None = None
 
-    def get_headers(self):
-        headers = {"Accept": "application/json"}
-        match self.authentication:
+    def __set_authentication_header(self, headers: dict):
+        """
+        Set the authentication header based on the authentication method.
+        """
+        # If no authentication method is set
+        if not self.authentication:
+            # If an API key is set in the configuration, use it as a
+            # Bearer token (backward compatibility)
+            if self.module.configuration and (
+                api_key := self.module.configuration.get("api_key")
+            ):
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            # Do nothing more
+            return
+
+        match self.authentication.lower():
             case "basic":
                 headers[self.auth_header or "Authorization"] = BasicAuth(
                     login=self._module_configuration_value("username"),
                     password=self._module_configuration_value("password"),
                 ).encode()
-            case "apiKey":
+            case "apikey":
                 # API keys can be passed as headers or query parameters
                 if self.auth_header:
                     headers[self.auth_header] = self._module_configuration_value(
@@ -303,6 +317,10 @@ class GenericAPIAction(Action):
                 headers[self.auth_header or "Authorization"] = (
                     f"Bearer {self._module_configuration_value('api_key')}"
                 )
+
+    def get_headers(self):
+        headers = {"Accept": "application/json"}
+        self.__set_authentication_header(headers)
         return headers
 
     def get_url(self, arguments) -> str:
@@ -395,9 +413,7 @@ class GenericAPIAction(Action):
             if f.is_file() and not f.name.startswith(".")
         ]
         logging.debug(f"Files in the current working directory: {files}")
-        logging.debug(
-            "Module configuration:" f"\n- {self.module.configuration}"
-        )
+        logging.debug("Module configuration:" f"\n- {self.module.configuration}")
 
         logging.debug(
             "Prepared request:"

@@ -285,8 +285,7 @@ class GenericAPIAction(Action):
     auth_header: str | None = None
     auth_query_param: str | None = None
 
-    def get_headers(self):
-        headers = {"Accept": "application/json"}
+    def __set_authentication_header(self, headers: dict):
         match self.authentication:
             case "basic":
                 headers[self.auth_header or "Authorization"] = BasicAuth(
@@ -303,6 +302,10 @@ class GenericAPIAction(Action):
                 headers[self.auth_header or "Authorization"] = (
                     f"Bearer {self._module_configuration_value('api_key')}"
                 )
+
+    def get_headers(self):
+        headers = {"Accept": "application/json"}
+        self.__set_authentication_header(headers)
         return headers
 
     def get_url(self, arguments) -> str:

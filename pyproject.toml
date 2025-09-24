@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.20.3a4"
+version = "1.20.3a5"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"

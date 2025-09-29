@@ -258,7 +258,7 @@ def test_batch_size_env_var_exist(test_asset_connector):
 
 def test_batch_size_env_var_not_exist(test_asset_connector):
     connector_batch_size = test_asset_connector.batch_size
-    assert connector_batch_size == 1000
+    assert connector_batch_size == 100
 
 
 @pytest.mark.skipif(
@@ -284,7 +284,7 @@ def test_frequency_env_var_exist(test_asset_connector):
 
 def test_frequency_env_var_not_exist(test_asset_connector):
     connector_frequency = test_asset_connector.frequency
-    assert connector_frequency == 60
+    assert connector_frequency == 1200
 
 
 def test_http_header(test_asset_connector):

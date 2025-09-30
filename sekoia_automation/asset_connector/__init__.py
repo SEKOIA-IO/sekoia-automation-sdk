@@ -27,7 +27,6 @@ class AssetConnector(Trigger):
 
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
-    ASSET_BATCH_SIZE = 1000
     OCSF_SCHEMA_VERSION = 1
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
@@ -90,7 +89,9 @@ class AssetConnector(Trigger):
         Returns:
             int: Batch size
         """
-        return int(os.getenv("ASSET_CONNECTOR_BATCH_SIZE", self.ASSET_BATCH_SIZE))
+        if batch := os.getenv("ASSET_CONNECTOR_BATCH_SIZE"):
+            return int(batch)
+        return self.configuration.batch_size
 
     @property
     def production_base_url(self) -> str:
@@ -177,6 +178,7 @@ class AssetConnector(Trigger):
 
         # Serialize the assets to a dictionary
         assets_object_to_dict = assets.model_dump()
+        asset_items = assets_object_to_dict.get("items", [])
 
         request_body = assets_object_to_dict
 
@@ -218,7 +220,7 @@ class AssetConnector(Trigger):
         self.update_checkpoint()
 
         self.log(
-            message=rf"Successfully posted {len(assets_object_to_dict)} assets\ "
+            message=rf"Successfully posted {len(asset_items)} assets\ "
             f"to Sekoia.io asset connector API",
             level="info",
         )

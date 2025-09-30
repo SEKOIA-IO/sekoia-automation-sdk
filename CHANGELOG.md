@@ -7,18 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
-
-- Update frequency and batch size configuration parameters
-- Improve sending assets log
-
-### Fixed
-
-- Check an API key is provided in the configuration, and add it to the Authorization header,
-  when no authentication method is set in an action
-
-## 1.20.3a1 - 2025-09-23
-
 ### Added
 
 - Add support for Fission-based runtime configuration
@@ -26,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Introduce a unified configuration abstraction
+- Update frequency and batch size configuration parameters
+- Improve sending assets log
+
+### Fixed
+
+- Check an API key is provided in the configuration, and add it to the Authorization header,
+  when no authentication method is set in an action
 
 ## 1.20.2 - 2025-09-19
 

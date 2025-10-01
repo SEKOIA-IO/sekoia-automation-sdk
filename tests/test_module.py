@@ -73,6 +73,18 @@ class DummyTrigger(Trigger):
     def run(self):
         raise NotImplementedError
 
+def test_find_command(mock):
+    module = Module()
+
+    module.register(DummyTrigger, "some_command/{some_param}")
+
+    with patch("sys.argv", ["run", "some_command1/{some_param}"]):
+        with pytest.raises(CommandNotFoundError):
+            module.run()
+
+    with patch("sys.argv", ["run", "some_command/{other_param}"]):
+        module.run()
+        mock.assert_called_with()
 
 def test_register_no_command():
     module = Module()

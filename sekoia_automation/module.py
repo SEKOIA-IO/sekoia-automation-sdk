@@ -1,12 +1,13 @@
 import json
 import logging
 import os
+import re
 import sys
 import time
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast, Optional
 
 import requests
 import sentry_sdk
@@ -295,20 +296,33 @@ class Module:
     def register_account_validator(self, validator: type["AccountValidator"]):
         self.register(validator, "validate_module_configuration")
 
+    # Match `{anything}` where "anything" doesn't include `/` or `}`
+    _PARAM_REG_EXP = re.compile(r"\{[^/}]+\}")
+    def _find_command(self, command: str) -> Optional["ModuleItem"]:
+        normalized_command = self._PARAM_REG_EXP.sub("{}", command)
+        all_normalized_commands: dict[str, str] = {
+            self._PARAM_REG_EXP.sub("{}", cmd) : cmd
+            for cmd in self._items.keys()
+        }
+
+        correct_key = all_normalized_commands.get(normalized_command)
+        if correct_key:
+            return self._items[correct_key](self)
+
+        return None
+
     def run(self):
         command = self.command or ""
-
-        if command in self._items:
-            to_run = self._items[command](self)
-            try:
-                to_run.start_monitoring()
-                to_run.execute()
-            finally:
-                to_run.stop_monitoring()
-        else:
+        to_run = self._find_command(command)
+        if to_run is None:
             error = f"Could not find any Action or Trigger matching command '{command}'"
             sentry_sdk.capture_message(error, "error")
             raise CommandNotFoundError(error)
+        try:
+            to_run.start_monitoring()
+            to_run.execute()
+        finally:
+            to_run.stop_monitoring()
 
     def init_sentry(self):
         sentry_dsn = self._load_sentry_dsn()

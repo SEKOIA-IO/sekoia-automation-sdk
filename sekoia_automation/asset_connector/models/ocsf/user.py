@@ -2,6 +2,7 @@ from enum import IntEnum, StrEnum
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
+from sekoia_automation.asset_connector.models.ocsf.group import Group
 
 
 class UserDataObject(BaseModel):
@@ -24,19 +25,6 @@ class UserEnrichmentObject(BaseModel):
     name: str
     value: str
     data: UserDataObject
-
-
-class Group(BaseModel):
-    """
-    Group model represents a user group.
-    https://schema.ocsf.io/1.5.0/objects/group
-    """
-
-    name: str
-    desc: str | None = None
-    privileges: list[str] | None = None
-    uid: str | None = None
-
 
 class AccountTypeId(IntEnum):
     UNKNOWN = 0

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class Group(BaseModel):
     """
     Group model represents a user group.

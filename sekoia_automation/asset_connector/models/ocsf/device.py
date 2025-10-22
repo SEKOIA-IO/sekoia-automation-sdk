@@ -1,10 +1,14 @@
-from enum import StrEnum, IntEnum
+from enum import IntEnum, StrEnum
 from typing import Literal
 
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 from sekoia_automation.asset_connector.models.ocsf.group import Group
+from sekoia_automation.asset_connector.models.ocsf.risk_level import (
+    RiskLevelId,
+    RiskLevelStr,
+)
 
 
 class NetworkInterface(BaseModel):
@@ -14,12 +18,13 @@ class NetworkInterface(BaseModel):
     """
 
     hostname: str | None = None
-    ip : str | None = None
+    ip: str | None = None
     mac: str | None = None
     name: str | None = None
     type: str | None = None
     type_id: int | None = None
     uid: str | None = None
+
 
 class GeoLocation(BaseModel):
     """
@@ -111,21 +116,6 @@ class DeviceTypeStr(StrEnum):
     LOAD_BALANCER = "Load Balancer"
     OTHER = "Other"
 
-class RiskLevelId(IntEnum):
-    INFO = 0
-    LOW = 1
-    MEDIUM = 2
-    HIGH = 3
-    CRITICAL = 4
-    OTHER = 99
-
-class RiskLevelStr(StrEnum):
-    INFO = "Info"
-    LOW = "Low"
-    MEDIUM = "Medium"
-    HIGH = "High"
-    CRITICAL = "Critical"
-    OTHER = "Other"
 
 class Device(BaseModel):
     """
@@ -148,12 +138,12 @@ class Device(BaseModel):
     eid: str | None = None
     first_seen_time: str | None = None
     groups: list[Group] | None = None
-    hypervisor : str | None = None
+    hypervisor: str | None = None
     iccid: str | None = None
     imeis: list[str] | None = None
-    ip : str | None = None
+    ip: str | None = None
     is_backed_up: bool | None = None
-    is_compliant:  bool | None = None
+    is_compliant: bool | None = None
     is_managed: bool | None = None
     is_mobile_account_active: bool | None = None
     is_personal: bool | None = None
@@ -162,10 +152,10 @@ class Device(BaseModel):
     is_trusted: bool | None = None
     last_seen_time: str | None = None
     meid: str | None = None
-    model : str | None = None
-    name : str | None = None
+    model: str | None = None
+    name: str | None = None
     network_interfaces: list[NetworkInterface] | None = None
-    os_machine_uuid : str | None = None
+    os_machine_uuid: str | None = None
     region: str | None = None
     risk_level: RiskLevelStr | None = None
     risk_level_id: RiskLevelId | None = None
@@ -174,6 +164,7 @@ class Device(BaseModel):
     udid: str | None = None
     uid_alt: str | None = None
     vendor_name: str | None = None
+
 
 class EncryptionObject(BaseModel):
     partitions: dict[str, Literal["Disabled", "Enabled"]]

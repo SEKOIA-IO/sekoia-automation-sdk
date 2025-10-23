@@ -10,6 +10,22 @@ from sekoia_automation.asset_connector.models.ocsf.risk_level import (
     RiskLevelStr,
 )
 
+class NetworkInterfaceTypeId(IntEnum):
+    UNKNOWN = 0
+    WIRED = 1
+    WIRELESS = 2
+    MOBILE = 3
+    TUNNEL = 4
+    OTHER = 99
+
+class NetworkInterfaceTypeStr(StrEnum):
+    UNKNOWN = "Unknown"
+    WIRED = "Wired"
+    WIRELESS = "Wireless"
+    MOBILE = "Mobile"
+    TUNNEL = "Tunnel"
+    OTHER = "Other"
+
 
 class NetworkInterface(BaseModel):
     """
@@ -21,8 +37,8 @@ class NetworkInterface(BaseModel):
     ip: str | None = None
     mac: str | None = None
     name: str | None = None
-    type: str | None = None
-    type_id: int | None = None
+    type: NetworkInterfaceTypeStr | None = None
+    type_id: NetworkInterfaceTypeId | None = None
     uid: str | None = None
 
 
@@ -132,15 +148,15 @@ class Device(BaseModel):
     autoscale_uid: str | None = None
     boot_time: str | None = None
     boot_uid: str | None = None
-    created_time: str | None = None
-    description: str | None = None
+    created_time: float | None = None
+    desc: str | None = None
     domain: str | None = None
     eid: str | None = None
-    first_seen_time: str | None = None
+    first_seen_time: float | None = None
     groups: list[Group] | None = None
     hypervisor: str | None = None
     iccid: str | None = None
-    imeis: list[str] | None = None
+    imei_list: list[str] | None = None
     ip: str | None = None
     is_backed_up: bool | None = None
     is_compliant: bool | None = None
@@ -150,7 +166,7 @@ class Device(BaseModel):
     is_shared: bool | None = None
     is_supervised: bool | None = None
     is_trusted: bool | None = None
-    last_seen_time: str | None = None
+    last_seen_time: float | None = None
     meid: str | None = None
     model: str | None = None
     name: str | None = None

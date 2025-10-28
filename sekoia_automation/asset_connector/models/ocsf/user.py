@@ -1,7 +1,13 @@
 from enum import IntEnum, StrEnum
+
 from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
+from sekoia_automation.asset_connector.models.ocsf.group import Group
+from sekoia_automation.asset_connector.models.ocsf.risk_level import (
+    RiskLevelId,
+    RiskLevelStr,
+)
 
 
 class UserDataObject(BaseModel):
@@ -24,18 +30,6 @@ class UserEnrichmentObject(BaseModel):
     name: str
     value: str
     data: UserDataObject
-
-
-class Group(BaseModel):
-    """
-    Group model represents a user group.
-    https://schema.ocsf.io/1.5.0/objects/group
-    """
-
-    name: str
-    desc: str | None = None
-    privileges: list[str] | None = None
-    uid: str | None = None
 
 
 class AccountTypeId(IntEnum):
@@ -80,6 +74,24 @@ class AccountTypeStr(StrEnum):
     OTHER = "Other"
 
 
+class UserTypeId(IntEnum):
+    UNKNOWN = 0
+    USER = 1
+    ADMIN = 2
+    SYSTEM = 3
+    SERVICE = 4
+    OTHER = 99
+
+
+class UserTypeStr(StrEnum):
+    UNKNOWN = "Unknown"
+    USER = "User"
+    ADMIN = "Admin"
+    SYSTEM = "System"
+    SERVICE = "Service"
+    OTHER = "Other"
+
+
 class Account(BaseModel):
     """
     Account model represents a user account.
@@ -100,6 +112,15 @@ class User(BaseModel):
     groups: list[Group] | None = None
     full_name: str | None = None
     email_addr: str | None = None
+    display_name: str | None = None
+    domain: str | None = None
+    forward_addr: str | None = None
+    risk_level: RiskLevelStr | None = None
+    risk_level_id: RiskLevelId | None = None
+    risk_score: int | None = None
+    type_id: UserTypeId | None = None
+    type: UserTypeStr | None = None
+    uid_alt: str | None = None
 
 
 class UserOCSFModel(OCSFBaseModel):

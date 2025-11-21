@@ -14,7 +14,7 @@ from typing import Any
 
 import requests
 import typer
-from rich import print
+from rich import print  # noqa: A004
 
 
 class SyncLibrary:
@@ -104,17 +104,18 @@ class SyncLibrary:
             elif response.status_code == 404:
                 data: dict = obj.copy()
                 data.update({"module_uuid": module_uuid})
-                r = requests.post(
+                res = requests.post(
                     urljoin(self.playbook_url, f"{name}s"),
                     json=data,
                     headers=self.headers,
                 )
-                if r.status_code == 200:
-                    created.append(f"{obj_name}")
-                else:
+                if not res.ok:
                     errors.append(
-                        f"{{{obj_name}: {response.status_code} - {response.text}}}"
+                        f"{{Cannot create '{obj_name}': {response.status_code} "
+                        "- {response.text}}}"
                     )
+                else:
+                    created.append(f"{obj_name}")
 
             else:
                 content: dict = response.json()
@@ -133,17 +134,18 @@ class SyncLibrary:
                     up_to_date.append(f"{obj_name}")
 
                 else:
-                    r = requests.patch(
+                    res = requests.patch(
                         urljoin(self.playbook_url, f"{name}s", obj_uuid),
                         json=obj,
                         headers=self.headers,
                     )
-                    if r.status_code == 200:
-                        updated.append(f"{obj_name}")
-                    else:
+                    if not res.ok:
                         errors.append(
-                            f"{{{obj_name}: {response.status_code} - {response.text}}}"
+                            f"{{Cannot update '{obj_name}': {response.status_code} "
+                            "- {response.text}}}"
                         )
+                    else:
+                        updated.append(f"{obj_name}")
 
         print(f"\t{module_name}/{name}")
         self.pprint(

@@ -22,5 +22,7 @@
         "title": "Results",
         "type": "object"
     },
-    "uuid": "667f7e89-d907-4086-a578-a2324c9a277a"
+    "uuid": "667f7e89-d907-4086-a578-a2324c9a277a",
+    "slug": "slug-connector-test",
+    "type": "asset"
 }

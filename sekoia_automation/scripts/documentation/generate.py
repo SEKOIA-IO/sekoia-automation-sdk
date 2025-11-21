@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copyfile
@@ -16,11 +17,10 @@ from slugify import slugify
 class DocumentationModule:
     name: str
     file_name: str
+    categories: list[str]
 
 
 class DocumentationGenerator:
-    MKDOCS_SUB_NAV = "Features/Automate/Actions Library"
-
     @property
     def modules_paths(self):
         """
@@ -52,6 +52,12 @@ class DocumentationGenerator:
         with (module_path / "manifest.json").open("rb") as fd:
             module_manifest = json.load(fd)
 
+        # Load connectors uuids
+        connector_uuids = set()
+        for connector_file in sorted(module_path.glob("connector_*.json")):
+            with connector_file.open("rb") as fd:
+                connector_uuids.add(json.load(fd)["uuid"])
+
         # Load actions
         module_actions = []
         for action_file in sorted(module_path.glob("action_*.json")):
@@ -62,10 +68,29 @@ class DocumentationGenerator:
         module_triggers = []
         for trigger_file in sorted(module_path.glob("trigger_*.json")):
             with trigger_file.open("rb") as fd:
-                module_triggers.append(json.load(fd))
+                loaded = json.load(fd)
+                if loaded["uuid"] in connector_uuids:
+                    print(
+                        f"[white][!] {module_path.name}: Trigger {loaded['name']}"
+                        " ignored because it is a connector[/white]"
+                    )
+                else:
+                    module_triggers.append(loaded)
+
+        if not module_actions and not module_triggers:
+            print(
+                f"[orange3][!] {module_path.name}: No actions/triggers found[/orange3]"
+            )
+            return None
 
         # Copy the logo
         module_logo_filename = self._copy_logo(module_path, module_manifest)
+
+        # Copy the assets
+        assets_location = self._copy_assets(module_path, module_manifest)
+
+        # Copy content of CONFIGURE.md
+        setup = self._copy_configure_md(module_path, assets_location)
 
         current_dir = Path(os.path.dirname(__file__)).resolve()
         file_loader = FileSystemLoader(current_dir / "templates")
@@ -77,9 +102,10 @@ class DocumentationGenerator:
             actions=module_actions,
             triggers=module_triggers,
             logo_filename=module_logo_filename,
+            setup=setup,
         )
 
-        module_doc_filename = f'{slugify(module_manifest["name"])}.md'
+        module_doc_filename = f"{slugify(module_manifest['name'])}.md"
 
         module_doc_path = (
             self.documentation_path
@@ -92,14 +118,16 @@ class DocumentationGenerator:
             fd.write(output.encode("utf-8"))
 
         return DocumentationModule(
-            name=module_manifest["name"], file_name=module_doc_filename
+            name=module_manifest["name"],
+            file_name=module_doc_filename,
+            categories=module_manifest.get("categories", []),
         )
 
     def _copy_logo(self, module_path: Path, module_manifest: dict) -> str | None:
         for ext in ["png", "svg"]:
             module_logo_path = module_path / f"logo.{ext}"
             if module_logo_path.exists():
-                module_logo_filename = f'{slugify(module_manifest["name"])}.{ext}'
+                module_logo_filename = f"{slugify(module_manifest['name'])}.{ext}"
                 copyfile(
                     module_logo_path,
                     (
@@ -111,6 +139,50 @@ class DocumentationGenerator:
                 return module_logo_filename
         return None
 
+    def _copy_assets(self, module_path: Path, module_manifest: dict) -> str | None:
+        """
+        Copy the assets from the module directory to the documentation directory.
+        Return the new location of the assets
+        """
+        assets_dir = "docs/assets"
+        assets_path = module_path / assets_dir
+
+        if assets_path.exists():
+            new_location = (
+                f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
+            )
+            new_location_path = self.documentation_path / "docs" / new_location
+            new_location_path.mkdir(parents=True, exist_ok=True)
+
+            for item in assets_path.iterdir():
+                copyfile(item, new_location_path / item.name)
+
+            return new_location
+
+        return None
+
+    def _copy_configure_md(
+        self, module_path: Path, assets_location: str | None
+    ) -> str | None:
+        """
+        Copy and return the CONFIGURE.md content
+
+        Read the content of CONFIGURE.md in the automation module directory.
+        """
+        # Is the SETUP.md exists
+        if not (module_path / "CONFIGURE.md").exists():
+            return None
+
+        # Read it content
+        with (module_path / "CONFIGURE.md").open("r") as fd:
+            content = fd.read()
+
+        if assets_location:
+            assets_dir = "docs/assets"
+            content = content.replace(assets_dir, f"/{assets_location}")
+
+        return content
+
     def _update_submenu(
         self, menu: list[dict], target: str, value: list, append_only: bool = False
     ):
@@ -121,8 +193,22 @@ class DocumentationGenerator:
                     if append_only:
                         item.setdefault(root_target, [])
                         # Sort by the name of the key in the dict
+                        for category_dict in value:
+                            category = next(iter(category_dict))
+                            for root_categories_dict in item[root_target]:
+                                root_category = next(iter(root_categories_dict))
+                                if root_category == category:
+                                    root_categories_dict[root_category] = sorted(
+                                        root_categories_dict[root_category]
+                                        + category_dict[category],
+                                        key=lambda x: next(iter(x)),
+                                    )
+                                    break
+                            else:
+                                item[root_target].append(category_dict)
+
                         item[root_target] = sorted(
-                            item[root_target] + value, key=lambda x: next(iter(x))
+                            item[root_target], key=lambda x: next(iter(x))
                         )
                     else:
                         item[root_target] = value
@@ -164,15 +250,31 @@ class DocumentationGenerator:
             mkdocs_conf = yaml.safe_load(fd)
 
             root_menu_items = {
-                f"Sekoia.io XDR/{self.MKDOCS_SUB_NAV}": "xdr/features/automate/library",
-                f"Sekoia.io TIP/{self.MKDOCS_SUB_NAV}": "tip/features/automate/library",
+                "Sekoia.io TIP/Features/"
+                "Automate/Actions Library": "tip/features/automate/library",
+                "Integrations/List of Playbooks Actions": "integration/action_library",
             }
             append_only = True if self.module else False
             for root, directory in root_menu_items.items():
-                sub_content = [
-                    {module.name: f"{directory}/{module.file_name}"}
-                    for module in modules
-                ]
+                categories_mapping = defaultdict(list)
+                for module in modules:
+                    for category in module.categories:
+                        categories_mapping[category].append(
+                            {module.name: f"{directory}/{module.file_name}"}
+                        )
+
+                sub_content: list[dict[str, str | list]] = []
+                for category, pages in sorted(
+                    categories_mapping.items(), key=lambda item: item[0]
+                ):
+                    sub_content.append(
+                        {category: sorted(pages, key=lambda x: next(iter(x)))}
+                    )
+                if not append_only:
+                    sub_content = [
+                        {"Overview": f"{directory}/overview.md"},
+                        *sub_content,
+                    ]
 
                 self._update_submenu(
                     mkdocs_conf["nav"],

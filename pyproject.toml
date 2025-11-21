@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.14.1"
+version = "1.21.1"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -29,71 +29,64 @@ classifiers = [
 sekoia-automation = 'sekoia_automation.cli:app'
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = "^3.11"
 requests = "^2.25"
-requests-ratelimiter = "^0.4.2"
+requests-ratelimiter = "^0.7.0"
 sentry-sdk = "*"
 tenacity = "*"
-boto3 = "^1.28"
-s3path = "^0.5"
+s3path = "^0.6.4"
 orjson = "^3.8"
-pydantic = "^1.10"
-typer = { extras = ["all"], version = "^0.7"}
+pydantic = "^2.10"
+typer = {extras = ["all"], version = "^0.17.3"}
 cookiecutter = "^2.1"
 python-slugify = "^5.0.2"
 PyYAML = "^6.0"
 Jinja2 = "^3.0.3"
 black = "*"  # To format files in cli tools
 poetry = "*" # To lock requirements when creating new module
-prometheus-client = "^0.16.0"
-aiohttp = { version = "^3.8.4", optional = true }
+prometheus-client = "^0.21.0"
+aiohttp = "^3.8.4" 
 aiolimiter = { version = "^1.1.0", optional = true }
-aiobotocore = { version = "^2.5.2", optional = true }
+aiobotocore = { version = "^2.20.0", optional = true }
+boto3 = { version = "^1.36.23", optional = true }
 aiofiles = { version = "^23.1.0", optional = true }
 aiocsv = { version = "^1.2.4", optional = true }
 loguru = { version = "^0.7.0", optional = true }
 jsonschema = "^4.22.0"
+flask = "^3.1.2"
 
 [tool.poetry.group.dev.dependencies]
 unittest-xml-reporting = "^3"
 pylint = "*"
-pytest = "<8"
+pytest = "^8.3.3"
 pytest-cov = "*"
-pytest-asyncio = "*"
+pytest-asyncio = "^0.24.0"
 pytest-xdist = "*"
-pytest-env = "*"
+pytest-env = "^1.1.5"
 requests-mock = "^1.9"
-faker = "^19.0.0"
+faker = "^30.0.0"
 aioresponses = { git = "https://github.com/pnuckowski/aioresponses.git", rev = "444aa498cd2f625edd7923355fa373972d5fcf44" }
-types-aiofiles = "^23.1.0.4"
-types-requests = "^2.31.0.1"
-types-pyyaml = "^6.0.12.10"
-types-python-slugify = "^8.0.0.2"
 pre-commit = "^3.3.3"
 requests-oauthlib = "^2.0.0"
 
 [tool.poetry.group.lint.dependencies]
-ruff = "*"
-black = "*"
+ruff = "^0.6.8"
 mypy = "*"
-isort = "*"
-autoflake = "^1.4"
-poethepoet = { version = "^0.16.5", extras = ["poetry_plugin"] }
 
 [tool.poetry.extras]
 all = [
-    "aiohttp",
     "aiolimiter",
     "aiobotocore",
+    "boto3",
     "aiofiles",
     "aiocsv",
     "loguru",
 ]
 async-aws = [
     "aiobotocore",
+    "boto3",
 ]
 async-http = [
-    "aiohttp",
     "aiolimiter",
     "aiofiles",
 ]
@@ -104,13 +97,6 @@ async-files = [
 logging = [
     "loguru"
 ]
-
-[tool.black]
-target-version = ["py311"]
-force-exclude = "tests/expectations/sample_module/main.py|sekoia_automation/scripts/new_module/template/"
-
-[tool.autoflake]
-exclude = "sekoia_automation/scripts/**/*"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -128,18 +114,24 @@ testpaths = [
 ]
 
 [tool.ruff]
-select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
+target-version = "py311"
+fix = true
 exclude = [
     "tests/expectations/sample_module/main.py",
     "tests/aio/",
     "sekoia_automation/scripts/new_module/template/"
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]  # Ignore unusued args because of pytest fixtures
 
 [tool.mypy]
 python_version = "3.11"
+install_types = true
+non_interactive = true
 ignore_missing_imports = true
 show_column_numbers = true
 exclude = [
@@ -147,10 +139,4 @@ exclude = [
     "tests/"
 ]
 disable_error_code = "annotation-unchecked"
-
-[tool.poe.tasks.lint]
-sequence = [
-    { cmd = "poetry run autoflake ." },
-    { cmd = "poetry run black ." },
-]
-help = "Make code linting and formatting."
+packages = ["sekoia_automation"]

@@ -1,4 +1,9 @@
+
 {#- -*- mode: jinja2 -*- -#}
+uuid: {{manifest.uuid}}
+name: {{manifest.name}}
+type: playbook
+
 # {{manifest.name}}
 
 {%- if logo_filename %}
@@ -64,6 +69,14 @@ This module accepts no configuration.
 
 {{action.description}}
 
+{%- if action.arguments.properties and action.arguments.properties.description %}
+
+**Configuration**
+
+{{action.arguments.properties.description}}
+
+{%- endif -%}
+
 {%- if action.arguments.properties %}
 
 **Arguments**
@@ -87,6 +100,13 @@ This module accepts no configuration.
 {%- endif -%}{# /action.arguments.properties #}
 {%- endfor -%}{# /actions #}
 {%- endif -%}{# /actions #}
+
+{%- if setup %}
+## Set up
+
+{{ setup }}
+
+{%- endif %}
 
 ## Extra
 

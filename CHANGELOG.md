@@ -5,7 +5,199 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
+
+## 1.21.1 - 2025-10-28
+
+### Added
+
+- Add Asset connector fields
+
+## 1.21.0 - 2025-09-30
+
+### Added
+
+- Add support for Fission-based runtime configuration
+
+### Changed
+
+- Introduce a unified configuration abstraction
+- Update frequency and batch size configuration parameters
+- Improve sending assets log
+
+### Fixed
+
+- Check an API key is provided in the configuration, and add it to the Authorization header,
+  when no authentication method is set in an action
+
+## 1.20.2 - 2025-09-19
+
+### Added
+
+- Provide a request identifier when calling a trigger callback
+
+### Fixed
+
+- Updated new module template with correct dependencies
+- Added absent descriptions to CLI commands
+
+## 1.20.1 - 2025-09-15
+
+### Fixed
+
+- Fix checkpoint updates
+- Improve error handling for asset connectors
+
+## 1.20.0 - 2025-09-09
+
+### Changed
+
+- Improvements for AsyncConnector.
+- Improvements for Async Http workflow
+- Remove duplicated parts and make the code more uniform for async http workflow
+
+### Fixed
+
+- Fix some typing issues
+- Updated typer version to fix CLI issues
+
+## 1.19.3 - 2025-09-01
+
+### Changed
+
+- Add a default logo in the template used to generate new modules
+- Remove `[]` around `Unreleased` entry in the changelog
+- Include CONFIGURE.md into the generated documentation of automation modules
+
+### Fixed
+
+- Add users fields to enrichment 
+- Fix asset connector post url 
+- Update OCSF fields for software, user and vulnerability
+- Fix some typos
+- Add some extra tests for updating connector fields
+
+## 1.19.2 - 2025-07-31
+
+### Fixed
+
+- Fix aiohttp dependency
+
+## 1.19.1 - 2025-07-30
+
+### Fixed
+
+- Set aiohttp as a mandatory dependency for the SDK
+
+## 1.19.0 - 2025-07-21
+
+### Added
+
+- Add the asset connectors to the SDK
+
+## 1.18.5
+
+### Fixed
+
+- Fix the pydantic import in models.py of the template used to generate new modules
+- Fix the typing of the `send_event` method in the `Trigger` class
+
+## 1.18.4
+
+### Changed
+
+- Update version of AWS libraries
+
+## 1.18.3
+
+### Changed
+
+- Move to Pydantic V2 as dependency
+
+## 1.18.2
+
+### Changed
+
+- Lock boto3 to versions lower than 1.36
+  - The new integrity algorithm doesn't work with third party object storage implementations
+
+### Fixed
+
+- Fixed template for module generation
+
+## 1.18.1 - 2024-12-04
+
+### Added
+
+- Add the support to list type for action response
+- Add a configuration part for action documentation
+
+### Fixed
+
+- Fix checkpoint for timestamps
+
+## 1.18.0 - 2024-11-26
+
+### Changed
+
+- Add additional values to log events sent to the API
+- In Generic actions, in case of error use the message from the response if available
+
+## 1.17.2 - 2024-11-06
+
+### Fixed
+
+- Fix callback URL file for account validation
+
+## 1.17.1 - 2024-11-04
+
+### Fixed
+
+- Change the way to handle docker image information when publishing a module
+- Fix the module synchronization script
+
+## 1.17.0 - 2024-11-04
+
+### Added
+
+- Add account validation (beta)
+
+## 1.16.1 - 2024-10-30
+
+### Changed
+
+- Specify docker image when publishing a module
+- Move from error to info the message when no event was collected from severals seconds
+
+### Fixed
+
+- Replace ulrllib.parse.urljoin by posixpath.join in AsyncConnector
+- Fix tests for async version of connector.
+- Fix support for boolean arguments in the json_argument method
+
+## 1.16.0 - 2024-10-16
+
+### Changed
+
+- Update documentation generation command to follow new structure
+
+## 1.15.1 - 2024-10-04
+
+### Changed
+
+- Improve retry on some HTTP errors
+
+## [1.15.0] - 2024-09-28
+
+### Changed
+
+- Make the minimal Python version to 3.10.
+- Replace isort, black and autoflake with Ruff.
+- Update Mypy configuration.
+- Improve CI to test the package with several versions of Python.
+- Update some dependencies to their latest version
+  (`requests-ratelimiter`, `typer`, `prometheus-client`) and some
+  devel ones (`pytest`, `pytest-asyncio`, `pytest-env`, `faker`).
 
 ## [1.14.1] - 2024-09-10
 
@@ -22,7 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Increase number of retries and time between retries when sending requests 
+- Increase number of retries and time between retries when sending requests
 
 ## [1.13.0] - 2024-04-22
 
@@ -71,7 +263,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add heartbeat in triggers 
+- Add heartbeat in triggers
   The heartbeat allows to mark the trigger as not alive if no heartbeat was received for a certain amount of time.
   To support this feature triggers must:
     - Set the `last_heartbeat_threshold` class attribute to a value greater than 0
@@ -103,7 +295,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add graceful delay on startup where unhandled errors won't trigger a critical exit 
+- Add graceful delay on startup where unhandled errors won't trigger a critical exit
 
 ## [1.7.0] - 2023-11-07
 
@@ -147,7 +339,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve error message when it is not possible to access the data storage
 - Remove `chunk_size` parameter from configuration
-- Try to take Intake URL from an environment var first  
+- Try to take Intake URL from an environment var first
 
 ### Fixed
 

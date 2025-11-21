@@ -21,6 +21,11 @@ def swagger_path():
     return Path(os.path.dirname(__file__)).resolve().joinpath("data", "swagger.json")
 
 
+@pytest.fixture
+def openapi3_path():
+    return Path(os.path.dirname(__file__)).resolve().joinpath("data", "openapi.yml")
+
+
 def test_new_module(tmp_path):
     module = "My Module"
     description = "My Description"
@@ -31,7 +36,7 @@ def test_new_module(tmp_path):
     )
     assert res.exit_code == 0
 
-    module_path = tmp_path.joinpath(module)
+    module_path = tmp_path.joinpath("MyModule")  # without spaces
     assert module_path.is_dir()
 
     manifest = json.loads(module_path.joinpath("manifest.json").read_text())
@@ -95,16 +100,19 @@ def test_generate_documentation(tmp_path):
     with documentation_path.joinpath("mkdocs.yml").open("r") as fp:
         manifest = yaml.load(fp, Loader=Loader)
 
+    actions = manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"]
+    assert actions[0]["Overview"] == "integration/action_library/overview.md"
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
-        ][0]["Test Module"]
-        == "xdr/features/automate/library/test-module.md"
+        actions[1]["Endpoint"][0]["Test Module"]
+        == "integration/action_library/test-module.md"
     )
+
+    actions = manifest["nav"][1]["Sekoia.io TIP"][0]["Features"][0]["Automate"][0][
+        "Actions Library"
+    ]
+    assert actions[0]["Overview"] == "tip/features/automate/library/overview.md"
     assert (
-        manifest["nav"][1]["Sekoia.io TIP"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
-        ][0]["Test Module"]
+        actions[1]["Endpoint"][0]["Test Module"]
         == "tip/features/automate/library/test-module.md"
     )
 
@@ -138,17 +146,23 @@ def test_generate_documentation_specific_module(tmp_path):
 
     # Make sure we didn't remove other modules
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][0][
+            "Endpoint"
         ][0]["Sekoia.io"]
-        == "xdr/features/automate/library/sekoia-io.md"
+        == "integration/action_library/sekoia-io.md"
     )
     # And our module has been added
     assert (
-        manifest["nav"][0]["Sekoia.io XDR"][0]["Features"][0]["Automate"][0][
-            "Actions Library"
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][0][
+            "Endpoint"
         ][1]["Test Module"]
-        == "xdr/features/automate/library/test-module.md"
+        == "integration/action_library/test-module.md"
+    )
+    assert (
+        manifest["nav"][0]["Integrations"][0]["List of Playbooks Actions"][1][
+            "Network"
+        ][0]["Test Module"]
+        == "integration/action_library/test-module.md"
     )
 
 
@@ -178,6 +192,20 @@ def test_openapi_to_module(tmp_path, swagger_path):
     assert module.joinpath("dashboard_api", "__init__.py").exists()
 
 
+def test_openapi_to_module_openapi3(tmp_path, openapi3_path):
+    res: Result = runner.invoke(
+        app,
+        ["openapi-to-module", str(tmp_path), str(openapi3_path)],
+    )
+    assert res.exit_code == 0
+    module = tmp_path.joinpath("Censys Search API")
+    assert module.is_dir()
+    assert module.joinpath("manifest.json").exists()
+    assert module.joinpath("main.py").exists()
+    assert len(list(module.glob("action_*"))) > 0
+    assert module.joinpath("censys_search_api", "__init__.py").exists()
+
+
 def test_openapi_url_to_module(tmp_path, requests_mock, swagger_path):
     requests_mock.get(
         "https://myswagger.com/swagger.json", json=json.load(swagger_path.open())
@@ -193,6 +221,32 @@ def test_openapi_url_to_module(tmp_path, requests_mock, swagger_path):
             "openapi-to-module",
             str(tmp_path),
             "https://myswagger.com/swagger.json",
+            "--tags",
+        ],
+    )
+    assert res.exit_code == 0
+    assert module.is_dir()
+    assert not module.joinpath("should_be_removed").exists()
+    assert module.joinpath("manifest.json").exists()
+    assert module.joinpath("main.py").exists()
+    assert len(list(module.glob("action_*"))) > 0
+    assert module.joinpath("dashboard_api", "__init__.py").exists()
+
+
+def test_openapi_url_to_module_yaml(tmp_path, requests_mock, swagger_path):
+    loaded = json.load(swagger_path.open())
+    requests_mock.get("https://myswagger.com/swagger.yml", text=yaml.dump(loaded))
+
+    module = tmp_path.joinpath("Dashboard API")
+    module.mkdir()
+    module.joinpath("should_be_removed").write_text("foo")
+
+    res: Result = runner.invoke(
+        app,
+        [
+            "openapi-to-module",
+            str(tmp_path),
+            "https://myswagger.com/swagger.yml",
             "--tags",
         ],
     )

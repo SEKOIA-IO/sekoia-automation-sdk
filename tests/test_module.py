@@ -1,9 +1,12 @@
 # natives
-from unittest.mock import patch
+import json
+from pathlib import Path
+from unittest.mock import Mock, patch
+from tempfile import TemporaryDirectory
 
 # third parties
 import pytest
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from sentry_sdk import get_isolation_scope
 
 # internal
@@ -41,6 +44,24 @@ def test_command():
         assert module.command == "bar"
 
 
+@pytest.fixture
+def app():
+    from flask import Flask
+
+    app = Flask(__name__)
+    return app
+
+
+def test_command_for_fission(app, monkeypatch):
+    module = Module()
+    # Set SYMPHONY_RUNTIME to "Fission"
+    monkeypatch.setenv("SYMPHONY_RUNTIME", "Fission")
+
+    # Use a test request context to simulate a Flask request
+    with app.test_request_context("/", headers={"command": "some_command"}):
+        assert module.command == "some_command"
+
+
 def test_no_command():
     module = Module()
 
@@ -61,6 +82,14 @@ def test_register_no_command():
     with patch("sys.argv", ["run", "other_command"]):
         with pytest.raises(CommandNotFoundError):
             module.run()
+
+
+def test_register_account_validator():
+    module = Module()
+    validator = Mock()
+    validator.name = None
+    module.register_account_validator(validator)
+    assert module._items["validate_module_configuration"] == validator
 
 
 @patch.object(DummyTrigger, "execute")
@@ -134,6 +163,34 @@ def test_configuration_as_model():
     # Validation errors should be raised with bad values
     with pytest.raises(ModuleConfigurationError):
         module.configuration = {"number": "NotANumber"}
+
+
+def test_module_working_directory():
+    module = Module()
+    assert module._working_directory == Path(__file__).parent.parent
+
+    module.set_working_directory(Path("/tmp"))
+    assert module._working_directory == Path("/tmp")
+
+
+def test_module_manifest_loading():
+    module = Module()
+    manifest_content = {
+        "name": "Test Module",
+        "version": "1.0.0",
+        "description": "A test module",
+        "properties": {"foo": {"type": "string", "description": "A foo property"}},
+        "secrets": ["foo"],
+    }
+
+    with TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        manifest_path = temp_path / "manifest.json"
+        with manifest_path.open("w") as f:
+            json.dump(manifest_content, f)
+
+        module.set_working_directory(temp_path)
+        assert module.manifest == manifest_content
 
 
 def test_configuration_setter_add_secret_not_required():

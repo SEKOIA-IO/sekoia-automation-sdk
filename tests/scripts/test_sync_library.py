@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from shutil import copytree
 from tempfile import mkdtemp
 from unittest.mock import patch
 
@@ -44,13 +45,27 @@ def connector():
         return connector
 
 
+@pytest.fixture
+def fetched_connector():
+    with open("tests/data/sample_module/fetched_connector_test.json") as f:
+        fetched_connector = json.load(f)
+        return fetched_connector
+
+
+@pytest.fixture
+def tmp_module(tmp_path):
+    copytree(Path("tests/data"), str(tmp_path), dirs_exist_ok=True)
+    tmp_path.joinpath("sample_module").joinpath("trigger_test.json").unlink()
+    yield tmp_path
+
+
 @requests_mock.Mocker(kw="m")
-def test_no_module_success(module, action, trigger, connector, **kwargs):
+def test_no_module_success(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -60,6 +75,7 @@ def test_no_module_success(module, action, trigger, connector, **kwargs):
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[1].method == "PATCH"
     assert history[1].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
+    assert "docker" in history[1].json()
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
@@ -82,12 +98,12 @@ def test_no_module_success(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_404(module, action, trigger, connector, **kwargs):
+def test_no_module_404(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=404, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -97,6 +113,7 @@ def test_no_module_404(module, action, trigger, connector, **kwargs):
     assert history[0].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[1].method == "POST"
     assert history[1].url == f"{SYMPOHNY_URL}/modules"
+    assert "docker" in history[1].json()
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
@@ -119,12 +136,12 @@ def test_no_module_404(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_no_module_other_code(module, action, trigger, connector, **kwargs):
+def test_no_module_other_code(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=418, json={}
     )
     kwargs["m"].register_uri("POST", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module)
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -144,14 +161,12 @@ def test_no_module_other_code(module, action, trigger, connector, **kwargs):
 
 
 @requests_mock.Mocker(kw="m")
-def test_with_module(module, action, trigger, connector, **kwargs):
+def test_with_module(tmp_module, module, action, trigger, connector, **kwargs):
     kwargs["m"].register_uri(
         "GET", re.compile(f"{SYMPOHNY_URL}.*"), status_code=200, json={}
     )
     kwargs["m"].register_uri("PATCH", re.compile(f"{SYMPOHNY_URL}.*"))
-    sync_lib = SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), module="sample_module"
-    )
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, tmp_module, module="sample_module")
     sync_lib.execute()
 
     history = kwargs["m"].request_history
@@ -162,6 +177,7 @@ def test_with_module(module, action, trigger, connector, **kwargs):
     assert history[1].method == "PATCH"
     assert history[1].url == f"{SYMPOHNY_URL}/modules/{module['uuid']}"
     assert history[1].headers["Authorization"] == f"Bearer {API_KEY}"
+    assert "docker" in history[1].json()
     assert history[2].method == "GET"
     assert history[2].url == f"{SYMPOHNY_URL}/triggers/{trigger['uuid']}"
     assert history[2].headers["Authorization"] == f"Bearer {API_KEY}"
@@ -195,52 +211,55 @@ def test_with_module_invalid_name():
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_default_success(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_pat=PAT)
     kwargs["m"].register_uri(
         "GET",
         re.compile("https://ghcr.io/.*"),
         status_code=200,
         json={"token": API_KEY},
     )
-    assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), registry_pat=PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert lib.check_image_on_registry(
+        lib._get_module_docker_name(module), module["version"]
+    )
 
     history = kwargs["m"].request_history
     assert len(history) == 1
     assert history[0].method == "GET"
     assert (
         history[0].url
-        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
+        == f"https://ghcr.io/v2/sekoia-io/{lib.DOCKER_PREFIX}-{module['slug']}/\
 manifests/{module['version']}"
     )
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_default_fail(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT)
     kwargs["m"].register_uri(
         "GET",
         re.compile("https://ghcr.io/v2/sekoia-io.*"),
         status_code=404,
     )
-    assert not SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert not lib.check_image_on_registry(
+        lib._get_module_docker_name(module), module["version"]
+    )
 
     history = kwargs["m"].request_history
     assert len(history) == 1
     assert history[0].method == "GET"
     assert (
         history[0].url
-        == f"https://ghcr.io/v2/sekoia-io/{module['docker']}/\
+        == f"https://ghcr.io/v2/sekoia-io/{lib.DOCKER_PREFIX}-{module['slug']}/\
 manifests/{module['version']}"
     )
 
 
 @requests_mock.Mocker(kw="m")
 def test_registry_check_custom_success(module, **kwargs):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT)
     custom_path = "foo.bar"
     custom_pathinfo = "sekoia-io"
-    image_name = module["docker"]
+    image_name = lib._get_module_docker_name(module)
     module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
 
     kwargs["m"].register_uri(
@@ -249,9 +268,7 @@ def test_registry_check_custom_success(module, **kwargs):
         status_code=200,
         json={"token": API_KEY},
     )
-    assert SyncLibrary(
-        SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT
-    ).check_image_on_registry(module["docker"], module["version"])
+    assert lib.check_image_on_registry(module["docker"], module["version"])
 
     history = kwargs["m"].request_history
     assert len(history) == 1
@@ -267,20 +284,21 @@ manifests/{module['version']}"
 def test_registry_check_not_found(module, **kwargs):
     custom_path = "foo.bar"
     custom_pathinfo = "sekoia-io"
-    image_name = module["docker"]
-    module["docker"] = f"{custom_path}/{custom_pathinfo}/{image_name}"
+    lib = SyncLibrary(
+        SYMPOHNY_URL,
+        API_KEY,
+        Path("tests/data"),
+        registry=custom_path,
+        namespace=custom_pathinfo,
+    )
+    module["docker"] = lib._get_module_docker_name(module)
 
     kwargs["m"].register_uri(
         "GET",
-        f"https://{custom_path}/v2/sekoia-io/sekoia-automation-module-sample/manifests/0.1",
+        f"https://{custom_path}/v2/sekoia-io/automation-module-sample/manifests/0.1",
         status_code=404,
     )
-    assert (
-        SyncLibrary(
-            SYMPOHNY_URL, API_KEY, Path("tests/data"), PAT, USER
-        ).check_image_on_registry(module["docker"], module["version"])
-        is False
-    )
+    assert lib.check_image_on_registry(module["docker"], module["version"]) is False
 
     history = kwargs["m"].request_history
     assert len(history) == 1
@@ -316,9 +334,6 @@ def test_get_module_docker_name():
     lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
 
     manifest = {"docker": "foo", "slug": "bar"}
-    assert lib._get_module_docker_name(manifest) == "foo"
-
-    manifest.pop("docker")
     assert (
         lib._get_module_docker_name(manifest)
         == "ghcr.io/sekoia-io/automation-module-bar"
@@ -327,3 +342,93 @@ def test_get_module_docker_name():
     manifest.pop("slug")
     with pytest.raises(ValueError):
         lib._get_module_docker_name(manifest)
+
+
+def test_sync_module_create_error(requests_mock):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=404,
+    )
+    requests_mock.post(
+        f"{SYMPOHNY_URL}/modules",
+        status_code=500,
+        json={"error": "Internal Server Error"},
+    )
+    with pytest.raises(typer.Exit):
+        lib.sync_module(
+            {"name": "My Module", "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129"}
+        )
+
+
+def test_sync_module_update_error(requests_mock):
+    lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=200,
+        json={
+            "name": "My Module",
+            "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+            "version": "0.1",
+        },
+    )
+    requests_mock.patch(
+        f"{SYMPOHNY_URL}/modules/eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+        status_code=500,
+        json={"error": "Internal Server Error"},
+    )
+    with pytest.raises(typer.Exit):
+        lib.sync_module(
+            {
+                "name": "My Module",
+                "uuid": "eaa1d29c-4c34-42c6-8275-2da1c8cca129",
+                "version": "0.2",
+            }
+        )
+
+
+def test_sync_list_already_updated(requests_mock, module, connector, capsys):
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=connector,
+    )
+
+    module_uuid = module.get("uuid")
+    module_name = module.get("name")
+    sync_lib.sync_list(module_name, module_uuid, [connector], "connector")
+
+    captured = capsys.readouterr()
+    assert "Already Up-To-Date" in captured.out
+
+
+def test_sync_list_not_updated(
+    requests_mock, module, fetched_connector, connector, capsys
+):
+    sync_lib = SyncLibrary(SYMPOHNY_URL, API_KEY, Path("tests/data"))
+
+    requests_mock.get(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=fetched_connector,
+    )
+    requests_mock.patch(
+        f"{SYMPOHNY_URL}/connectors/667f7e89-d907-4086-a578-a2324c9a277a",
+        status_code=200,
+        json=connector,
+    )
+
+    module_uuid = module.get("uuid")
+    module_name = module.get("name")
+    sync_lib.sync_list(module_name, module_uuid, [connector], "connector")
+
+    captured = capsys.readouterr()
+    assert "Updated" in captured.out
+    assert requests_mock.request_history[-1].json() == connector
+    assert requests_mock.request_history[-1].method == "PATCH"
+    assert requests_mock.request_history[-1].json().get("type") == "asset"
+    assert requests_mock.request_history[-1].json().get("slug") == "slug-connector-test"

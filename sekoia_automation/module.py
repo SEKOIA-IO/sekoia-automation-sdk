@@ -1,19 +1,21 @@
 import json
 import logging
+import os
 import sys
 import time
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
-from pydantic import BaseModel
-from requests import HTTPError, Response
+from flask import request
+from pydantic.v1 import BaseModel
+from requests import RequestException, Response
 
-from sekoia_automation.config import load_config
+from sekoia_automation.configuration import get_configuration
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
     ModuleConfigurationError,
@@ -24,6 +26,10 @@ from sekoia_automation.utils import (
     get_annotation_for,
     get_as_model,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from sekoia_automation.account_validator import AccountValidator
+
 
 LogLevelStr = Literal["fatal", "critical", "error", "warning", "info", "debug"]
 
@@ -52,20 +58,37 @@ class Module:
         self._trigger_configuration_uuid: str | None = None
         self._connector_configuration_uuid: str | None = None
         self._name = None
+        self._config = get_configuration()
+        self._working_directory = Path.cwd()
         self.init_sentry()
 
     @property
     def command(self) -> str | None:
-        if not self._command and len(sys.argv) >= 2:
-            self._command = sys.argv[1]
+        if not self._command:
+            runtime = os.environ.get("SYMPHONY_RUNTIME")
+            if runtime is not None and runtime.lower() == "fission":
+                self._command = request.headers.get("command")
+            elif len(sys.argv) >= 2:
+                self._command = sys.argv[1]
 
         return self._command
+
+    def set_working_directory(self, path: Path) -> None:
+        """Set the working directory for the module.
+
+        This is used to load configuration files from a specific directory.
+
+        :param path: Path to set as working directory
+        :type path: Path
+        """
+        self._working_directory = path
 
     @property
     def manifest(self):
         if self._manifest is None:
             try:
-                with open("manifest.json") as fp:
+                manifest_path = self._working_directory / "manifest.json"
+                with manifest_path.open() as fp:
                     self._manifest = json.load(fp)
             except FileNotFoundError:
                 self._manifest = {}
@@ -262,12 +285,15 @@ class Module:
         return self._connector_configuration_uuid
 
     def load_config(self, file_name: str, type_: str = "str", non_exist_ok=False):
-        return load_config(file_name, type_, non_exist_ok=non_exist_ok)
+        return self._config.load(file_name, type_, non_exist_ok=non_exist_ok)
 
     def register(self, item: type["ModuleItem"], name: str = ""):
         if not item.name:
             item.name = name
         self._items[name] = item
+
+    def register_account_validator(self, validator: type["AccountValidator"]):
+        self.register(validator, "validate_module_configuration")
 
     def run(self):
         command = self.command or ""
@@ -441,19 +467,22 @@ class ModuleItem(ABC):
             )
             response.raise_for_status()
             return response
-        except HTTPError as exception:
-            self._log_request_error(exception)
+        except (RequestException, OSError) as exception:
+            if isinstance(exception, RequestException):
+                self._log_request_error(exception)
             if attempt == 10:
                 status_code = (
                     exception.response.status_code
-                    if isinstance(exception.response, Response)
+                    if isinstance(exception, RequestException)
+                    and isinstance(exception.response, Response)
                     else 500
                 )
                 raise SendEventError(
                     "Impossible to send event to Sekoia.io API", status_code=status_code
                 )
             if (
-                isinstance(exception.response, Response)
+                isinstance(exception, RequestException)
+                and isinstance(exception.response, Response)
                 and 400 <= exception.response.status_code < 500
             ):
                 raise SendEventError(
@@ -463,7 +492,7 @@ class ModuleItem(ABC):
             time.sleep(self._wait_exponent_base**attempt)
             return self._send_request(data, verb, attempt + 1)
 
-    def _log_request_error(self, exception: HTTPError):
+    def _log_request_error(self, exception: RequestException):
         context: dict[str, Any] = {}
         if exception.response:
             response: Response = exception.response

@@ -1,37 +1,33 @@
+import time
 import uuid
 from abc import ABC
 from collections.abc import Generator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
-from datetime import datetime, time
+from datetime import datetime
+from datetime import time as datetime_time
 from functools import cached_property
 from os.path import join as urljoin
-from typing import Any
+from typing import Any, TypeAlias
 
 import orjson
 import requests
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import Response
-from tenacity import (
-    Retrying,
-    stop_after_delay,
-    wait_exponential,
-)
+from tenacity import Retrying, stop_after_delay, wait_exponential
 
+from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
-from sekoia_automation.exceptions import (
-    TriggerConfigurationError,
-)
+from sekoia_automation.exceptions import TriggerConfigurationError
 from sekoia_automation.trigger import Trigger
-from sekoia_automation.utils import (
-    get_annotation_for,
-    get_as_model,
-)
+from sekoia_automation.utils import get_annotation_for, get_as_model
 
 # Connector are a kind of trigger that fetch events from remote sources.
 # We should add the content of push_events_to_intakes
 # so that we are able to send events directly from connectors
+
+EventType: TypeAlias = dict[str, Any] | str | BaseModel
 
 
 class DefaultConnectorConfiguration(BaseModel):
@@ -39,14 +35,24 @@ class DefaultConnectorConfiguration(BaseModel):
     intake_key: str
 
 
-class Connector(Trigger, ABC):
+class Connector(Trigger, MetricsMixin, ABC):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     seconds_without_events = 3600 * 6
 
     # Required for Pydantic to correctly type the configuration object
-    configuration: DefaultConnectorConfiguration
+    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
-    @property  # type: ignore[override, no-redef]
+    @property
+    def connector_name(self) -> str:
+        """
+        Get connector name.
+
+        Returns:
+            str:
+        """
+        return self.__class__.__name__
+
+    @property  # type: ignore[no-redef]
     def configuration(self) -> DefaultConnectorConfiguration:
         if self._configuration is None:
             try:
@@ -57,7 +63,7 @@ class Connector(Trigger, ABC):
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 
-    @configuration.setter
+    @configuration.setter  # type: ignore[override]
     def configuration(self, configuration: dict) -> None:
         """
         Set the connector configuration.
@@ -150,8 +156,18 @@ class Connector(Trigger, ABC):
             self.log(message=message, level="error")
             self.log_exception(ex, message=message)
 
+    @property
+    def frequency(self) -> int:
+        """
+        Get frequency.
+
+        Returns:
+            int:
+        """
+        return 0
+
     def push_events_to_intakes(
-        self, events: list[str], sync: bool = False
+        self, events: list[EventType], sync: bool = False
     ) -> list[str]:
         """
         Push events to intakes.
@@ -247,7 +263,9 @@ class Connector(Trigger, ABC):
             remove_directory=True,
         )
 
-    def _chunk_events(self, events: Sequence) -> Generator[list[Any], None, None]:
+    def _chunk_events(
+        self, events: Sequence[EventType]
+    ) -> Generator[list[Any], None, None]:
         """
         Group events by chunk.
 
@@ -263,20 +281,30 @@ class Connector(Trigger, ABC):
 
         # iter over the events
         for event in events:
-            if len(event) > EVENT_BYTES_MAX_SIZE:
+            result_event = str(event)
+
+            if isinstance(event, BaseModel):
+                result_event = orjson.dumps(event.dict()).decode("utf-8")
+
+            elif isinstance(event, dict):
+                result_event = orjson.dumps(event).decode("utf-8")
+
+            event_len = len(result_event)
+
+            if event_len > EVENT_BYTES_MAX_SIZE:
                 nb_discarded_events += 1
                 continue
 
             # if the chunk is full
-            if chunk_bytes + len(event) > CHUNK_BYTES_MAX_SIZE:
+            if chunk_bytes + event_len > CHUNK_BYTES_MAX_SIZE:
                 # yield the current chunk and create a new one
                 yield chunk
                 chunk = []
                 chunk_bytes = 0
 
             # add the event to the current chunk
-            chunk.append(event)
-            chunk_bytes += len(event)
+            chunk.append(result_event)
+            chunk_bytes += event_len
 
         # if the last chunk is not empty
         if len(chunk) > 0:
@@ -285,12 +313,16 @@ class Connector(Trigger, ABC):
 
         # if events were discarded, log it
         if nb_discarded_events > 0:
+            self.put_discarded_events(
+                intake_key=self.configuration.intake_key, count=nb_discarded_events
+            )
+
             self.log(
                 message=f"{nb_discarded_events} too long events "
                 "were discarded (length > 250kb)"
             )
 
-    def forward_events(self, events) -> None:
+    def forward_events(self, events: Sequence[EventType]) -> None:
         try:
             chunks = self._chunk_events(events)
             _name = self.name or ""  # mypy complains about NoneType in annotation
@@ -298,7 +330,68 @@ class Connector(Trigger, ABC):
                 self.log(message=f"Forwarding {len(records)} records", level="info")
                 self.send_records(
                     records=list(records),
-                    event_name=f"{_name.lower().replace(' ', '-')}_{time()!s}",
+                    event_name=f"{_name.lower().replace(' ', '-')}_{datetime_time()!s}",
                 )
         except Exception as ex:
             self.log_exception(ex, message="Failed to forward events")
+
+    def iterate(self) -> Generator[tuple[list[EventType], datetime | None], None]:
+        """Iterate over events."""
+        yield [], None
+
+    def next_run(self) -> None:
+        processing_start = time.time()
+
+        result_last_event_date: datetime | None = None
+        total_number_of_events = 0
+        for data in self.iterate():
+            events, last_event_date = data
+            if last_event_date:
+                if (
+                    not result_last_event_date
+                    or last_event_date > result_last_event_date
+                ):
+                    result_last_event_date = last_event_date
+
+            if events:
+                total_number_of_events += len(events)
+                self.push_events_to_intakes(events)
+
+        processing_end = time.time()
+        processing_time = processing_end - processing_start
+
+        # Metric about processing time
+        self.put_forward_events_duration(
+            intake_key=self.configuration.intake_key,
+            duration=processing_time,
+        )
+
+        # Metric about processing count
+        self.put_forwarded_events(
+            intake_key=self.configuration.intake_key, count=total_number_of_events
+        )
+
+        # Metric about events lag
+        if result_last_event_date:
+            lag = (datetime.utcnow() - result_last_event_date).total_seconds()
+            self.put_events_lag(intake_key=self.configuration.intake_key, lag=lag)
+
+        # Compute the remaining sleeping time.
+        # If greater than 0 and no messages where fetched, pause the connector
+        delta_sleep = self.frequency - processing_time
+        if total_number_of_events == 0 and delta_sleep > 0:
+            self.log(message=f"Next batch in the future. Waiting {delta_sleep} seconds")
+
+            time.sleep(delta_sleep)
+
+    def run(self) -> None:  # pragma: no cover
+        while self.running:
+            try:
+                self.next_run()
+            except Exception as e:
+                self.log_exception(
+                    e,
+                    message=f"Error while running connector {self.connector_name}",
+                )
+
+                time.sleep(self.frequency)

@@ -10,7 +10,7 @@ import pytest
 import requests
 import requests_mock
 from botocore.exceptions import ClientError, ConnectionError
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from tenacity import wait_none
 
 from sekoia_automation.exceptions import (
@@ -135,6 +135,27 @@ def test_send_event_too_many_failures(mocked_trigger_logs):
     )
     with pytest.raises(SendEventError):
         trigger.send_event("my_event", {"foo": "bar"})
+
+
+def test_send_event_timeout(mocked_trigger_logs):
+    trigger = DummyTrigger()
+    trigger._wait_exponent_base = 0
+
+    mocked_trigger_logs.post(
+        "http://sekoia-playbooks/callback", exc=requests.exceptions.Timeout
+    )
+    with pytest.raises(SendEventError):
+        trigger.send_event("my_event", {"foo": "bar"})
+
+    # Check that the request was retried 10 times and that the request_id is the same
+    count = 0
+    request_ids = set()
+    for request in mocked_trigger_logs.request_history:
+        if request.url == "http://sekoia-playbooks/callback":
+            request_ids.add(request.json()["request_id"])
+            count += 1
+    assert count == 10
+    assert len(request_ids) == 1
 
 
 def test_trigger_execute(mocked_trigger_logs):
@@ -332,7 +353,7 @@ def test_trigger_log_time_elapsed(mocked_trigger_logs):
     trigger.log("test message", "info")
     try:
         assert mocked_trigger_logs.call_count == 0
-        time.sleep(trigger.LOGS_MAX_DELTA * 1.5)
+        time.sleep(0.1)
         assert mocked_trigger_logs.call_count == 1
 
         logs = mocked_trigger_logs.last_request.json()["logs"]

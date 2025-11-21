@@ -64,15 +64,15 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
         return dt.isoformat()
 
     @abstractmethod
-    def from_datetime(self, dt):
+    def from_datetime(self, dt: datetime) -> Any:
         raise NotImplementedError
 
     @abstractmethod
-    def to_datetime(self, rp):
+    def to_datetime(self, rp: Any) -> datetime:
         raise NotImplementedError
 
     @property
-    def offset(self) -> datetime:
+    def offset(self) -> Any:
         if self._most_recent_date_seen is None:
             if self._lock:
                 self._lock.acquire()
@@ -109,13 +109,14 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
         return self.from_datetime(self._most_recent_date_seen)
 
     @offset.setter
-    def offset(self, last_message_date: datetime) -> None:
+    def offset(self, last_message_date: datetime | int) -> None:
         if last_message_date is not None:
             # convert to inner representation
-            last_message_date = self.to_datetime(last_message_date)
+            last_message_datetime: datetime = self.to_datetime(last_message_date)
+            offset_to_compare: datetime = self.to_datetime(self.offset)
 
-            if self.offset is None or last_message_date > self.offset:
-                self._most_recent_date_seen = last_message_date
+            if self.offset is None or last_message_datetime > offset_to_compare:
+                self._most_recent_date_seen = last_message_datetime
 
                 if self._lock:
                     self._lock.acquire()
@@ -139,10 +140,10 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
 
 
 class CheckpointDatetime(CheckpointDatetimeBase):
-    def from_datetime(self, dt):
+    def from_datetime(self, dt: datetime) -> datetime:
         return dt
 
-    def to_datetime(self, rp):
+    def to_datetime(self, rp: datetime) -> datetime:
         return rp
 
 

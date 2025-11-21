@@ -8,11 +8,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
+from uuid import uuid4
 
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -267,7 +268,9 @@ class Trigger(ModuleItem):
         # Reset the consecutive error count
         self._error_count = 0
         self._last_events_time = datetime.utcnow()
-        data = {"name": event_name, "event": event}
+
+        # Add request_id to the data to be able to track the request
+        data = {"name": event_name, "event": event, "request_id": str(uuid4())}
 
         with self._ensure_directory(directory, remove_directory) as directory_location:
             if directory_location:
@@ -278,7 +281,7 @@ class Trigger(ModuleItem):
     def send_event(
         self,
         event_name: str,
-        event: dict,
+        event: dict | BaseModel,
         directory: str | None = None,
         remove_directory: bool = False,
     ) -> None:
@@ -414,7 +417,7 @@ class Trigger(ModuleItem):
         self.log(
             message=f"The trigger didn't send events for {delta_seconds} seconds, "
             "it will be restarted.",
-            level="error",
+            level="info",
         )
         return False
 

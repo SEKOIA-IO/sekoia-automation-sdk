@@ -62,17 +62,17 @@ class SyncLibrary:
         """
         tab = "\t"
         if created:
-            print(f"[green]{tab*nb_tabs}Crated: {', '.join(created)}[/green]")
+            print(f"[green]{tab * nb_tabs}Created: {', '.join(created)}[/green]")
         if updated:
-            print(f"[green]{tab*nb_tabs}Updated: {', '.join(updated)}[/green]")
+            print(f"[green]{tab * nb_tabs}Updated: {', '.join(updated)}[/green]")
         if up_to_date:
             print(
-                f"[green]{tab*nb_tabs}Already Up-To-Date: \
+                f"[green]{tab * nb_tabs}Already Up-To-Date: \
 {', '.join(up_to_date)}[/green]"
             )
         if errors:
             err: str = "Error" if len(errors) == 1 else "Errors"
-            print(f"[red]{tab*nb_tabs}{err}: {', '.join(errors)}[/red]")
+            print(f"[red]{tab * nb_tabs}{err}: {', '.join(errors)}[/red]")
 
     def sync_list(
         self, module_name: str, module_uuid: str, list_objects: list, name: str
@@ -172,35 +172,38 @@ class SyncLibrary:
             print(f"[red]Error {response.status_code}[/red]")
 
         elif response.status_code == 404:
-            r = requests.post(
+            res = requests.post(
                 urljoin(self.playbook_url, "modules"),
                 json=module_info,
                 headers=self.headers,
             )
-            if r.status_code == 200:
-                print("Created")
-            else:
-                print(f"[red]Error {response.status_code} - {response.text}[/red]")
+            if not res.ok:
+                print(f"[red]Error creating the module: {res.status_code}[/red]")
+                print(res.json())
+                raise typer.Exit(code=1)
+            print("Created")
 
         else:
             content: dict = response.json()
-
-            for k in content.keys():
-                if k in module_info and content[k] == module_info[k]:
+            for k, value in content.items():
+                if k in module_info and value == module_info[k]:
                     del module_info[k]
+
+            print(f"[yellow]Updating module fields {module_info}[/yellow]")
 
             if not module_info:
                 print("Already-Up-To-Date")
             else:
-                r = requests.patch(
+                res = requests.patch(
                     urljoin(self.playbook_url, "modules", module_uuid),
                     json=module_info,
                     headers=self.headers,
                 )
-                if r.status_code == 200:
-                    print("Updated")
-                else:
-                    print(f"[red]Error {response.status_code} - {response.text}[/red]")
+                if not res.ok:
+                    print(f"[red]Error updating the module: {res.status_code}[/red]")
+                    print(res.json())
+                    raise typer.Exit(code=1)
+                print("Updated")
 
     def load_actions(self, module_path: Path) -> list:
         """Load JSON files representing the actions linked to a module
@@ -261,21 +264,21 @@ class SyncLibrary:
 
         return connectors
 
-    def set_docker(self, manifests: list, module: dict) -> list:
+    def set_docker(self, manifests: list, module_docker_image: str) -> list:
         """Loops over the Docker name of objets linked to a module and adds the Docker
         version if missing
 
         Args:
             manifests (list): List of dict representing the objects to be checked
-            module (dict): Data dict of the parent module
+            module_docker_image (str): The docker image as defined in the module
 
         Returns:
             list: Modified version of the manifests received as parameter
         """
-        module_docker_name = self._get_module_docker_name(module)
+
         for manifest in manifests:
-            if "docker" not in manifest or manifest["docker"] == module_docker_name:
-                manifest["docker"] = f"{module_docker_name}:{module['version']}"
+            if "docker" not in manifest or manifest["docker"] != module_docker_image:
+                manifest["docker"] = module_docker_image
 
         return manifests
 
@@ -384,9 +387,13 @@ class SyncLibrary:
             )
             raise typer.Exit(code=1)
 
-        triggers = self.set_docker(self.load_triggers(module_path), module_info)
-        connectors = self.set_docker(self.load_connectors(module_path), module_info)
-        actions = self.set_docker(self.load_actions(module_path), module_info)
+        module_docker_image = f"{docker_name}:{module_info['version']}"
+        module_info["docker"] = module_docker_image
+        triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
+        connectors = self.set_docker(
+            self.load_connectors(module_path), module_docker_image
+        )
+        actions = self.set_docker(self.load_actions(module_path), module_docker_image)
 
         module_uuid: str = module_info["uuid"]
         module_name: str = module_info["name"]
@@ -464,8 +471,6 @@ class SyncLibrary:
             )
 
     def _get_module_docker_name(self, manifest: dict) -> str:
-        if docker := manifest.get("docker"):
-            return docker
         if slug := manifest.get("slug"):
             return f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
         raise ValueError("Impossible to generate image name")

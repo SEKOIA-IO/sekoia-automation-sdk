@@ -3,13 +3,13 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
 from aiohttp import ClientResponse, ClientResponseError, ClientSession
 from aiohttp.web_response import Response
 from aiolimiter import AsyncLimiter
 
-from sekoia_automation.http.http_client import AbstractHttpClient
+from sekoia_automation.http.http_client import AbstractHttpClient, Method
 from sekoia_automation.http.rate_limiter import RateLimiterConfig
 from sekoia_automation.http.retry import RetryPolicy
 
@@ -45,18 +45,16 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Yields:
             AsyncGenerator[ClientSession, None]:
         """
-        if self._session is None:
-            self._session = ClientSession()
-
-        if self._rate_limiter:
-            async with self._rate_limiter:
+        async with ClientSession() as self._session:
+            if self._rate_limiter:
+                async with self._rate_limiter:
+                    yield self._session
+            else:
                 yield self._session
-        else:
-            yield self._session
 
     @asynccontextmanager
     async def get(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Get callable.
@@ -69,12 +67,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("GET", url, *args, **kwargs) as result:
+        async with self.request_retry(Method.GET, url, *args, **kwargs) as result:
             yield result
 
     @asynccontextmanager
     async def post(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Post callable.
@@ -87,12 +85,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("POST", url, *args, **kwargs) as result:
+        async with self.request_retry(Method.POST, url, *args, **kwargs) as result:
             yield result
 
     @asynccontextmanager
     async def put(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Put callable.
@@ -105,12 +103,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("PUT", url, *args, **kwargs) as response:
+        async with self.request_retry(Method.PUT, url, *args, **kwargs) as response:
             yield response
 
     @asynccontextmanager
     async def delete(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Delete callable.
@@ -123,12 +121,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("DELETE", url, *args, **kwargs) as response:
+        async with self.request_retry(Method.DELETE, url, *args, **kwargs) as response:
             yield response
 
     @asynccontextmanager
     async def patch(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Patch callable.
@@ -141,12 +139,12 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("PATCH", url, *args, **kwargs) as response:
+        async with self.request_retry(Method.PATCH, url, *args, **kwargs) as response:
             yield response
 
     @asynccontextmanager
     async def head(
-        self, url: str, *args: Any, **kwargs: Optional[Any]
+        self, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Head callable.
@@ -159,12 +157,17 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
         Returns:
             ClientResponse:
         """
-        async with self.request_retry("HEAD", url, *args, **kwargs) as response:
+        async with self.request_retry(Method.HEAD, url, *args, **kwargs) as response:
             yield response
+
+    async def close(self) -> None:  # pragma: no cover
+        """Close the session if it exists."""
+        if self._session:
+            await self._session.close()
 
     @asynccontextmanager
     async def request_retry(
-        self, method: str, url: str, *args: Any, **kwargs: Optional[Any]
+        self, method: Method, url: str, *args: Any, **kwargs: Any | None
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Request callable.
@@ -188,7 +191,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
             try:
                 async with self.session() as session:
                     async with session.request(
-                        method, url, *args, **kwargs
+                        method.value, url, *args, **kwargs
                     ) as response:
                         if (
                             self._retry_policy is not None

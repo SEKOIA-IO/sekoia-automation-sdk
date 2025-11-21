@@ -1,9 +1,9 @@
+from collections.abc import Sequence
 from functools import wraps
 from inspect import get_annotations, getmro
-from typing import Sequence
 
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from tenacity import RetryCallState
 
 

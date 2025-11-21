@@ -10,7 +10,7 @@ from s3path import S3Path, register_configuration_parameter
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sekoia_automation import constants
-from sekoia_automation.config import TLS_VOLUME_PATH, load_config
+from sekoia_automation.configuration import get_configuration, Configuration
 from sekoia_automation.utils import capture_retry_error, chunks
 
 FilePath = Path | str
@@ -24,24 +24,25 @@ UPLOAD_CHUNK_SIZE = 1024 * 1024 * 50  # 50MB
     stop=stop_after_attempt(10),
     retry_error_callback=capture_retry_error,
 )
-def get_s3_data_path() -> Path:
+def get_s3_data_path(configuration: Configuration | None = None) -> Path:
     ca_path, cert_path, key_path = _get_tls_client_credentials()
     config = Config()
     if cert_path and key_path:
         config = Config(client_cert=(cert_path, key_path))
 
-    bucket_name = load_config("aws_bucket_name")
+    configuration = configuration or get_configuration()
+    bucket_name = configuration.load("aws_bucket_name")
 
     boto3.setup_default_session(
-        aws_access_key_id=load_config("aws_access_key_id"),
-        aws_secret_access_key=load_config("aws_secret_access_key"),
-        aws_session_token=load_config("aws_session_token", non_exist_ok=True),
-        region_name=load_config("aws_default_region"),
+        aws_access_key_id=configuration.load("aws_access_key_id"),
+        aws_secret_access_key=configuration.load("aws_secret_access_key"),
+        aws_session_token=configuration.load("aws_session_token", non_exist_ok=True),
+        region_name=configuration.load("aws_default_region"),
     )
     base_path = S3Path(f"/{bucket_name}")
 
     # Allow to use S3 compatible backend (other than AWS)
-    endpoint_url = load_config("aws_s3_endpoint_url")
+    endpoint_url = configuration.load("aws_s3_endpoint_url")
     stack_resource = boto3.resource(
         "s3", endpoint_url=endpoint_url, verify=ca_path, config=config
     )
@@ -54,7 +55,9 @@ def get_s3_data_path() -> Path:
     return base_path
 
 
-def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None]:
+def _get_tls_client_credentials(
+    configuration: Configuration | None = None,
+) -> tuple[Path | None, Path | None, Path | None]:
     """
     Get the TLS client credentials if set. It returns the path to:
         * The certificate authority certificate
@@ -71,21 +74,23 @@ def _get_tls_client_credentials() -> tuple[Path | None, Path | None, Path | None
         * client.key
         * ca.crt
     """
-    volume = Path(TLS_VOLUME_PATH)
+    configuration = configuration or get_configuration()
+
+    volume = Path(constants.TLS_VOLUME_PATH)
     volume.mkdir(parents=True, exist_ok=True)
 
     ca_path = None
-    if ca_cert := load_config("ca_cert", non_exist_ok=True):
+    if ca_cert := configuration.load("ca_cert", non_exist_ok=True):
         ca_path = volume.joinpath("ca.crt")
         ca_path.write_text(ca_cert)
 
     cert_path = None
-    if client_cert := load_config("client_cert", non_exist_ok=True):
+    if client_cert := configuration.load("client_cert", non_exist_ok=True):
         cert_path = volume.joinpath("client.crt")
         cert_path.write_text(client_cert)
 
     key_path = None
-    if client_key := load_config("client_key", non_exist_ok=True):
+    if client_key := configuration.load("client_key", non_exist_ok=True):
         key_path = volume.joinpath("client.key")
         key_path.write_text(client_key)
 
@@ -97,7 +102,7 @@ def get_local_data_path() -> Path:
 
 
 @lru_cache
-def get_data_path() -> Path:
+def get_data_path(configuration: Configuration | None = None) -> Path:
     """Returns the Path object to use to manipulate files.
 
     It can be either an S3 Path or a regular one.
@@ -108,14 +113,15 @@ def get_data_path() -> Path:
     For configuration options see
     https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
     """
-    file_backend = load_config("file_backend", non_exist_ok=True)
+    configuration = configuration or get_configuration()
+
+    file_backend = configuration.load("file_backend", non_exist_ok=True)
     if file_backend is None or file_backend.upper() != "S3":
         path = get_local_data_path()
     else:
         path = get_s3_data_path()
 
-    sub_folder = load_config("sub_folder", non_exist_ok=True)
-    if sub_folder:
+    if sub_folder := configuration.load("sub_folder", non_exist_ok=True):
         path = path / sub_folder
     return path
 

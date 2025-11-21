@@ -8,6 +8,8 @@
   },
   "description": "{{cookiecutter.module_description}}",
   "name": "{{cookiecutter.module_name}}",
+  "slug": "{{cookiecutter.module_name.lower().replace(' ', '-')}}",
+  "categories": [],
   "uuid": "{{ uuid4() }}",
   "version": "0.1.0"
 }

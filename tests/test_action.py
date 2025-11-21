@@ -5,7 +5,7 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import requests_mock
-from pydantic import BaseModel, ValidationError
+from pydantic.v1 import BaseModel, ValidationError
 
 # third parties
 from requests import Timeout
@@ -39,12 +39,10 @@ def test_action_logs(capsys):
     assert action.logs[1]["level"] == "info"
     assert action.logs[2]["level"] == "warning"
     assert action.logs[3]["level"] == "error"
-    assert action.logs[4]["level"] == "warning"
     assert action.logs[0]["message"] == "message1"
     assert action.logs[1]["message"] == "message2"
     assert action.logs[2]["message"] == "message3"
     assert action.logs[3]["message"] == "message4"
-    assert action.logs[4]["message"] == "message5"
 
 
 def test_action_outputs():
@@ -144,7 +142,7 @@ def test_exception_handler(mock_volume):
 def test_all(mock_volume):
     class PrintAction(Action):
         def run(self, arguments):
-            self.log("message", "info")
+            self.log("message", "info", status=401)
             self.set_output("malicious")
 
             return {"key1": "value1"}
@@ -160,6 +158,7 @@ def test_all(mock_volume):
 
         results = rmock.last_request.json()
         assert "info: message" in results["logs"]
+        assert '- Context: {"status": 401}' in results["logs"]
         assert results["outputs"] == {"malicious": True}
         assert results["results"] == {"key1": "value1"}
 
@@ -170,6 +169,24 @@ def test_validate_results_none():
 
     assert action.results is None
     assert action.error_message is None
+
+
+def test_validate_list_results(mock_volume):
+    class ListAction(Action):
+        def run(self, arguments):
+            return [{"key1": "value1"}, {"key2": "value2"}]
+
+    action = ListAction()
+
+    with requests_mock.Mocker() as rmock:
+        rmock.patch(FAKE_URL)
+
+        action.execute()
+
+        assert rmock.last_request.json()["results"] == [
+            {"key1": "value1"},
+            {"key2": "value2"},
+        ]
 
 
 def test_action_results_invalid(mock_volume):
@@ -239,9 +256,9 @@ def test_action_json_result_same_as_argument():
 
 
 def test_generic_api_action(storage):
-    def init_action():
+    def init_action(verb: str = "get"):
         action = GenericAPIAction(data_path=storage)
-        action.verb = "get"
+        action.verb = verb
         action.endpoint = "resource/{uuid}/count"
         action.query_parameters = ["param"]
         action.module.configuration = {"base_url": "http://base_url/"}
@@ -309,10 +326,11 @@ def test_generic_api_action(storage):
         assert mock.call_count == 2
         mock.assert_called_with(
             "get",
-            "http://base_url/resource/fake_uuid/count?param=number",
+            "http://base_url/resource/fake_uuid/count",
             json=arguments,
             headers={"Accept": "application/json"},
             timeout=5,
+            params={"param": "number"},
         )
 
     # error http code
@@ -322,7 +340,31 @@ def test_generic_api_action(storage):
         results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
 
         assert results is None
+        assert mock.call_count == 10
+
+    action = init_action()
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "http://base_url/resource/fake_uuid/count",
+            status_code=400,
+            json={"message": "Oops"},
+        )
+        results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
+
+        assert results is None
         assert mock.call_count == 1
+        assert action._error == "Oops"
+
+    action = init_action(verb="delete")
+    with requests_mock.Mocker() as mock:
+        mock.delete(
+            "http://base_url/resource/fake_uuid/count",
+            [{"status_code": 503}, {"status_code": 404}],
+        )
+        results: dict = action.run({"uuid": "fake_uuid", "param": "number"})
+
+        assert results is None
+        assert mock.call_count == 2
 
     # timeout
     action = init_action()
@@ -366,6 +408,58 @@ def test_generic_api_action(storage):
         history = mock.request_history
         assert history[0].method == "GET"
         assert history[0].url == "http://base_url/resource/10/count"
+
+    # Basic auth
+    action = init_action()
+    action.authentication = "baSic"
+    action.module.configuration["username"] = "user"
+    action.module.configuration["password"] = "pass"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Basic dXNlcjpwYXNz"
+
+    # API Key
+    action = init_action()
+    action.authentication = "aPiKey"
+    action.auth_header = "X-API-Key"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["X-API-Key"] == "api_key"
+
+    # Bearer Token
+    action = init_action()
+    action.authentication = "Bearer"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
+
+    # Query Param API Key
+    action = init_action()
+    action.authentication = "apiKey"
+    action.auth_query_param = "key"
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].qs == {"key": ["api_key"]}
+
+    # API key defined without authentication method, should be backward compatible
+    action = init_action()
+    action.module.configuration["api_key"] = "api_key"
+    arguments = {"uuid": 10}
+    with requests_mock.Mocker() as mock:
+        mock.get("http://base_url/resource/10/count", json=expected_response)
+        action.run(arguments)
+        assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
 
 
 def test_action_with_arguments_model():

@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 from typing import Generic, TypeVar
 
 from aiohttp import ClientSession
-from pydantic import BaseModel
-from pydantic.generics import GenericModel
+from pydantic.v1 import BaseModel
+from pydantic.v1.generics import GenericModel
 
 HttpTokenT = TypeVar("HttpTokenT", bound=BaseModel)
 
@@ -37,7 +37,7 @@ class RefreshedToken(GenericModel, Generic[HttpTokenT]):
         Returns:
             bool:
         """
-        return self.created_at + self.ttl < (time.time() - 1)
+        return (self.created_at + self.ttl) < (int(time.time()) - 1)
 
 
 RefreshedTokenT = TypeVar("RefreshedTokenT", bound=RefreshedToken)
@@ -118,7 +118,8 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         Args:
             expires_in: int
         """
-        await self.close()
+        if self._token_refresh_task:
+            self._token_refresh_task.cancel()
 
         async def _refresh() -> None:
             await asyncio.sleep(expires_in)
@@ -133,6 +134,9 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         if self._token_refresh_task:
             self._token_refresh_task.cancel()
 
+        if self._session:
+            await self._session.close()
+
     @asynccontextmanager
     async def with_access_token(self) -> AsyncGenerator[RefreshedTokenT, None]:
         """
@@ -141,7 +145,7 @@ class GenericTokenRefresher(Generic[RefreshedTokenT]):
         Yields:
             RefreshedTokenT:
         """
-        if self._token is None:
+        if self._token is None or not self._token.is_valid():
             await self._refresh_token()
 
         if not self._token:

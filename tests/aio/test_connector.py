@@ -428,7 +428,7 @@ async def test_async_push_events_other_4xx_fails_immediately(
             exc_info.value
         )
 
-        async_connector.log_exception.call_count == 3
+        assert async_connector.log_exception.call_count == 5
 
 
 @pytest.mark.asyncio

@@ -106,10 +106,15 @@ class AsyncConnector(Connector, ABC):
                 ) as response:
                     if response.status >= 300:
                         error = await response.text()
-                        error_message = f"Chunk {chunk_index} error: {error}"
+                        error_message = (
+                            f"Chunk {chunk_index} error ({response.status}) "
+                            f"on attempt {attempt.retry_state.attempt_number}: {error}"
+                        )
                         exception = RuntimeError(error_message)
 
                         self.log_exception(exception)
+
+                        raise exception
 
                     result = await response.json()
                     events_ids.extend(result.get("event_ids", []))

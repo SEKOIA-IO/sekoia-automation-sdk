@@ -46,6 +46,9 @@ def test_connector(storage, mocked_trigger_logs):
 
         test_connector.log = Mock()
         test_connector.log_exception = Mock()
+        test_connector._retry = lambda: Retrying(
+            reraise=True, stop=stop_after_attempt(3), wait=wait_none()
+        )
 
         yield test_connector
 
@@ -313,3 +316,137 @@ def test_connector_next_run(faker, test_connector, requests_mock):
 
     # because we expect 3 iterations
     assert len(requests_mock.request_history) == 3
+
+
+
+def test_push_events_422_succeeds_on_first_attempt(
+    test_connector, mocked_trigger_logs
+):
+    """Test that HTTP 422 on first attempt but succeeds immediately."""
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["001", "002"]}, status_code=200
+    )
+
+    result = test_connector.push_events_to_intakes(EVENTS)
+    assert result == ["001", "002"]
+    assert test_connector.log.call_count == 0  # No warnings logged
+
+
+def test_push_events_422_retries_and_succeeds_second_attempt(
+    test_connector, mocked_trigger_logs
+):
+    """Test HTTP 422 retries and succeeds on 2nd attempt."""
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 422, "text": "Not ready"},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
+    )
+
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    assert result == ["001", "002"]
+    # Verify exponential backoff: slept 0 second before 2nd attempt because of wait_none
+    mock_sleep.assert_called_once_with(0.0)
+
+
+def test_push_events_422_retries_and_succeeds_third_attempt(
+    test_connector, mocked_trigger_logs
+):
+    """Test HTTP 422 retries and succeeds on 3rd attempt."""
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 422, "text": "Not ready"},
+            {"status_code": 422, "text": "Not ready"},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
+    )
+
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    assert result == ["001", "002"]
+    # Verify exponential backoff: 0s, then 0s because of wait_none
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 0.0
+    assert mock_sleep.call_args_list[1][0][0] == 0.0
+
+
+def test_push_events_422_fails_after_max_retries(
+    test_connector, mocked_trigger_logs
+):
+    """Test HTTP 422 fails after 3 retries exhausted."""
+    url = "https://intake.sekoia.io/batch"
+    # Return 422 for all 4 attempts (initial + 3 retries)
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 422, "text": "Not ready"},
+            {"status_code": 422, "text": "Not ready"},
+            {"status_code": 422, "text": "Not ready"},
+            {"status_code": 422, "text": "Not ready"},
+        ],
+    )
+
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    # Should return empty list after all retries fail
+    assert result == []
+    # Verify exponential backoff: 0s, 0s, 0s because of wait_none
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 0.0
+    assert mock_sleep.call_args_list[1][0][0] == 0.0
+
+    test_connector.log_exception.assert_called_once()
+
+
+def test_push_events_other_4xx_fails_immediately(
+    test_connector, mocked_trigger_logs
+):
+    """Test other 4xx errors (not 422) fail immediately without retry."""
+    url = "https://intake.sekoia.io/batch"
+    # Test various 4xx errors
+    for status_code in [400, 401, 403, 404, 429]:
+        test_connector.log.reset_mock()
+        test_connector.log_exception.reset_mock()
+        mocked_trigger_logs.post(
+            url, status_code=status_code, text="Client error"
+        )
+
+        with patch("time.sleep") as mock_sleep:
+            result = test_connector.push_events_to_intakes(EVENTS)
+
+        # Should fail immediately, no retries
+        assert result == []
+        mock_sleep.call_count = 2
+        # Error should be logged
+        test_connector.log_exception.assert_called_once()
+
+
+def test_push_events_5xx_uses_standard_retry(
+    test_connector, mocked_trigger_logs
+):
+    """Test 5xx errors use the standard retry mechanism."""
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 503, "text": "Service unavailable"},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
+    )
+
+    # Use standard retry with limited attempts for test
+    test_connector._retry = lambda: Retrying(
+        reraise=True, stop=stop_after_attempt(5), wait=wait_none()
+    )
+
+    result = test_connector.push_events_to_intakes(EVENTS)
+    assert result == ["001", "002"]

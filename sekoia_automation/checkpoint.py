@@ -91,9 +91,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
 
             # if undefined, retrieve events from the {self._start_at} ago
             if most_recent_date_seen_str is None:
-                self._most_recent_date_seen = (
-                    datetime.now(UTC) - self._start_at
-                )
+                self._most_recent_date_seen = datetime.now(UTC) - self._start_at
                 return self.from_datetime(self._most_recent_date_seen)
 
             most_recent_date_seen = self.file_to_datetime(most_recent_date_seen_str)

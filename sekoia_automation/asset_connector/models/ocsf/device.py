@@ -5,10 +5,12 @@ from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 from sekoia_automation.asset_connector.models.ocsf.group import Group
+from sekoia_automation.asset_connector.models.ocsf.organization import Organization
 from sekoia_automation.asset_connector.models.ocsf.risk_level import (
     RiskLevelId,
     RiskLevelStr,
 )
+
 
 class NetworkInterfaceTypeId(IntEnum):
     UNKNOWN = 0
@@ -17,6 +19,7 @@ class NetworkInterfaceTypeId(IntEnum):
     MOBILE = 3
     TUNNEL = 4
     OTHER = 99
+
 
 class NetworkInterfaceTypeStr(StrEnum):
     UNKNOWN = "Unknown"
@@ -171,6 +174,7 @@ class Device(BaseModel):
     model: str | None = None
     name: str | None = None
     network_interfaces: list[NetworkInterface] | None = None
+    org: Organization | None = None
     os_machine_uuid: str | None = None
     region: str | None = None
     risk_level: RiskLevelStr | None = None

@@ -1,5 +1,4 @@
-from sekoia_automation.configuration import get_configuration, Configuration
-
+from sekoia_automation.configuration import Configuration, get_configuration
 
 configuration: Configuration = get_configuration()
 

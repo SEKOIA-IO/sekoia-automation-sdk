@@ -1,6 +1,6 @@
 import enum
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -92,7 +92,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
             # if undefined, retrieve events from the {self._start_at} ago
             if most_recent_date_seen_str is None:
                 self._most_recent_date_seen = (
-                    datetime.now(timezone.utc) - self._start_at
+                    datetime.now(UTC) - self._start_at
                 )
                 return self.from_datetime(self._most_recent_date_seen)
 
@@ -100,7 +100,7 @@ class CheckpointDatetimeBase(ABC, Checkpoint):
 
             if self._ignore_older_than:
                 # check if the date is older than the {self._ignore_older_than} ago
-                too_old = datetime.now(timezone.utc) - self._ignore_older_than
+                too_old = datetime.now(UTC) - self._ignore_older_than
                 if most_recent_date_seen < too_old:
                     most_recent_date_seen = too_old
 
@@ -182,7 +182,7 @@ class CheckpointTimestamp(CheckpointDatetimeBase):
 
     def to_datetime(self, rp: float | int) -> datetime:
         # timestamp -> inner representation
-        return datetime.fromtimestamp(rp / self.multiplier).astimezone(timezone.utc)
+        return datetime.fromtimestamp(rp / self.multiplier).astimezone(UTC)
 
 
 class CheckpointCursor(Checkpoint):

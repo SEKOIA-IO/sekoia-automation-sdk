@@ -1,6 +1,5 @@
 import pytest
 
-from sekoia_automation.configuration.base import Configuration
 from sekoia_automation.configuration.fission import FissionConfiguration
 
 

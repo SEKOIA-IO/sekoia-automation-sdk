@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import ClassVar
 from unittest.mock import PropertyMock, mock_open, patch
 
-# third parties
+import botocore.exceptions
 import pytest
 import requests
 import requests_mock
-from botocore.exceptions import ClientError, ConnectionError
 from pydantic.v1 import BaseModel
 from tenacity import wait_none
 
@@ -567,7 +566,7 @@ def test_trigger_liveness_not_found(monitored_trigger):
 
 def test_trigger_s3_connection_error(mocked_trigger_logs):
     trigger = ErrorTrigger()
-    trigger.ex = ConnectionError(error="Err")
+    trigger.ex = botocore.exceptions.ConnectionError(error="Err")
 
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
@@ -578,7 +577,7 @@ def test_trigger_s3_connection_error(mocked_trigger_logs):
 
 def test_trigger_s3_server_error_int(mocked_trigger_logs):
     trigger = ErrorTrigger()
-    trigger.ex = ClientError({"Error": {"Code": 500}}, "foo")
+    trigger.ex = botocore.exceptions.ClientError({"Error": {"Code": 500}}, "foo")
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
@@ -588,7 +587,9 @@ def test_trigger_s3_server_error_int(mocked_trigger_logs):
 
 def test_trigger_s3_server_error_str(mocked_trigger_logs):
     trigger = ErrorTrigger()
-    trigger.ex = ClientError({"Error": {"Code": "ServiceUnavailable"}}, "foo")
+    trigger.ex = botocore.exceptions.ClientError(
+        {"Error": {"Code": "ServiceUnavailable"}}, "foo"
+    )
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
@@ -598,7 +599,7 @@ def test_trigger_s3_server_error_str(mocked_trigger_logs):
 
 def test_trigger_s3_client_error_int(mocked_trigger_logs):
     trigger = ErrorTrigger()
-    trigger.ex = ClientError({"Error": {"Code": 400}}, "foo")
+    trigger.ex = botocore.exceptions.ClientError({"Error": {"Code": 400}}, "foo")
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()
@@ -609,7 +610,9 @@ def test_trigger_s3_client_error_int(mocked_trigger_logs):
 
 def test_trigger_s3_client_error_str(mocked_trigger_logs):
     trigger = ErrorTrigger()
-    trigger.ex = ClientError({"Error": {"Code": "NoSuchBucket"}}, "foo")
+    trigger.ex = botocore.exceptions.ClientError(
+        {"Error": {"Code": "NoSuchBucket"}}, "foo"
+    )
     with patch("sentry_sdk.capture_exception") as sentry_patch:
         trigger._execute_once()
         sentry_patch.assert_called()

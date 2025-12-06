@@ -1,4 +1,3 @@
-# natives
 import json
 import logging
 from unittest.mock import Mock, PropertyMock, patch
@@ -6,12 +5,9 @@ from unittest.mock import Mock, PropertyMock, patch
 import pytest
 import requests_mock
 from pydantic.v1 import BaseModel, ValidationError
-
-# third parties
 from requests import Timeout
 from tenacity import wait_none
 
-# internal
 from sekoia_automation.action import Action, GenericAPIAction
 from sekoia_automation.exceptions import MissingActionArgumentError, SendEventError
 from sekoia_automation.module import Module

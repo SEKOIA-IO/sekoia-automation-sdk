@@ -92,7 +92,7 @@ dev = [
     "requests-oauthlib>=2.0.0,<3",
 ]
 lint = [
-    "ruff>=0.6.8,<0.7.0",
+    "ruff>=0.14",
     "mypy",
     "pip>=25.3",
 ]
@@ -138,6 +138,9 @@ select = ["A", "ARG", "E", "F", "I", "N", "RUF", "UP", "W"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]  # Ignore unusued args because of pytest fixtures
+
+[tool.ruff.lint.flake8-builtins]
+ignorelist = ["print"]
 
 [tool.mypy]
 python_version = "3.11"

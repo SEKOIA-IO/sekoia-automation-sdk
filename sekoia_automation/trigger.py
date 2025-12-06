@@ -10,9 +10,9 @@ from threading import Event, Thread
 from typing import Any, ClassVar
 from uuid import uuid4
 
+import botocore.exceptions
 import requests
 import sentry_sdk
-from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
 from cachetools import TLRUCache
 from pydantic.v1 import BaseModel
 from requests import HTTPError
@@ -167,11 +167,14 @@ class Trigger(ModuleItem):
         except (TriggerConfigurationError, ModuleConfigurationError) as e:
             self.log_exception(e)
             self.log("Configuration error", "critical")
-        except (ConnectionError, HTTPClientError) as ex:
+        except (
+            botocore.exceptions.ConnectionError,
+            botocore.exceptions.HTTPClientError,
+        ) as ex:
             # Error while communicating with the S3 storage
             # Don't increment the error count because this is an internal issue
             self.log_exception(ex)
-        except ClientError as ex:
+        except botocore.exceptions.ClientError as ex:
             self._handle_s3_exception(ex)
         except SendEventError as ex:
             self._handle_send_event_exception(ex)
@@ -509,7 +512,7 @@ class Trigger(ModuleItem):
             return False
         return delta_since_startup / 5 <= delta_since_last_event
 
-    def _handle_s3_exception(self, ex: ClientError):
+    def _handle_s3_exception(self, ex: botocore.exceptions.ClientError):
         """
         Handle errors coming from the S3 storage
         """
@@ -545,7 +548,7 @@ class Trigger(ModuleItem):
 class LivenessHandler(BaseHTTPRequestHandler):
     trigger: Trigger
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         if self.path == "/health":
             self.send(
                 200 if self.trigger.is_alive() else 500, self.trigger.liveness_context()

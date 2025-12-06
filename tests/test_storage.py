@@ -1,4 +1,3 @@
-# natives
 import io
 import json
 import os
@@ -9,11 +8,8 @@ from unittest import mock
 import boto3
 import pytest
 from botocore.config import Config
-
-# thrid parties
 from s3path import S3Path
 
-# internal
 from sekoia_automation.storage import (
     PersistentJSON,
     _get_tls_client_credentials,

@@ -1,15 +1,12 @@
-# natives
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-# third parties
 import pytest
 from pydantic.v1 import BaseModel
 from sentry_sdk import get_isolation_scope
 
-# internal
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger

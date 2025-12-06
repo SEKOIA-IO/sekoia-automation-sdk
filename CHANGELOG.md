@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Introduce a new `SekoiaAutomationBaseModel` (preconfigured Pydantic’s `BaseModel`) to avoid int-to-str issues.
+- Test SDK with Python 3.13 and 3.14.
 
 ### Changed
 

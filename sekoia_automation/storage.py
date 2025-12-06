@@ -10,7 +10,7 @@ from s3path import S3Path, register_configuration_parameter
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sekoia_automation import constants
-from sekoia_automation.configuration import get_configuration, Configuration
+from sekoia_automation.configuration import Configuration, get_configuration
 from sekoia_automation.utils import capture_retry_error, chunks
 
 FilePath = Path | str

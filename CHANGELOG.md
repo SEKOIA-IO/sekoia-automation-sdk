@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Move to `uv` to build project
+- Update Ruff and fix existing files.
 
 ## 1.21.1 - 2025-10-28
 

@@ -10,6 +10,7 @@ from sekoia_automation.asset_connector.models.ocsf.risk_level import (
     RiskLevelStr,
 )
 
+
 class NetworkInterfaceTypeId(IntEnum):
     UNKNOWN = 0
     WIRED = 1
@@ -17,6 +18,7 @@ class NetworkInterfaceTypeId(IntEnum):
     MOBILE = 3
     TUNNEL = 4
     OTHER = 99
+
 
 class NetworkInterfaceTypeStr(StrEnum):
     UNKNOWN = "Unknown"

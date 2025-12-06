@@ -1,13 +1,13 @@
 # How to contribute
 
-In order to run the test and the lint check of the project [Poetry](https://python-poetry.org/) must be installed.
+In order to run the test and the lint check of the project [`uv`](https://docs.astral.sh/uv/) must be installed.
 
 ## Installing dependencies
 
-Once poetry is installing the dependencies of the project is a matter of running the following command:
+Once uv is installing the dependencies of the project is a matter of running the following command:
 
 ```shell
-poetry install
+uv sync --all-extras
 ```
 
 ## Testing
@@ -15,29 +15,29 @@ poetry install
 To run the project tests simply run the following command:
 
 ```shell
-poetry run pytest
+uv run pytest
 ```
 
 ## Coding conventions
 
-### Code formatting
+### Code formatting & liting
 
-The python files of the project are formatted using [Black](https://black.readthedocs.io/).
+The python files of the project are formatted using [Ruff](https://docs.astral.sh/ruff/).
 
 To format the code before committing it you can run:
 
 ```shell
-poetry run black .
+uv run ruff format .
 ```
 
 ### Code linting
 
-To validate the code against the rules of the project [Ruff](https://beta.ruff.rs/docs/) is required.
+To validate the code against the rules of the project [Ruff](https://docs.astral.sh/ruff/) is required.
 
 Linting can be executed with the following command:
 
 ```shell
-poetry run ruff --fix .
+uv run ruff check --fix .
 ```
 
 ### Type checking
@@ -47,7 +47,7 @@ The project relies on [mypy](https://mypy.readthedocs.io/en/stable/) to type che
 Type checking can be achieved with the following command:
 
 ```shell
-poetry run mypy --install-types .
+uv run mypy --install-types .
 ```
 
 ### Pre-commit hooks
@@ -58,4 +58,3 @@ Once the tool is installed the pre-commit hooks must be added to git by running 
 ```shell
 pre-commit install
 ```
-

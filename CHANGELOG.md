@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Move to `uv` to build project
+
 ## 1.21.1 - 2025-10-28
 
 ### Added
@@ -71,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Add users fields to enrichment 
-- Fix asset connector post url 
+- Add users fields to enrichment
+- Fix asset connector post url
 - Update OCSF fields for software, user and vulnerability
 - Fix some typos
 - Add some extra tests for updating connector fields

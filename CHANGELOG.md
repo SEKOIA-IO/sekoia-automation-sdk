@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fully move to Pydantic v2 and drop usage of `pydantic.v1` compatibility layer, that is not compatible with Python
   3.14.
 
+### Added
+
+- Test SDK with Python 3.13 and 3.14.
+
 ## 1.21.1 - 2025-10-28
 
 ### Added

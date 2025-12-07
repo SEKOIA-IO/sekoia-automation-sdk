@@ -27,14 +27,14 @@ dependencies = [
     "s3path>=0.6.4,<0.7",
     "orjson>=3.8,<4",
     "pydantic>=2.10,<3",
-    "typer[all]>=0.17.3,<0.18",
+    "typer>=0.20",
     "cookiecutter>=2.1,<3",
     "python-slugify>=5.0.2,<6",
     "PyYAML>=6.0,<7",
     "Jinja2>=3.0.3,<4",
     "black>=25.11.0", # To format files in cli tools
     "poetry",         # To lock requirements when creating new module
-    "prometheus-client>=0.21.0,<0.22",
+    "prometheus-client",
     "aiohttp>=3.8.4,<4",
     "jsonschema>=4.22.0,<5",
     "flask>=3.1.2,<4",

@@ -4,7 +4,7 @@ from abc import ABC
 from collections.abc import Generator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
-from datetime import datetime
+from datetime import UTC, datetime
 from datetime import time as datetime_time
 from functools import cached_property
 from os.path import join as urljoin
@@ -185,7 +185,7 @@ class Connector(Trigger, MetricsMixin, ABC):
 
         # Reset the consecutive error count
         self._error_count = 0
-        self._last_events_time = datetime.utcnow()
+        self._last_events_time = datetime.now(UTC).replace(tzinfo=None)
         if intake_server := self.configuration.intake_server:
             batch_api = urljoin(intake_server, "batch")
         else:
@@ -373,7 +373,9 @@ class Connector(Trigger, MetricsMixin, ABC):
 
         # Metric about events lag
         if result_last_event_date:
-            lag = (datetime.utcnow() - result_last_event_date).total_seconds()
+            lag = (
+                datetime.now(UTC).replace(tzinfo=None) - result_last_event_date
+            ).total_seconds()
             self.put_events_lag(intake_key=self.configuration.intake_key, lag=lag)
 
         # Compute the remaining sleeping time.

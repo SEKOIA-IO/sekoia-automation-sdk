@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move to `uv` to build project
 - Update Ruff and fix existing files.
+- Move away from `datetime.utcnow()` that is deprecated.
 
 ## 1.21.1 - 2025-10-28
 

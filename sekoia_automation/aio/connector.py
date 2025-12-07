@@ -5,7 +5,7 @@ import time
 from abc import ABC
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
 
@@ -140,7 +140,7 @@ class AsyncConnector(Connector, ABC):
         Returns:
             list[str]:
         """
-        self._last_events_time = datetime.utcnow()
+        self._last_events_time = datetime.now(UTC).replace(tzinfo=None)
 
         result_ids = []
 
@@ -196,7 +196,9 @@ class AsyncConnector(Connector, ABC):
 
         # Metric about events lag
         if result_last_event_date:
-            lag = (datetime.utcnow() - result_last_event_date).total_seconds()
+            lag = (
+                datetime.now(UTC).replace(tzinfo=None) - result_last_event_date
+            ).total_seconds()
             self.put_events_lag(intake_key=self.configuration.intake_key, lag=lag)
 
         # Compute the remaining sleeping time.

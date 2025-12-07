@@ -3,7 +3,7 @@ import signal
 from abc import abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
@@ -69,9 +69,9 @@ class Trigger(ModuleItem):
         super().__init__(module, data_path)
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0
-        self._last_events_time = datetime.utcnow()
-        self._last_heartbeat = datetime.utcnow()
-        self._startup_time = datetime.utcnow()
+        self._last_events_time = datetime.now(UTC).replace(tzinfo=None)
+        self._last_heartbeat = datetime.now(UTC).replace(tzinfo=None)
+        self._startup_time = datetime.now(UTC).replace(tzinfo=None)
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
@@ -208,7 +208,7 @@ class Trigger(ModuleItem):
         """
         Mark the trigger as alive.
         """
-        self._last_heartbeat = datetime.utcnow()
+        self._last_heartbeat = datetime.now(UTC).replace(tzinfo=None)
 
     def _rm_tree(self, path: Path) -> None:
         """
@@ -281,7 +281,7 @@ class Trigger(ModuleItem):
         """
         # Reset the consecutive error count
         self._error_count = 0
-        self._last_events_time = datetime.utcnow()
+        self._last_events_time = datetime.now(UTC).replace(tzinfo=None)
 
         # Add request_id to the data to be able to track the request
         data = {"name": event_name, "event": event, "request_id": str(uuid4())}
@@ -343,7 +343,7 @@ class Trigger(ModuleItem):
 
         self._logs.append(
             {
-                "date": datetime.utcnow().isoformat(),
+                "date": datetime.now(UTC).replace(tzinfo=None).isoformat(),
                 "level": level,
                 "message": message,
             }
@@ -431,7 +431,7 @@ class Trigger(ModuleItem):
         return True
 
     def _events_alive(self) -> bool:
-        delta = datetime.utcnow() - self._last_events_time
+        delta = datetime.now(UTC).replace(tzinfo=None) - self._last_events_time
         if self.seconds_without_events <= 0 or delta < timedelta(
             seconds=self.seconds_without_events
         ):
@@ -446,7 +446,7 @@ class Trigger(ModuleItem):
         return False
 
     def _heartbeat_alive(self) -> bool:
-        heartbeat_delta = datetime.utcnow() - self._last_heartbeat
+        heartbeat_delta = datetime.now(UTC).replace(tzinfo=None) - self._last_heartbeat
         if self.last_heartbeat_threshold <= 0 or heartbeat_delta < timedelta(
             seconds=self.last_heartbeat_threshold
         ):
@@ -502,10 +502,11 @@ class Trigger(ModuleItem):
             return False
 
         delta_since_last_event = (
-            datetime.utcnow() - self._last_events_time
+            datetime.now(UTC).replace(tzinfo=None) - self._last_events_time
         ).total_seconds()
         delta_since_startup = min(
-            datetime.utcnow() - self._startup_time, timedelta(days=5)
+            datetime.now(UTC).replace(tzinfo=None) - self._startup_time,
+            timedelta(days=5),
         ).total_seconds()
         if delta_since_startup < 1800:
             # Graceful 30 minutes period at startup

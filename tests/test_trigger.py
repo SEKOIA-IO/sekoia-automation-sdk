@@ -1,6 +1,6 @@
 import datetime
 import time
-from datetime import timedelta
+from datetime import UTC, timedelta
 from pathlib import Path
 from typing import ClassVar
 from unittest.mock import PropertyMock, mock_open, patch
@@ -447,8 +447,12 @@ def test_too_many_errors_critical_log(_, mocked_trigger_logs):
 
     trigger = TestTrigger()
     trigger._error_count = 4
-    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
+    trigger._startup_time = datetime.datetime.now(UTC).replace(tzinfo=None) - timedelta(
+        hours=1
+    )
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=5)
     trigger._STOP_EVENT_WAIT = 0.001
     with (
         pytest.raises(SystemExit),
@@ -529,9 +533,9 @@ def test_trigger_liveness(monitored_trigger):
 
 def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
     monitored_trigger.seconds_without_events = 1
-    monitored_trigger._last_events_time = (
-        datetime.datetime.utcnow() - datetime.timedelta(seconds=60)
-    )
+    monitored_trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - datetime.timedelta(seconds=60)
     mocked_trigger_logs.register_uri(
         "GET", "http://127.0.0.1:8000/health", real_http=True
     )
@@ -545,9 +549,9 @@ def test_trigger_liveness_error(monitored_trigger, mocked_trigger_logs):
 
 def test_trigger_liveness_heartbeat_error(monitored_trigger, mocked_trigger_logs):
     monitored_trigger.last_heartbeat_threshold = 1
-    monitored_trigger._last_heartbeat = datetime.datetime.utcnow() - datetime.timedelta(
-        seconds=60
-    )
+    monitored_trigger._last_heartbeat = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - datetime.timedelta(seconds=60)
     mocked_trigger_logs.register_uri(
         "GET", "http://127.0.0.1:8000/health", real_http=True
     )
@@ -645,8 +649,12 @@ def test_is_error_critical_errors():
     assert trigger._is_error_critical() is False
     trigger._error_count = 5
     assert trigger._is_error_critical() is False
-    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=9)
+    trigger._startup_time = datetime.datetime.now(UTC).replace(tzinfo=None) - timedelta(
+        hours=1
+    )
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=9)
     assert trigger._is_error_critical() is True
 
 
@@ -658,24 +666,38 @@ def test_is_error_critical_time_since_last_event():
     trigger._startup_time = datetime.datetime(year=2021, month=1, day=1)
     assert trigger._is_error_critical() is False
     # Time without events is capped to 24 hours
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=23)
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=23)
     assert trigger._is_error_critical() is False
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=24)
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=24)
     assert trigger._is_error_critical() is True
 
     # Trigger that just started and already has 5 errors without sending any event
     trigger = DummyTrigger()
     trigger._error_count = 5
     assert trigger._is_error_critical() is False
-    trigger._startup_time = datetime.datetime.utcnow() - timedelta(hours=1)
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
+    trigger._startup_time = datetime.datetime.now(UTC).replace(tzinfo=None) - timedelta(
+        hours=1
+    )
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=5)
     assert trigger._is_error_critical() is True
 
     # Trigger that has been running for 1 day should exit after 5 hours of errors
-    trigger._last_events_time = datetime.datetime.utcnow()
-    trigger._startup_time = datetime.datetime.utcnow() - timedelta(days=1)
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(tzinfo=None)
+    trigger._startup_time = datetime.datetime.now(UTC).replace(tzinfo=None) - timedelta(
+        days=1
+    )
     assert trigger._is_error_critical() is False
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=1)
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=1)
     assert trigger._is_error_critical() is False
-    trigger._last_events_time = datetime.datetime.utcnow() - timedelta(hours=5)
+    trigger._last_events_time = datetime.datetime.now(UTC).replace(
+        tzinfo=None
+    ) - timedelta(hours=5)
     assert trigger._is_error_critical() is True

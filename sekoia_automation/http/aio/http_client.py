@@ -167,7 +167,7 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
     @asynccontextmanager
     async def request_retry(
-        self, method: Method, url: str, *args: Any, **kwargs: Any | None
+        self, method: Method, url: str, *args: Any, **kwargs: Any
     ) -> AsyncGenerator[ClientResponse, None]:
         """
         Request callable.

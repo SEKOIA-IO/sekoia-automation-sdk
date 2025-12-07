@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove warning with Sentry and stop client on each test
 - Fully move to Pydantic v2 and drop usage of `pydantic.v1` compatibility layer, that is not compatible with Python
   3.14.
+- Remove warning with Sentry and stop client on each test
 
 ## 1.22.2 - 2026-02-05
 

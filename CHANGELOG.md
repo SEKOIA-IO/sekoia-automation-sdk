@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move to `uv` to build project
 - Update Ruff and fix existing files.
 - Move away from `datetime.utcnow()` that is deprecated.
+- Remove warning with Sentry and stop client on each test
 
 ## 1.22.0 - 2025-12-15
 

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move away from `datetime.utcnow()` that is deprecated.
 - Fully move to Pydantic v2 and drop usage of `pydantic.v1` compatibility layer, that is not compatible with Python
   3.14.
+- Remove warning with Sentry and stop client on each test
 
 ### Added
 

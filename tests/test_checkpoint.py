@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +13,7 @@ from sekoia_automation.checkpoint import (
 
 @pytest.fixture
 def fake_time():
-    yield datetime(2022, 11, 5, 11, 59, 59, tzinfo=timezone.utc)
+    yield datetime(2022, 11, 5, 11, 59, 59, tzinfo=UTC)
 
 
 @pytest.fixture

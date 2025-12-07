@@ -14,7 +14,7 @@ from typing import Any
 
 import requests
 import typer
-from rich import print  # noqa: A004
+from rich import print
 
 
 class SyncLibrary:

@@ -1,15 +1,12 @@
-# natives
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
-# third parties
 import pytest
-from pydantic.v1 import BaseModel
 from sentry_sdk import get_isolation_scope
 
-# internal
+from sekoia_automation import SekoiaAutomationBaseModel
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError
 from sekoia_automation.module import Module, ModuleItem
 from sekoia_automation.trigger import Trigger
@@ -135,7 +132,7 @@ def test_configuration_setter():
 
 
 def test_configuration_setter_as_model():
-    class MyConfiguration(BaseModel):
+    class MyConfiguration(SekoiaAutomationBaseModel):
         number: int = 0
 
     module = Module()
@@ -144,7 +141,7 @@ def test_configuration_setter_as_model():
 
 
 def test_configuration_as_model():
-    class MyConfiguration(BaseModel):
+    class MyConfiguration(SekoiaAutomationBaseModel):
         number: int = 0
 
     class MyModule(Module):

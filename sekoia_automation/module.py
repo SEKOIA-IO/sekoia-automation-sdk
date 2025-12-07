@@ -12,7 +12,7 @@ import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
 from flask import request
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import RequestException, Response
 
 from sekoia_automation.configuration import get_configuration
@@ -129,7 +129,7 @@ class Module:
         """
         required_properties: list[str] = self.manifest_required_properties()
         items = (
-            configuration.dict().items()
+            configuration.model_dump().items()
             if isinstance(configuration, BaseModel)
             else configuration.items()
         )
@@ -152,7 +152,9 @@ class Module:
             )
 
         if isinstance(self._configuration, BaseModel):
-            sentry_sdk.set_context("module_configuration", self._configuration.dict())
+            sentry_sdk.set_context(
+                "module_configuration", self._configuration.model_dump()
+            )
         elif self._configuration:
             sentry_sdk.set_context("module_configuration", self._configuration)
 
@@ -212,7 +214,7 @@ class Module:
         secrets = {}
         config_dict = {}
         if isinstance(self.configuration, BaseModel):
-            config_dict = self.configuration.dict()
+            config_dict = self.configuration.model_dump()
         elif isinstance(self.configuration, dict):
             config_dict = self.configuration
         for secret_key in self.manifest_secrets():
@@ -420,7 +422,7 @@ class ModuleItem(ABC):
             log_level = logging.getLevelName(level.upper())
             self._logger.log(log_level, message)
         if level.lower() in ["error", "warning", "critical"]:
-            with sentry_sdk.push_scope() as scope:
+            with sentry_sdk.new_scope() as scope:
                 for key, value in kwargs.items():
                     scope.set_extra(key, value)
                 sentry_sdk.capture_message(message, level)  # type: ignore
@@ -429,7 +431,7 @@ class ModuleItem(ABC):
         """Log the given exception."""
         message = kwargs.get("message", "An exception occurred")
         self._logger.exception(message)
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             for key, value in kwargs.items():
                 scope.set_extra(key, value)
             sentry_sdk.capture_exception(exception)

@@ -344,7 +344,7 @@ def test_push_assets_to_sekoia(test_asset_connector, asset_list):
     test_asset_connector.push_assets_to_sekoia(asset_list)
     test_asset_connector.post_assets_to_api.assert_called_once()
     call_args = test_asset_connector.post_assets_to_api.call_args
-    pos_args, kw_args = call_args
+    _, kw_args = call_args
     assert kw_args["assets"] == asset_list
     assert (
         kw_args["asset_connector_api_url"]

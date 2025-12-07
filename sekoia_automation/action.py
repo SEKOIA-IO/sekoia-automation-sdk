@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from abc import abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
 from traceback import format_exc
@@ -13,7 +13,7 @@ import orjson
 import requests
 import sentry_sdk
 from aiohttp import BasicAuth
-from pydantic.v1 import validate_arguments
+from pydantic import validate_call
 from requests import RequestException, Response
 from tenacity import (
     RetryError,
@@ -65,9 +65,9 @@ class Action(ModuleItem):
         self._update_secrets = False
         logging.getLogger().addHandler(ActionLogHandler(self))
 
-        # Make sure arguments are validated/coerced by pydantic.v1
+        # Make sure arguments are validated/coerced by Pydantic
         # if a type annotation is defined
-        self.run = validate_arguments()(self.run)  # type: ignore
+        self.run = validate_call(self.run)  # type: ignore
 
         # If a `results_model` is defined, also validate the return value
         if self.results_model:
@@ -119,7 +119,7 @@ class Action(ModuleItem):
         """Log a message with a specific level."""
         self._logs.append(
             {
-                "date": str(datetime.utcnow()),
+                "date": str(datetime.now(UTC).replace(tzinfo=None)),
                 "level": level,
                 "message": message,
                 **kwargs,
@@ -292,7 +292,7 @@ class GenericAPIAction(Action):
             # If an API key is set in the configuration, use it as a
             # Bearer token (backward compatibility)
             if self.module.configuration and (
-                api_key := self.module.configuration.get("api_key")
+                api_key := self._module_configuration_value("api_key")
             ):
                 headers["Authorization"] = f"Bearer {api_key}"
 

@@ -292,7 +292,7 @@ class GenericAPIAction(Action):
             # If an API key is set in the configuration, use it as a
             # Bearer token (backward compatibility)
             if self.module.configuration and (
-                api_key := self.module.configuration.get("api_key")
+                api_key := self._module_configuration_value("api_key")
             ):
                 headers["Authorization"] = f"Bearer {api_key}"
 

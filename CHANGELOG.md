@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Introduce a new `SekoiaAutomationBaseModel` (preconfigured Pydantic’s `BaseModel`) to avoid int-to-str issues.
+
 ### Changed
 
 - Move to `uv` to build project
 - Update Ruff and fix existing files.
 - Move away from `datetime.utcnow()` that is deprecated.
+- Fully move to Pydantic v2 and drop usage of `pydantic.v1` compatibility layer, that is not compatible with Python
+  3.14.
 
 ## 1.21.1 - 2025-10-28
 

@@ -1,26 +1,27 @@
-from pydantic.v1 import BaseModel, Field
+from pydantic import Field
 
+from sekoia_automation import SekoiaAutomationBaseModel
 from sekoia_automation.action import Action
 from sekoia_automation.connector import Connector
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 
 
-class ModuleConfiguration(BaseModel):
+class ModuleConfiguration(SekoiaAutomationBaseModel):
     module_field: str
-    api_key: str = Field(secret=True)
-    password: str = Field(secret=True)
+    api_key: str = Field(json_schema_extra={"secret": True})
+    password: str = Field(json_schema_extra={"secret": True})
 
 
 class SampleModule(Module):
     configuration: ModuleConfiguration
 
 
-class TriggerConfiguration(BaseModel):
+class TriggerConfiguration(SekoiaAutomationBaseModel):
     trigger_field: int = 0
 
 
-class Results(BaseModel):
+class Results(SekoiaAutomationBaseModel):
     results_field: str
 
 
@@ -35,7 +36,7 @@ class SampleTrigger(Trigger):
         raise NotImplementedError
 
 
-class SampleArguments(BaseModel):
+class SampleArguments(SekoiaAutomationBaseModel):
     argument: bool
 
 

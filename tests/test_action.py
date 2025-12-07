@@ -4,10 +4,11 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import requests_mock
-from pydantic.v1 import BaseModel, ValidationError
+from pydantic import ConfigDict, ValidationError
 from requests import Timeout
 from tenacity import wait_none
 
+from sekoia_automation import SekoiaAutomationBaseModel
 from sekoia_automation.action import Action, GenericAPIAction
 from sekoia_automation.exceptions import MissingActionArgumentError, SendEventError
 from sekoia_automation.module import Module
@@ -460,9 +461,10 @@ def test_generic_api_action(storage):
 
 
 def test_action_with_arguments_model():
-    class TestActionArguments(BaseModel):
+    class TestActionArguments(SekoiaAutomationBaseModel):
         field: str = "value"
         number: int = 0
+        model_config = ConfigDict(coerce_numbers_to_str=True)
 
     class TestAction(Action):
         def run(self, arguments: TestActionArguments):
@@ -484,7 +486,7 @@ def test_action_with_arguments_model():
 
 
 def test_action_with_results_model():
-    class TestActionResults(BaseModel):
+    class TestActionResults(SekoiaAutomationBaseModel):
         field: str = "value"
         number: int = 0
 

@@ -13,7 +13,7 @@ from typing import Any, TypeAlias
 import orjson
 import requests
 import sentry_sdk
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
@@ -80,7 +80,7 @@ class Connector(Trigger, MetricsMixin, ABC):
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context(
-                "connector_configuration", self._configuration.dict()
+                "connector_configuration", self._configuration.model_dump()
             )
 
     def __init__(self, *args, **kwargs):
@@ -284,7 +284,7 @@ class Connector(Trigger, MetricsMixin, ABC):
             result_event = str(event)
 
             if isinstance(event, BaseModel):
-                result_event = orjson.dumps(event.dict()).decode("utf-8")
+                result_event = event.model_dump_json()
 
             elif isinstance(event, dict):
                 result_event = orjson.dumps(event).decode("utf-8")

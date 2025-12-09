@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## 1.21.2 - 2025-11-01
-
-### Fixed
-
-- Retry on connection errors when sending events to intake
-
 ## 1.21.1 - 2025-10-28
 
 ### Added

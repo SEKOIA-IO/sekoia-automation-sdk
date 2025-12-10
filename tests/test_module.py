@@ -1,8 +1,8 @@
 # natives
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 # third parties
 import pytest

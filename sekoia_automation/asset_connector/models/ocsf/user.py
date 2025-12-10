@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 from sekoia_automation.asset_connector.models.ocsf.group import Group
+from sekoia_automation.asset_connector.models.ocsf.organization import Organization
 from sekoia_automation.asset_connector.models.ocsf.risk_level import (
     RiskLevelId,
     RiskLevelStr,
@@ -121,6 +122,7 @@ class User(BaseModel):
     type_id: UserTypeId | None = None
     type: UserTypeStr | None = None
     uid_alt: str | None = None
+    org: Organization | None = None
 
 
 class UserOCSFModel(OCSFBaseModel):

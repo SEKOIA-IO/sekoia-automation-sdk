@@ -9,9 +9,9 @@ import pytest
 import requests_mock
 from faker import Faker
 
-from sekoia_automation.configuration.filesystem import FileSystemConfiguration
 from sekoia_automation import constants
 from sekoia_automation import storage as storage_module
+from sekoia_automation.configuration.filesystem import FileSystemConfiguration
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 

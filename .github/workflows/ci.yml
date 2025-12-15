@@ -16,31 +16,32 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry config virtualenvs.in-project true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          activate-environment: true
 
-      - name: Check `poetry.lock` consistency
+      - name: Check `uv.lock` consistency
         run: |
-          poetry check
+          uv lock --check
 
       - name: Install linting dependencies
         run: |
-          poetry install --only=lint
+          uv sync --group=lint
 
       - name: Run Ruff (linter)
         run: |
-          poetry run ruff check --output-format=github .
+          uv run ruff check --output-format=github .
 
       - name: Run Ruff (formater)
         run: |
-          poetry run ruff format
+          uv run ruff format
 
       - name: Execute Mypy
         run: |
           mkdir -p .mypy_cache
-          poetry run mypy
+          uv run mypy
 
   Test-matrix:
     runs-on: ubuntu-latest
@@ -60,19 +61,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry config virtualenvs.in-project true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          activate-environment: true
 
       - name: Install dependencies
         id: install-dependencies
-        run: poetry install --extras=all
+        run: uv sync --all-extras
 
       - name: Execute Python tests
         id: execute-tests
         run: |
-          poetry run python -m pytest --junit-xml=junit.xml --cov-report term --cov-report xml:coverage.xml --cov=sekoia_automation
+          uv run python -m pytest --junit-xml=junit.xml --cov-report term --cov-report xml:coverage.xml --cov=sekoia_automation
 
       - name: Upload Test Results
         if: always() && matrix.python-version == 3.12

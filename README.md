@@ -266,7 +266,7 @@ When using pydantic models to describe configurations, arguments and results, ma
 can be automatically generated:
 
 ```
-$ poetry run sekoia-automation generate-files
+$ uv run sekoia-automation generate-files
 ```
 
 This will do the following:

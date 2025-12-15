@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from abc import abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
 from traceback import format_exc
@@ -119,7 +119,7 @@ class Action(ModuleItem):
         """Log a message with a specific level."""
         self._logs.append(
             {
-                "date": str(datetime.utcnow()),
+                "date": str(datetime.now(UTC).replace(tzinfo=None)),
                 "level": level,
                 "message": message,
                 **kwargs,
@@ -292,7 +292,7 @@ class GenericAPIAction(Action):
             # If an API key is set in the configuration, use it as a
             # Bearer token (backward compatibility)
             if self.module.configuration and (
-                api_key := self.module.configuration.get("api_key")
+                api_key := self._module_configuration_value("api_key")
             ):
                 headers["Authorization"] = f"Bearer {api_key}"
 

@@ -7,6 +7,7 @@ from unittest.mock import PropertyMock, patch
 
 import pytest
 import requests_mock
+import sentry_sdk
 from faker import Faker
 
 from sekoia_automation import constants
@@ -163,3 +164,10 @@ def session_faker(faker_locale: list[str], faker_seed: int) -> Faker:
     instance.seed_instance(seed=faker_seed)
 
     return instance
+
+
+@pytest.fixture(autouse=True)
+def stop_sentry():
+    yield
+    client = sentry_sdk.get_client()
+    client.close(timeout=2.0)

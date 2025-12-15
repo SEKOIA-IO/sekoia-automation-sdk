@@ -314,6 +314,31 @@ def test_trigger_log(mocked_trigger_logs):
     assert log_request["message"] == "test message"
 
 
+def test_trigger_log_rate_limit(mocked_trigger_logs):
+    trigger = DummyTrigger()
+    trigger.LOGS_MAX_BATCH_SIZE = 0
+
+    assert mocked_trigger_logs.call_count == 0
+
+    trigger.log("test message", "info")
+    trigger.log("test message", "info")
+    assert mocked_trigger_logs.call_count == 1
+    assert len(mocked_trigger_logs.last_request.json()["logs"]) == 1
+
+    # Check that changing the rate limit allows more logs
+    mocked_trigger_logs.reset()
+    trigger._rate_limited_logs.clear()
+    old_rate = DummyTrigger.LOGS_RATE_LIMIT
+    DummyTrigger.LOGS_RATE_LIMIT = {
+        "info": 0,
+    }
+
+    trigger.log("test message", "info")
+    trigger.log("test message", "info")
+    assert mocked_trigger_logs.call_count == 2
+    DummyTrigger.LOGS_RATE_LIMIT = old_rate
+
+
 def test_trigger_log_severity(mocked_trigger_logs):
     trigger = DummyTrigger()
 
@@ -336,9 +361,9 @@ def test_trigger_log_severity(mocked_trigger_logs):
 def test_trigger_log_batch_full(mocked_trigger_logs):
     trigger = DummyTrigger()
 
-    for _ in range(trigger.LOGS_MAX_BATCH_SIZE):
+    for i in range(trigger.LOGS_MAX_BATCH_SIZE):
         assert mocked_trigger_logs.call_count == 0
-        trigger.log("test message", "info")
+        trigger.log(f"test message {i}", "info")
 
     assert mocked_trigger_logs.call_count == 1
     logs = mocked_trigger_logs.last_request.json()["logs"]

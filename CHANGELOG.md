@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Rate limit connector and trigger logs
+
 ## 1.21.2 - 2025-12-10
 
 ### Added

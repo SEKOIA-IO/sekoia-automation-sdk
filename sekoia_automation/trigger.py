@@ -7,12 +7,13 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 import requests
 import sentry_sdk
 from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
+from cachetools import TLRUCache
 from pydantic.v1 import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -52,6 +53,15 @@ class Trigger(ModuleItem):
     LOGS_MAX_BATCH_SIZE = 50
     LOGS_MAX_DELTA = 5  # seconds
 
+    # Rate limit in seconds for logs
+    LOGS_RATE_LIMIT: ClassVar[dict[str, int]] = {
+        "debug": 60,
+        "info": 60,
+        "warning": 60,
+        "error": 60,
+        "critical": 0,
+    }
+
     # Time to wait for stop event to be received
     _STOP_EVENT_WAIT = 120
 
@@ -66,6 +76,7 @@ class Trigger(ModuleItem):
         self._secrets: dict[str, Any] = {}
         self._stop_event = Event()
         self._critical_log_sent = False
+        self._rate_limited_logs = TLRUCache(4096, self.log_ttl)
         self._logs: list[dict] = []
 
         self._logs_timer = RepeatedTimer(self.LOGS_MAX_DELTA, self._send_logs_to_api)
@@ -309,6 +320,10 @@ class Trigger(ModuleItem):
         message = kwargs.get("message", "An exception occurred")
         self.log(f"{message}\n{exception}", level="error", propagate=False)
 
+    def log_ttl(self, _key: str, _, now):
+        ttu = self.LOGS_RATE_LIMIT.get(_key.split(":")[0], 0)
+        return now + ttu
+
     def log(self, message: str, level: LogLevelStr = "info", *args, **kwargs) -> None:
         if level == "critical" and self._critical_log_sent:
             #  Prevent sending multiple critical errors
@@ -316,6 +331,12 @@ class Trigger(ModuleItem):
 
         if kwargs.pop("propagate", True):
             super().log(message, level, *args, **kwargs)
+
+        # Check rate limit
+        key = f"{level.lower()}:{message}"
+        if self._rate_limited_logs.get(key):
+            return
+        self._rate_limited_logs[key] = True
 
         self._logs.append(
             {

@@ -239,7 +239,7 @@ def vulnerability_asset():
         time=1633036800,
         metadata=metadata,
         finding_info=finding_information,
-        vulnerabilities=vulnerabilities,
+        vulnerabilities=[vulnerabilities],
     )
 
 
@@ -402,7 +402,9 @@ def test_jsonify_vulnerability_asset(vulnerability_asset):
     serialized_json = json.dumps(json_data)
 
     assert serialized_json
-    assert json_data["vulnerabilities"]["title"] == "Sample Vulnerability Title Details"
-    assert json_data["vulnerabilities"]["cve"]["uid"] == "CVE-12345"
+    assert (
+        json_data["vulnerabilities"][0]["title"] == "Sample Vulnerability Title Details"
+    )
+    assert json_data["vulnerabilities"][0]["cve"]["uid"] == "CVE-12345"
     assert json_data["finding_info"]["kill_chain"][0]["phase"] == "Delivery"
     assert json_data["finding_info"]["kill_chain"][1]["phase"] == "Exploitation"

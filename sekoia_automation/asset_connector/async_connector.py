@@ -193,7 +193,7 @@ class AsyncAssetConnector(Trigger):
         Returns:
             dict[str, str] | None: Response from the API or None if an error occurred.
         """
-        request_body = assets.model_dump()
+        request_body = assets.model_dump(exclude_none=True)
         asset_count = len(request_body.get("items", []))
 
         # Perform the API request with retry logic

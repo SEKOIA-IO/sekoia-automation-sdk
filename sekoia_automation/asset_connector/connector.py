@@ -177,7 +177,7 @@ class AssetConnector(Trigger):
         """
 
         # Serialize the assets to a dictionary
-        assets_object_to_dict = assets.model_dump()
+        assets_object_to_dict = assets.model_dump(exclude_none=True)
         asset_items = assets_object_to_dict.get("items", [])
 
         request_body = assets_object_to_dict

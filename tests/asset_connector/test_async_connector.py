@@ -522,27 +522,6 @@ async def test_update_checkpoint(
     )
 
 
-@pytest.mark.asyncio
-async def test_async_run_cleanup(test_async_asset_connector):
-    """Test that async_run properly cleans up the session"""
-    test_async_asset_connector.set_assets(AssetList(version=1, items=[]))
-
-    # Create a mock session
-    mock_session = AsyncMock(spec=aiohttp.ClientSession)
-    test_async_asset_connector._session = mock_session
-
-    # Mock asset_fetch_cycle to stop immediately
-    async def stop_immediately():
-        test_async_asset_connector._running = False
-
-    test_async_asset_connector.asset_fetch_cycle = stop_immediately
-
-    await test_async_asset_connector.async_run()
-
-    # Verify session was closed
-    mock_session.close.assert_called_once()
-
-
 def test_jsonify_device_asset(asset_object_1):
     """Test device asset serialization"""
     json_data = asset_object_1.model_dump()

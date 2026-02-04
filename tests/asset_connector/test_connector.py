@@ -82,7 +82,7 @@ def test_asset_connector():
     test_connector.configuration = {
         "sekoia_base_url": "http://example.com",
         "sekoia_api_key": "fake_api_key",
-        "frenquency": 60,
+        "frequency": 60,
     }
 
     test_connector.log = Mock()
@@ -284,7 +284,7 @@ def test_frequency_env_var_exist(test_asset_connector):
 
 def test_frequency_env_var_not_exist(test_asset_connector):
     connector_frequency = test_asset_connector.frequency
-    assert connector_frequency == 1200
+    assert connector_frequency == 60
 
 
 def test_http_header(test_asset_connector):

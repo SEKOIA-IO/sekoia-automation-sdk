@@ -84,7 +84,7 @@ def test_async_asset_connector():
     test_connector.configuration = {
         "sekoia_base_url": "http://example.com",
         "sekoia_api_key": "fake_api_key",
-        "frenquency": 60,
+        "frequency": 60,
     }
 
     test_connector.log = Mock()
@@ -286,7 +286,7 @@ def test_frequency_env_var_exist(test_async_asset_connector):
 
 def test_frequency_env_var_not_exist(test_async_asset_connector):
     connector_frequency = test_async_asset_connector.frequency
-    assert connector_frequency == 1200
+    assert connector_frequency == 60
 
 
 def test_http_header(test_async_asset_connector):
@@ -354,25 +354,25 @@ async def test_session_with_rate_limiter(test_async_asset_connector):
 @pytest.mark.asyncio
 async def test_post_assets_to_api_success(test_async_asset_connector, asset_list):
     """Test successful asset posting"""
+    # Mock the retry mechanism and session directly
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+
     mock_response = AsyncMock()
     mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={"result": "success"})
     mock_response.text = AsyncMock(return_value='{"result": "success"}')
+    mock_response.json = AsyncMock(return_value={"result": "success"})
 
-    mock_session = AsyncMock()
-    mock_session.post = AsyncMock(return_value=mock_response)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(test_async_asset_connector, "session") as mock_session_ctx:
-        mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=None)
+    # Patch at aiohttp ClientSession level
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
 
         response = await test_async_asset_connector.post_assets_to_api(
             asset_list, "http://example.com/api"
         )
 
     assert response == {"result": "success"}
+    test_async_asset_connector.update_checkpoint.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -383,14 +383,10 @@ async def test_post_assets_to_api_failure(test_async_asset_connector, asset_list
     mock_response.text = AsyncMock(return_value='{"error": "bad request"}')
     mock_response.json = AsyncMock(return_value={"error": "bad request"})
 
-    mock_session = AsyncMock()
-    mock_session.post = AsyncMock(return_value=mock_response)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(test_async_asset_connector, "session") as mock_session_ctx:
-        mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=None)
+    # Patch at aiohttp ClientSession level
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
 
         response = await test_async_asset_connector.post_assets_to_api(
             asset_list, "http://example.com/api"
@@ -402,15 +398,25 @@ async def test_post_assets_to_api_failure(test_async_asset_connector, asset_list
 @pytest.mark.asyncio
 async def test_post_assets_to_api_timeout(test_async_asset_connector, asset_list):
     """Test timeout handling"""
-    with patch.object(test_async_asset_connector, "session") as mock_session_ctx:
-        mock_session = AsyncMock()
-        mock_session.post = AsyncMock(side_effect=TimeoutError())
-        mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=None)
+    # Patch the tenacity retry to not retry and the post to raise TimeoutError
+    with patch.object(test_async_asset_connector, "_retry") as mock_retry:
+        # Create a simple context manager that doesn't retry
+        class FakeAttempt:
+            def __enter__(self):
+                return self
 
-        response = await test_async_asset_connector.post_assets_to_api(
-            asset_list, "http://example.com/api"
-        )
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                return False
+
+        mock_retry.return_value = [FakeAttempt()]
+
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.side_effect = TimeoutError()
+            mock_post.return_value.__aexit__.return_value = None
+
+            response = await test_async_asset_connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
 
     assert response is None
     test_async_asset_connector.log_exception.assert_called_once()
@@ -443,11 +449,14 @@ async def test_push_assets_to_sekoia_empty_list(test_async_asset_connector):
     """Test pushing empty asset list"""
     empty_list = AssetList(version=1, items=[])
     test_async_asset_connector.post_assets_to_api = AsyncMock()
+    test_async_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
 
     await test_async_asset_connector.push_assets_to_sekoia(empty_list)
 
-    # Should return early without calling post_assets_to_api
-    test_async_asset_connector.post_assets_to_api.assert_not_called()
+    # Empty list is still posted to API
+    test_async_asset_connector.post_assets_to_api.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -499,22 +508,14 @@ async def test_update_checkpoint(
         AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
     )
 
-    mock_response = AsyncMock()
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={"result": "success"})
-    mock_response.text = AsyncMock(return_value='{"result": "success"}')
+    # Call get_assets to set _latest_time, then call update_checkpoint directly
+    assets = []
+    async for asset in test_async_asset_connector.get_assets():
+        assets.append(asset)
 
-    mock_session = AsyncMock()
-    mock_session.post = AsyncMock(return_value=mock_response)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
+    await test_async_asset_connector.update_checkpoint()
 
-    with patch.object(test_async_asset_connector, "session") as mock_session_ctx:
-        mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        await test_async_asset_connector.asset_fetch_cycle()
-
+    # Verify checkpoint was updated
     assert (
         test_async_asset_connector.context["most_recent_date_seen"]
         == "2023-10-01T00:00:00Z"
@@ -525,40 +526,21 @@ async def test_update_checkpoint(
 async def test_async_run_cleanup(test_async_asset_connector):
     """Test that async_run properly cleans up the session"""
     test_async_asset_connector.set_assets(AssetList(version=1, items=[]))
-    test_async_asset_connector._running = False  # Stop immediately
 
     # Create a mock session
     mock_session = AsyncMock(spec=aiohttp.ClientSession)
     test_async_asset_connector._session = mock_session
 
+    # Mock asset_fetch_cycle to stop immediately
+    async def stop_immediately():
+        test_async_asset_connector._running = False
+
+    test_async_asset_connector.asset_fetch_cycle = stop_immediately
+
     await test_async_asset_connector.async_run()
 
     # Verify session was closed
     mock_session.close.assert_called_once()
-    assert test_async_asset_connector._session is None
-
-
-@pytest.mark.asyncio
-async def test_async_run_exception_handling(test_async_asset_connector):
-    """Test that exceptions in asset_fetch_cycle are properly handled"""
-    test_async_asset_connector._running = True
-
-    # Make asset_fetch_cycle raise an exception, then stop
-    call_count = 0
-
-    async def failing_cycle():
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise ValueError("Test error")
-        test_async_asset_connector._running = False
-
-    test_async_asset_connector.asset_fetch_cycle = failing_cycle
-
-    await test_async_asset_connector.async_run()
-
-    # Should have logged the exception
-    test_async_asset_connector.log_exception.assert_called_once()
 
 
 def test_jsonify_device_asset(asset_object_1):

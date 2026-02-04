@@ -220,7 +220,7 @@ class AssetConnector(Trigger):
         self.update_checkpoint()
 
         self.log(
-            message=rf"Successfully posted {len(asset_items)} assets\ "
+            message=f"Successfully posted {len(asset_items)} assets "
             f"to Sekoia.io asset connector API",
             level="info",
         )

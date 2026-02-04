@@ -193,12 +193,13 @@ class AsyncAssetConnector(Trigger):
         Returns:
             dict[str, str] | None: Response from the API or None if an error occurred.
         """
+        request_body = assets.model_dump()
+        asset_count = len(request_body.get("items", []))
 
-        # Serialize the assets to a dictionary
-        assets_object_to_dict = assets.model_dump()
-        asset_items = assets_object_to_dict.get("items", [])
-
-        request_body = assets_object_to_dict
+        # Perform the API request with retry logic
+        status_code: int | None = None
+        response_text: str | None = None
+        response_json: dict | None = None
 
         try:
             for attempt in self._retry():
@@ -208,14 +209,12 @@ class AsyncAssetConnector(Trigger):
                             asset_connector_api_url,
                             json=request_body,
                             timeout=aiohttp.ClientTimeout(total=30),
-                        ) as res:
-                            status_code = res.status
-                            response_text = await res.text()
+                        ) as response:
+                            status_code = response.status
+                            response_text = await response.text()
 
                             if status_code == 200:
-                                response_json = await res.json()
-                            else:
-                                response_json = None
+                                response_json = await response.json()
         except TimeoutError as ex:
             self.log_exception(
                 ex,
@@ -223,39 +222,61 @@ class AsyncAssetConnector(Trigger):
             )
             return None
 
-        if status_code != 200:
-            error_message = self.handle_api_error(status_code)
-            # In case the response body is empty or not a json
-            if response_text:
-                try:
-                    error_response = (
-                        await res.json() if response_json is None else response_json
-                    )
-                    error_message_body = error_response.get("message", "")
-                    error_code = error_response.get("code", "")
-                    body_message = f" - {error_code} : {error_message_body}"
-                except Exception:
-                    body_message = response_text
-            else:
-                body_message = response_text or ""
-
+        # Check if response was successfully obtained
+        if status_code is None:
             self.log(
-                message=(
-                    "Error while pushing assets to Sekoia.io "
-                    f"- {error_message} : {body_message}"
-                ),
+                message="Failed to get response from Sekoia.io asset connector API",
                 level="error",
             )
             return None
 
+        # Handle non-200 responses
+        if status_code != 200:
+            await self._log_api_error(status_code, response_text, response_json)
+            return None
+
+        # Update checkpoint on success
         await self.update_checkpoint()
 
         self.log(
-            message=rf"Successfully posted {len(asset_items)} assets\ "
+            message=f"Successfully posted {asset_count} assets "
             f"to Sekoia.io asset connector API",
             level="info",
         )
         return response_json
+
+    async def _log_api_error(
+        self, status_code: int, response_text: str | None, response_json: dict | None
+    ) -> None:
+        """
+        Log API error details from response.
+
+        Args:
+            status_code: HTTP status code
+            response_text: Raw response text
+            response_json: Parsed JSON response if available
+        """
+        status_error = self.handle_api_error(status_code)
+
+        # Try to extract detailed error message from response
+        detail_message = ""
+        if response_text:
+            try:
+                error_data = response_json if response_json else {}
+                error_code = error_data.get("code", "")
+                error_message = error_data.get("message", "")
+                if error_code or error_message:
+                    detail_message = f" - {error_code}: {error_message}"
+                else:
+                    detail_message = f" - {response_text}"
+            except Exception:
+                detail_message = f" - {response_text}"
+
+        error_msg = (
+            f"Error while pushing assets to Sekoia.io - "
+            f"{status_error}{detail_message}"
+        )
+        self.log(message=error_msg, level="error")
 
     async def push_assets_to_sekoia(self, assets: AssetList) -> None:
         """

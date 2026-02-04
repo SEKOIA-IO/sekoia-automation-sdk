@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "sekoia-automation-sdk"
 
-version = "1.22.1"
+version = "1.22.2"
 description = "SDK to create Sekoia.io playbook modules"
 license = "MIT"
 readme = "README.md"
@@ -66,7 +66,7 @@ pytest-xdist = "*"
 pytest-env = "^1.1.5"
 requests-mock = "^1.9"
 faker = "^30.0.0"
-aioresponses = { git = "https://github.com/pnuckowski/aioresponses.git", rev = "444aa498cd2f625edd7923355fa373972d5fcf44" }
+aioresponses = "^0.7.8"
 pre-commit = "^3.3.3"
 requests-oauthlib = "^2.0.0"
 

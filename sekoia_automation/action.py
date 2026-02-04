@@ -291,10 +291,13 @@ class GenericAPIAction(Action):
         if not self.authentication:
             # If an API key is set in the configuration, use it as a
             # Bearer token (backward compatibility)
-            if self.module.configuration and (
-                api_key := self.module.configuration.get("api_key")
-            ):
-                headers["Authorization"] = f"Bearer {api_key}"
+            if self.module.configuration:
+                if isinstance(self.module.configuration, dict):
+                    api_key = self.module.configuration.get("api_key")
+                else:
+                    api_key = getattr(self.module.configuration, "api_key", None)
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
 
             # Do nothing more
             return

@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from sekoia_automation.asset_connector import AssetConnector
+from sekoia_automation.asset_connector.connector import AssetConnector
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (

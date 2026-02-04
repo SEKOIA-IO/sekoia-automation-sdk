@@ -189,9 +189,11 @@ class AsyncHttpClient(AbstractHttpClient[Response]):
 
         for attempt in range(attempts):
             try:
+                # Filter out None values from kwargs to avoid type errors
+                filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
                 async with self.session() as session:
                     async with session.request(
-                        method.value, url, *args, **kwargs
+                        method.value, url, *args, **filtered_kwargs
                     ) as response:
                         if (
                             self._retry_policy is not None

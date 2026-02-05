@@ -23,7 +23,7 @@ class DefaultAssetConnectorConfiguration(BaseModel):
 
     sekoia_base_url: str | None
     sekoia_api_key: str
-    frequency: int = 1200
+    frequency: int = 10800  # 3 hours
     batch_size: int = 100
 
 

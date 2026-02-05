@@ -33,7 +33,7 @@ dependencies = [
     "PyYAML>=6.0,<7",
     "Jinja2>=3.0.3,<4",
     "black>=25.11.0", # To format files in cli tools
-    "poetry",         # To lock requirements when creating new module
+    "uv",             # To lock requirements when creating new module
     "prometheus-client",
     "aiohttp>=3.8.4,<4",
     "jsonschema>=4.22.0,<5",

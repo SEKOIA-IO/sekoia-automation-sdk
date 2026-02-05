@@ -1,3 +1,3 @@
 #!/bin/bash
-poetry add sekoia-automation-sdk@latest
-poetry lock
+uv add sekoia-automation-sdk@latest
+uv lock

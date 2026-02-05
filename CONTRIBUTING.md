@@ -4,7 +4,7 @@ In order to run the test and the lint check of the project [`uv`](https://docs.a
 
 ## Installing dependencies
 
-Once uv is installing the dependencies of the project is a matter of running the following command:
+Once uv is installed, installing the project's dependencies is a matter of running the following command:
 
 ```shell
 uv sync --all-extras
@@ -20,9 +20,9 @@ uv run pytest
 
 ## Coding conventions
 
-### Code formatting & liting
+### Code formatting & linting
 
-The python files of the project are formatted using [Ruff](https://docs.astral.sh/ruff/).
+The Python files of the project are formatted using [Ruff](https://docs.astral.sh/ruff/).
 
 To format the code before committing it you can run:
 

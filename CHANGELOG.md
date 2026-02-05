@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move away from `datetime.utcnow()` that is deprecated.
 - Remove warning with Sentry and stop client on each test
 
+## 1.22.2 - 2026-02-05
+
+### Changed
+
+- Update project dependencies and configuration
+- New async asset connector base class
+
+## 1.22.1 - 2026-01-15
+
+### Fixed
+
+- Fix some OCSF schema fields 
+
 ## 1.22.0 - 2025-12-15
 
 ### Added

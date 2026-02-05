@@ -149,7 +149,7 @@ class Device(BaseModel):
     os: OperatingSystem | None = None
     hostname: str
     autoscale_uid: str | None = None
-    boot_time: str | None = None
+    boot_time: int | None = None
     boot_uid: str | None = None
     created_time: float | None = None
     desc: str | None = None

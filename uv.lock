@@ -215,10 +215,15 @@ wheels = [
 
 [[package]]
 name = "aioresponses"
-version = "0.7.6"
-source = { git = "https://github.com/pnuckowski/aioresponses.git?rev=444aa498cd2f625edd7923355fa373972d5fcf44#444aa498cd2f625edd7923355fa373972d5fcf44" }
+version = "0.7.8"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/03/532bbc645bdebcf3b6af3b25d46655259d66ce69abba7720b71ebfabbade/aioresponses-0.7.8.tar.gz", hash = "sha256:b861cdfe5dc58f3b8afac7b0a6973d5d7b2cb608dd0f6253d16b8ee8eaf6df11", size = 40253, upload-time = "2025-01-19T18:14:03.222Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/b7/584157e43c98aa89810bc2f7099e7e01c728ecf905a66cf705106009228f/aioresponses-0.7.8-py2.py3-none-any.whl", hash = "sha256:b73bd4400d978855e55004b23a3a84cb0f018183bcf066a85ad392800b5b9a94", size = 12518, upload-time = "2025-01-19T18:13:59.633Z" },
 ]
 
 [[package]]
@@ -2112,7 +2117,7 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-sdk"
-version = "1.22.0"
+version = "1.22.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -2221,7 +2226,7 @@ provides-extras = ["all", "async-aws", "async-http", "async-files", "logging"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aioresponses", git = "https://github.com/pnuckowski/aioresponses.git?rev=444aa498cd2f625edd7923355fa373972d5fcf44" },
+    { name = "aioresponses", specifier = ">=0.7.8,<0.8" },
     { name = "faker", specifier = ">=30.0.0,<31" },
     { name = "pre-commit", specifier = ">=3.3.3,<4" },
     { name = "pylint" },

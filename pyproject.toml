@@ -1,6 +1,6 @@
 [project]
 name = "sekoia-automation-sdk"
-version = "1.22.0"
+version = "1.22.2"
 description = "SDK to create Sekoia.io playbook modules"
 authors = [{ name = "Sekoia.io" }]
 requires-python = ">=3.11,<4"
@@ -87,7 +87,7 @@ dev = [
     "pytest-env>=1.1.5,<2",
     "requests-mock>=1.9,<2",
     "faker>=30.0.0,<31",
-    "aioresponses @ git+https://github.com/pnuckowski/aioresponses.git@444aa498cd2f625edd7923355fa373972d5fcf44",
+    "aioresponses>=0.7.8,<0.8",
     "pre-commit>=3.3.3,<4",
     "requests-oauthlib>=2.0.0,<3",
 ]

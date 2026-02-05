@@ -34,9 +34,9 @@ jobs:
         run: |
           uv run ruff check --output-format=github .
 
-      - name: Run Ruff (formater)
+      - name: Run Ruff (formatter)
         run: |
-          uv run ruff format
+          uv run ruff format --check .
 
       - name: Execute Mypy
         run: |

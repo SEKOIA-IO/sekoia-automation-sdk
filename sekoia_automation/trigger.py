@@ -409,6 +409,7 @@ class Trigger(ModuleItem):
     def stop_monitoring(self):
         if self._liveness_server:
             self._liveness_server.shutdown()
+            self._liveness_server.server_close()
             self._liveness_server = None
 
         # Stop the exporter

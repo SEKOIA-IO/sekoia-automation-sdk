@@ -1,27 +1,27 @@
-[tool.poetry]
+[project]
 name = "Automation module for {{cookiecutter.module_name.capitalize()}}"
 version = "0.0"
 description = ""
 authors = []
 package-mode = false
 
-[tool.poetry.dependencies]
+[project.dependencies]
 python = "^3.11"
 sekoia-automation-sdk = "^1.0"
 
-[tool.poetry.dev-dependencies]
+[project.dependency-group.dev]
 pytest = "*"
 pytest-cov = "*"
 requests = "*"
 requests-mock = "*"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"
 
 [tool.black]
 line-length = 119
-target-version = ['py38']
+target-version = ['py311']
 include = '\.pyi?$'
 
 [tool.isort]

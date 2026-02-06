@@ -34,7 +34,7 @@ class AsyncAssetConnector(Trigger):
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
 
-    configuration: DefaultAssetConnectorConfiguration  # type: ignore[assignment, override]
+    configuration: DefaultAssetConnectorConfiguration  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -273,8 +273,7 @@ class AsyncAssetConnector(Trigger):
                 detail_message = f" - {response_text}"
 
         error_msg = (
-            f"Error while pushing assets to Sekoia.io - "
-            f"{status_error}{detail_message}"
+            f"Error while pushing assets to Sekoia.io - {status_error}{detail_message}"
         )
         self.log(message=error_msg, level="error")
 

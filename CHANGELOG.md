@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Move to `uv` to build project
+- Update Ruff and fix existing files.
+- Move away from `datetime.utcnow()` that is deprecated.
+- Remove warning with Sentry and stop client on each test
+
 ## 1.22.2 - 2026-02-05
 
 ### Changed
@@ -96,8 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Add users fields to enrichment 
-- Fix asset connector post url 
+- Add users fields to enrichment
+- Fix asset connector post url
 - Update OCSF fields for software, user and vulnerability
 - Fix some typos
 - Add some extra tests for updating connector fields

@@ -29,7 +29,7 @@ class AssetConnector(Trigger):
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
 
-    configuration: DefaultAssetConnectorConfiguration  # type: ignore[assignment, override]
+    configuration: DefaultAssetConnectorConfiguration  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

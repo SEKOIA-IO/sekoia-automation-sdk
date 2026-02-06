@@ -420,7 +420,7 @@ class ModuleItem(ABC):
             log_level = logging.getLevelName(level.upper())
             self._logger.log(log_level, message)
         if level.lower() in ["error", "warning", "critical"]:
-            with sentry_sdk.push_scope() as scope:
+            with sentry_sdk.new_scope() as scope:
                 for key, value in kwargs.items():
                     scope.set_extra(key, value)
                 sentry_sdk.capture_message(message, level)  # type: ignore
@@ -429,7 +429,7 @@ class ModuleItem(ABC):
         """Log the given exception."""
         message = kwargs.get("message", "An exception occurred")
         self._logger.exception(message)
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             for key, value in kwargs.items():
                 scope.set_extra(key, value)
             sentry_sdk.capture_exception(exception)

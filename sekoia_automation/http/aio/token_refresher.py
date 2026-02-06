@@ -8,13 +8,12 @@ from contextlib import asynccontextmanager
 from typing import Generic, TypeVar
 
 from aiohttp import ClientSession
-from pydantic.v1 import BaseModel
-from pydantic.v1.generics import GenericModel
+from pydantic import BaseModel
 
 HttpTokenT = TypeVar("HttpTokenT", bound=BaseModel)
 
 
-class RefreshedToken(GenericModel, Generic[HttpTokenT]):
+class RefreshedToken(BaseModel, Generic[HttpTokenT]):
     """Model to work with auth token with additional info."""
 
     token: HttpTokenT

@@ -7,15 +7,15 @@ from typing import ClassVar
 
 import pytest
 from aioresponses import aioresponses
-from pydantic.v1 import BaseModel
 
+from sekoia_automation import SekoiaAutomationBaseModel
 from sekoia_automation.http.aio.token_refresher import (
     GenericTokenRefresher,
     RefreshedToken,
 )
 
 
-class CustomTokenResponse(BaseModel):
+class CustomTokenResponse(SekoiaAutomationBaseModel):
     """Test implementation of token response."""
 
     access_token: str
@@ -144,7 +144,7 @@ async def test_token_refresher_1(session_faker):
     )
 
     with aioresponses() as mocked_responses:
-        mocked_responses.post(auth_url, payload=token_response.dict())
+        mocked_responses.post(auth_url, payload=token_response.model_dump())
         await token_refresher._refresh_token()
 
         assert token_refresher._token is not None

@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Optional
 
@@ -125,7 +125,7 @@ def generate_documentation(
     ).generate()
 
 
-class AuthenticationMode(str, Enum):
+class AuthenticationMode(StrEnum):
     basic = "basic"
     api_key = "apiKey"
     bearer = "bearer"

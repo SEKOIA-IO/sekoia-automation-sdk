@@ -307,7 +307,8 @@ def test_generic_api_action(storage):
     # error on action.run
     action = init_action()
     with requests_mock.Mocker() as mock:
-        pytest.raises(KeyError, action.run, {})
+        with pytest.raises(KeyError):
+            action.run({})
 
         assert mock.call_count == 0
 

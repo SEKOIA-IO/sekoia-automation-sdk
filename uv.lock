@@ -2141,10 +2141,11 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-sdk"
-version = "1.22.2"
+version = "1.22.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "aiolimiter" },
     { name = "black" },
     { name = "cachetools" },
     { name = "cookiecutter" },
@@ -2170,7 +2171,6 @@ all = [
     { name = "aiobotocore" },
     { name = "aiocsv" },
     { name = "aiofiles" },
-    { name = "aiolimiter" },
     { name = "boto3" },
     { name = "loguru" },
 ]
@@ -2184,7 +2184,6 @@ async-files = [
 ]
 async-http = [
     { name = "aiofiles" },
-    { name = "aiolimiter" },
 ]
 logging = [
     { name = "loguru" },
@@ -2221,8 +2220,7 @@ requires-dist = [
     { name = "aiofiles", marker = "extra == 'async-files'", specifier = ">=23.1.0,<24" },
     { name = "aiofiles", marker = "extra == 'async-http'", specifier = ">=23.1.0,<24" },
     { name = "aiohttp", specifier = ">=3.8.4,<4" },
-    { name = "aiolimiter", marker = "extra == 'all'", specifier = ">=1.1.0,<2" },
-    { name = "aiolimiter", marker = "extra == 'async-http'", specifier = ">=1.1.0,<2" },
+    { name = "aiolimiter", specifier = ">=1.1.0,<2" },
     { name = "black", specifier = ">=25.11.0" },
     { name = "boto3", marker = "extra == 'all'", specifier = ">=1.36.23,<2" },
     { name = "boto3", marker = "extra == 'async-aws'", specifier = ">=1.36.23,<2" },

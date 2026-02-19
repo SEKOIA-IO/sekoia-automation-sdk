@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from typing import Any
 
 from loguru import logger
 from pydantic.v1 import BaseModel, validator
@@ -80,15 +81,12 @@ def init_logging(log_conf: LoggingConfig = LoggingConfig()) -> None:
         logging.getLogger(name).handlers = []
         logging.getLogger(name).propagate = True
 
-    logger.configure(
-        handlers=[
-            {
-                "sink": sys.stdout,
-                "serialize": log_conf.json_logs,
-                "format": lambda values: format_record(
-                    values,
-                    log_conf.loguru_format,
-                ),
-            },
-        ],
-    )
+    handler_config: dict[str, Any] = {
+        "sink": sys.stdout,
+        "serialize": log_conf.json_logs,
+        "format": lambda values: format_record(
+            values,
+            log_conf.loguru_format,
+        ),
+    }
+    logger.configure(handlers=[handler_config])  # type: ignore[list-item]

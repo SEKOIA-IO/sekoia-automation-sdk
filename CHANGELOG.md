@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Add missing aiolimiter dependency required by async connector.
+- fix device field in OCSF schema for assets
+
 ### Changed
 
 - Move to `uv` to build project

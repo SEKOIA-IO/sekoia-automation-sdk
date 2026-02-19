@@ -35,33 +35,17 @@ dependencies = [
     "black>=25.11.0", # To format files in cli tools
     "uv",             # To lock requirements when creating new module
     "prometheus-client",
+    "aiobotocore>=2.20.0,<3",
+    "aiocsv>=1.2.4,<2",
+    "aiofiles>=23.1.0,<24",
     "aiohttp>=3.8.4,<4",
     "aiolimiter>=1.1.0,<2",
+    "boto3>=1.36.23,<2",
+    "loguru>=0.7.0,<0.8",
     "jsonschema>=4.22.0,<5",
     "flask>=3.1.2,<4",
     "cachetools>=6.2.3",
 ]
-
-[project.optional-dependencies]
-all = [
-    "aiobotocore>=2.20.0,<3",
-    "boto3>=1.36.23,<2",
-    "aiofiles>=23.1.0,<24",
-    "aiocsv>=1.2.4,<2",
-    "loguru>=0.7.0,<0.8",
-]
-async-aws = [
-    "aiobotocore>=2.20.0,<3",
-    "boto3>=1.36.23,<2",
-]
-async-http = [
-    "aiofiles>=23.1.0,<24",
-]
-async-files = [
-    "aiofiles>=23.1.0,<24",
-    "aiocsv>=1.2.4,<2",
-]
-logging = ["loguru>=0.7.0,<0.8"]
 
 [build-system]
 requires = ["hatchling"]

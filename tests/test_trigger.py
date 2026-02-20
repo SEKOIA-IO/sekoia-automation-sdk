@@ -9,7 +9,7 @@ import botocore.exceptions
 import pytest
 import requests
 import requests_mock
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from tenacity import wait_none
 
 from sekoia_automation.exceptions import (
@@ -274,7 +274,7 @@ def test_trigger_event_normalization(mocked_trigger_logs):
 
         log_request = mocked_trigger_logs.last_request.json()["logs"][0]
         assert log_request["level"] == "error"
-        assert "not a valid integer" in log_request["message"]
+        assert "unable to parse string as an integer" in log_request["message"]
 
 
 def test_trigger_configuration_as_model():

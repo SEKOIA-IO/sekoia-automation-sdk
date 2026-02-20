@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from loguru import logger
-from pydantic.v1 import BaseModel, validator
+from pydantic import BaseModel, validator
 
 from .formatters import format_record
 from .handlers import InterceptHandler

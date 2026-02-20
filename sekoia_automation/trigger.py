@@ -14,7 +14,7 @@ import botocore.exceptions
 import requests
 import sentry_sdk
 from cachetools import TLRUCache
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
 

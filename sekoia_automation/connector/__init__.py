@@ -13,7 +13,7 @@ from typing import Any, TypeAlias
 import orjson
 import requests
 import sentry_sdk
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 

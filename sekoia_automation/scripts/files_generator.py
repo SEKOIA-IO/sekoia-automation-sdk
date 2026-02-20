@@ -8,7 +8,7 @@ from pkgutil import walk_packages
 from uuid import UUID, uuid5
 
 import typer
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from rich import print
 
 from sekoia_automation.action import Action
@@ -144,11 +144,11 @@ class FilesGenerator:
             }
 
             if action.results_model:
-                manifest["results"] = action.results_model.schema()
+                manifest["results"] = action.results_model.model_json_schema()
 
             args = list(signature(action.run).parameters.values())
             if args[1].annotation and issubclass(args[1].annotation, BaseModel):
-                manifest["arguments"] = args[1].annotation.schema()
+                manifest["arguments"] = args[1].annotation.model_json_schema()
 
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))
@@ -170,10 +170,10 @@ class FilesGenerator:
             }
 
             if trigger.results_model:
-                manifest["results"] = trigger.results_model.schema()
+                manifest["results"] = trigger.results_model.model_json_schema()
 
             if configuration_model := get_annotation_for(trigger, "configuration"):
-                manifest["arguments"] = configuration_model.schema()
+                manifest["arguments"] = configuration_model.model_json_schema()
 
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))
@@ -196,7 +196,7 @@ class FilesGenerator:
             }
 
             if configuration_model := get_annotation_for(connector, "configuration"):
-                manifest["arguments"] = configuration_model.schema()
+                manifest["arguments"] = configuration_model.model_json_schema()
 
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))
@@ -212,9 +212,9 @@ class FilesGenerator:
         with self.manifest_path.open() as f:
             manifest = json.load(f)
 
-        manifest["configuration"] = configuration_model.schema()
+        manifest["configuration"] = configuration_model.model_json_schema()
         self.add_secrets_to_configuration(
-            manifest["configuration"], configuration_model.__fields__.values()
+            manifest["configuration"], configuration_model.model_fields.items()
         )
 
         with self.manifest_path.open("w") as out:
@@ -239,9 +239,12 @@ class FilesGenerator:
         config_fields :
             Raw list of fields in the module's Model
         """
-        for field in config_fields:
-            if field.field_info.extra.get("secret", False):
-                name = field.name
+        for field_name, field_info in config_fields:
+            json_schema_extra = field_info.json_schema_extra or {}
+            if isinstance(json_schema_extra, dict) and json_schema_extra.get(
+                "secret", False
+            ):
+                name = field_name
 
                 # By default Pydantic adds the extra field "secret"
                 # to the generated manifest

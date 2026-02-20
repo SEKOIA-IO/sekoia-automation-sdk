@@ -13,7 +13,6 @@ import orjson
 import requests
 import sentry_sdk
 from aiohttp import BasicAuth
-from pydantic.v1 import validate_arguments
 from requests import RequestException, Response
 from tenacity import (
     RetryError,
@@ -32,7 +31,7 @@ from sekoia_automation.exceptions import (
 from sekoia_automation.module import LogLevelStr, Module, ModuleItem
 from sekoia_automation.storage import UPLOAD_CHUNK_SIZE
 from sekoia_automation.typing import SupportedAuthentications
-from sekoia_automation.utils import chunks, returns
+from sekoia_automation.utils import chunks, returns, validate_arguments
 
 
 class ActionLogHandler(logging.StreamHandler):
@@ -65,7 +64,7 @@ class Action(ModuleItem):
         self._update_secrets = False
         logging.getLogger().addHandler(ActionLogHandler(self))
 
-        # Make sure arguments are validated/coerced by pydantic.v1
+        # Make sure arguments are validated/coerced by pydantic
         # if a type annotation is defined
         self.run = validate_arguments()(self.run)  # type: ignore
 

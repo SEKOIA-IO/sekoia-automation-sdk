@@ -1,19 +1,19 @@
 {
-    "name": "Test Module",
-    "description": "TBD",
-    "uuid": "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154",
-    "slug": "sample",
-    "configuration": {
-        "properties": {
-            "module_field": {"title": "Module Field", "type": "string"},
-            "api_key": {"title": "Api Key", "type": "string"},
-            "password": {"title": "Password", "type": "string"}
-        },
-        "required": ["module_field", "api_key", "password"],
-        "secrets": ["api_key", "password"],
-        "title": "ModuleConfiguration",
-        "type": "object"
+  "name": "Test Module",
+  "description": "TBD",
+  "uuid": "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154",
+  "slug": "sample",
+  "configuration": {
+    "properties": {
+      "module_field": { "title": "Module Field", "type": "string" },
+      "api_key": { "title": "Api Key", "type": "string" },
+      "password": { "title": "Password", "type": "string" }
     },
-    "version": "0.1",
-    "categories": ["Endpoint", "Network"]
+    "required": ["module_field", "api_key", "password"],
+    "secrets": ["api_key", "password"],
+    "title": "ModuleConfiguration",
+    "type": "object"
+  },
+  "version": "0.1",
+  "categories": ["Endpoint", "Network"]
 }

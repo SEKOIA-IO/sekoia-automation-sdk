@@ -4,18 +4,26 @@
   "uuid": "4721e6af-a6b0-5785-9860-b33d0f218435",
   "docker_parameters": "SampleConnector",
   "arguments": {
-    "title": "DefaultConnectorConfiguration",
-    "type": "object",
     "properties": {
       "intake_server": {
-        "title": "Intake Server",
-        "type": "string"
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Intake Server"
       },
       "intake_key": {
         "title": "Intake Key",
         "type": "string"
       }
     },
-    "required": ["intake_key"]
+    "required": ["intake_key"],
+    "title": "DefaultConnectorConfiguration",
+    "type": "object"
   }
 }

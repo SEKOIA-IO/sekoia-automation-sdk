@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.22.3 - 2026-02-20
+
 ### Fixed
 
 - Add missing aiolimiter dependency required by async connector.

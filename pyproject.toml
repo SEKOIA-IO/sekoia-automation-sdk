@@ -1,6 +1,6 @@
 [project]
 name = "sekoia-automation-sdk"
-version = "1.22.2"
+version = "1.22.3"
 description = "SDK to create Sekoia.io playbook modules"
 authors = [{ name = "Sekoia.io" }]
 requires-python = ">=3.11,<4"

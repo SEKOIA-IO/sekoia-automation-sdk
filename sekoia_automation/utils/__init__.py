@@ -1,11 +1,12 @@
 from collections.abc import Sequence
 from functools import wraps
 from inspect import get_annotations, getmro
-from typing import get_args, get_origin
 
 import sentry_sdk
 from pydantic import BaseModel
 from tenacity import RetryCallState
+
+from sekoia_automation.utils.validation import coerce_dict_types
 
 
 def get_as_model(model: type[BaseModel] | None, value: dict | BaseModel | None):
@@ -20,56 +21,9 @@ def get_as_model(model: type[BaseModel] | None, value: dict | BaseModel | None):
     # To maintain backward compatibility, we need to
     # coerce basic types (like int to str) before validation.
     if isinstance(value, dict):
-        value = _coerce_dict_types(model, value)
+        value = coerce_dict_types(model, value)
 
     return model.model_validate(value)
-
-
-def _coerce_dict_types(model: type[BaseModel], data: dict) -> dict:
-    """
-    Coerce dictionary values to match model field types.
-    This replicates Pydantic V1's lenient type coercion behavior.
-    """
-    coerced = {}
-    for key, val in data.items():
-        if key in model.model_fields:
-            field_info = model.model_fields[key]
-            annotation = field_info.annotation
-
-            # Get the actual type
-            origin = get_origin(annotation)
-            if origin is not None:
-                # Get and find the first non-None type for coercion
-                args = get_args(annotation)
-                actual_type = next((arg for arg in args if arg is not type(None)), None)
-            else:
-                actual_type = annotation
-
-            # Perform basic type coercion
-            if actual_type is not None and val is not None:
-                if actual_type is str and not isinstance(val, str):
-                    coerced[key] = str(val)
-                elif actual_type is int and not isinstance(val, int):
-                    try:
-                        coerced[key] = int(val)
-                    except (ValueError, TypeError):
-                        coerced[key] = val
-                elif actual_type is float and not isinstance(val, float):
-                    try:
-                        coerced[key] = float(val)
-                    except (ValueError, TypeError):
-                        coerced[key] = val
-                elif actual_type is bool and not isinstance(val, bool):
-                    # Be careful with bool coercion - don't convert strings/numbers
-                    coerced[key] = val
-                else:
-                    coerced[key] = val
-            else:
-                coerced[key] = val
-        else:
-            coerced[key] = val
-
-    return coerced
 
 
 def validate_with_model(model: type[BaseModel] | None, value: dict | BaseModel | None):
@@ -129,7 +83,7 @@ def validate_arguments():
             for param_name, value in kwargs.items():
                 if param_name in basemodel_params and isinstance(value, dict):
                     model = basemodel_params[param_name]
-                    coerced_kwargs[param_name] = _coerce_dict_types(model, value)
+                    coerced_kwargs[param_name] = coerce_dict_types(model, value)
                 else:
                     coerced_kwargs[param_name] = value
 
@@ -141,7 +95,7 @@ def validate_arguments():
                     param_name = param_names[i]
                     if param_name in basemodel_params and isinstance(arg, dict):
                         model = basemodel_params[param_name]
-                        coerced_args.append(_coerce_dict_types(model, arg))
+                        coerced_args.append(coerce_dict_types(model, arg))
                     else:
                         coerced_args.append(arg)
                 else:

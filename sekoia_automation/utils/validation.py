@@ -69,11 +69,11 @@ def validate_str(v: Any) -> str:
     Validate that a value is a string, coercing if necessary.
     This replicates Pydantic V1's lenient type coercion behavior for strings.
     """
+    if isinstance(v, Enum):
+        v = v.value
+
     if isinstance(v, str):
-        if isinstance(v, Enum):
-            return v.value
-        else:
-            return v
+        return v
     elif isinstance(v, (float, int, Decimal)):
         return str(v)
     elif isinstance(v, (bytes, bytearray)):

@@ -7,7 +7,7 @@ from typing import ClassVar
 
 import pytest
 from aioresponses import aioresponses
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from sekoia_automation.http.aio.token_refresher import (
     GenericTokenRefresher,

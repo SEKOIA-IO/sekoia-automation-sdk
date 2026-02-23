@@ -1,30 +1,28 @@
 {
-    "name": "Sample Trigger",
-    "description": "My Sample Trigger Description",
-    "uuid": "dd15fe4d-6ad8-5a7b-badf-8692f45edb82",
-    "docker_parameters": "SampleTrigger",
-    "arguments": {
-        "title": "TriggerConfiguration",
-        "type": "object",
-        "properties": {
-            "trigger_field": {
-                "title": "Trigger Field",
-                "default": 0,
-                "type": "integer"
-            }
-        }
-    },
-    "results": {
-        "title": "Results",
-        "type": "object",
-        "properties": {
-            "results_field": {
-                "title": "Results Field",
-                "type": "string"
-            }
-        },
-        "required": [
-            "results_field"
-        ]
+  "name": "Sample Trigger",
+  "description": "My Sample Trigger Description",
+  "uuid": "dd15fe4d-6ad8-5a7b-badf-8692f45edb82",
+  "docker_parameters": "SampleTrigger",
+  "arguments": {
+    "title": "TriggerConfiguration",
+    "type": "object",
+    "properties": {
+      "trigger_field": {
+        "title": "Trigger Field",
+        "default": 0,
+        "type": "integer"
+      }
     }
+  },
+  "results": {
+    "title": "Results",
+    "type": "object",
+    "properties": {
+      "results_field": {
+        "title": "Results Field",
+        "type": "string"
+      }
+    },
+    "required": ["results_field"]
+  }
 }

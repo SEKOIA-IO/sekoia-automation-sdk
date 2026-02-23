@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import pytest
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from sentry_sdk import get_isolation_scope
 
 from sekoia_automation.exceptions import CommandNotFoundError, ModuleConfigurationError

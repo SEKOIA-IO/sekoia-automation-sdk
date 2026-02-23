@@ -12,7 +12,7 @@ import requests
 import sentry_sdk
 from botocore.exceptions import ClientError
 from flask import request
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import RequestException, Response
 
 from sekoia_automation.configuration import get_configuration

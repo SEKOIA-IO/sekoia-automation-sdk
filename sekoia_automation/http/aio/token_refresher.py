@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 from typing import Generic, TypeVar
 
 from aiohttp import ClientSession
-from pydantic.v1 import BaseModel
-from pydantic.v1.generics import GenericModel
+from pydantic import BaseModel
+from pydantic.generics import GenericModel
 
 HttpTokenT = TypeVar("HttpTokenT", bound=BaseModel)
 

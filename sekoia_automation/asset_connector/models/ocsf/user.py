@@ -81,6 +81,7 @@ class UserTypeId(IntEnum):
     USER = 1
     ADMIN = 2
     SYSTEM = 3
+    SERVICE = 4
 
 
 class UserTypeStr(StrEnum):
@@ -88,6 +89,7 @@ class UserTypeStr(StrEnum):
     USER = "User"
     ADMIN = "Admin"
     SYSTEM = "System"
+    SERVICE = "Service"
 
 
 class Account(BaseModel):

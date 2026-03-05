@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.22.4 - 2026-03-05
+
 ### Fixed
 
 - Fix OCSF device model: simplify `DeviceTypeId`/`DeviceTypeStr` enums, add `Full_qualified_domain_name` field to `DeviceDataObject`, and make `DeviceEnrichmentObject` fields optional

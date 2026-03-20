@@ -6,8 +6,16 @@ on:
     types:
       - completed
 
+permissions: {}
+
 jobs:
   unit-test-results:
+    permissions:
+      actions: read  # for dawidd6/action-download-artifact to query and download artifacts
+      checks: write  # for EnricoMi/publish-unit-test-result-action to create and update check runs
+      contents: read  # for EnricoMi/publish-unit-test-result-action to read commits and compare branches
+      issues: write  # for EnricoMi/publish-unit-test-result-action to post and update PR comments
+      pull-requests: read  # for EnricoMi/publish-unit-test-result-action to list PRs associated with a commit
     name: Unit Test Results
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion != 'skipped'

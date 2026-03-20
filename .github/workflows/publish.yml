@@ -3,8 +3,12 @@ on:
   release:
     types: [published]
 
+permissions: {}
+
 jobs:
   build-n-publish:
+    permissions:
+      contents: read  # for actions/checkout to fetch code
     name: Build and publish Python 🐍 distributions 📦 to PyPI and TestPyPI
     runs-on: ubuntu-latest
     steps:

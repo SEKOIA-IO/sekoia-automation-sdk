@@ -1,9 +1,4 @@
-from sample import SampleModule
-
-from sample import SampleTrigger
-from sample import SampleConnector
-from sample import SampleAction
-
+from sample import SampleAction, SampleConnector, SampleModule, SampleTrigger
 
 if __name__ == "__main__":
     module = SampleModule()

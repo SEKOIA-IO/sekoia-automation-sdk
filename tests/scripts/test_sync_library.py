@@ -273,11 +273,8 @@ def test_registry_check_custom_success(module, **kwargs):
     history = kwargs["m"].request_history
     assert len(history) == 1
     assert history[0].method == "GET"
-    assert (
-        history[0].url
-        == f"https://{custom_path}/v2/{custom_pathinfo}/{image_name}/\
+    assert history[0].url == f"https://{custom_path}/v2/{custom_pathinfo}/{image_name}/\
 manifests/{module['version']}"
-    )
 
 
 @requests_mock.Mocker(kw="m")

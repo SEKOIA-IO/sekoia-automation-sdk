@@ -66,10 +66,8 @@ class SyncLibrary:
         if updated:
             print(f"[green]{tab * nb_tabs}Updated: {', '.join(updated)}[/green]")
         if up_to_date:
-            print(
-                f"[green]{tab * nb_tabs}Already Up-To-Date: \
-{', '.join(up_to_date)}[/green]"
-            )
+            print(f"[green]{tab * nb_tabs}Already Up-To-Date: \
+{', '.join(up_to_date)}[/green]")
         if errors:
             err: str = "Error" if len(errors) == 1 else "Errors"
             print(f"[red]{tab * nb_tabs}{err}: {', '.join(errors)}[/red]")

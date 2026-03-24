@@ -14,6 +14,7 @@ class AwsConfiguration(BaseModel):
     aws_access_key_id: str = Field(description="AWS access key id")
     aws_secret_access_key: str = Field(description="AWS secret access key")
     aws_region: str = Field(description="AWS region name")
+    aws_session_token: str | None = Field(default=None, description="AWS session token")
 
 
 AwsConfigurationT = TypeVar("AwsConfigurationT", bound=AwsConfiguration)
@@ -24,16 +25,20 @@ class _CredentialsProvider(CredentialProvider):
 
     METHOD = "_sekoia_credentials_provider"
 
-    def __init__(self, access_key: str, secret_key: str) -> None:
+    def __init__(
+        self, access_key: str, secret_key: str, session_token: str | None = None
+    ) -> None:
         """
         Initialize CredentialsProvider.
 
         Args:
             access_key: str
             secret_key: str
+            session_token: str | None = None
         """
         self.access_key = access_key
         self.secret_key = secret_key
+        self.session_token = session_token
 
     async def load(self) -> AioCredentials:
         """
@@ -45,6 +50,7 @@ class _CredentialsProvider(CredentialProvider):
         return AioCredentials(
             access_key=self.access_key,
             secret_key=self.secret_key,
+            token=self.session_token,
             method=self.METHOD,
         )
 
@@ -72,6 +78,7 @@ class AwsClient(Generic[AwsConfigurationT]):
             self._credentials_provider = _CredentialsProvider(
                 self._configuration.aws_access_key_id,
                 self._configuration.aws_secret_access_key,
+                self._configuration.aws_session_token,
             )
 
     @cached_property

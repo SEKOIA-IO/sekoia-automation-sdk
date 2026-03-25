@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-- Update AWS client helper to support session token 
+- Update AWS client helper to support session token
 
 ## 1.22.4 - 2026-03-05
 

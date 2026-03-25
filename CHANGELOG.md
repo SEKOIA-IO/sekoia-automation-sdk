@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-- Update AWS client helper to support session token
+### Removed
+
+- Remove AWS async client helper (`sekoia_automation.aio.helpers.aws`) and its `aiobotocore` dependency
 
 ## 1.22.4 - 2026-03-05
 

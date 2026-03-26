@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Remove AWS async client helper (`sekoia_automation.aio.helpers.aws`) and its `aiobotocore` dependency
+### Fixed
+
+- Fix the template for generating new automation modules to work with uv
 
 ## 1.22.4 - 2026-03-05
 

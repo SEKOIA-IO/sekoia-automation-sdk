@@ -1,9 +1,9 @@
 [project]
-name = "{{cookiecutter.module_name.capitalize()}}-automation-module"
+name = "{{cookiecutter.module_name.lower().replace(' ', '_')}}-automation-module"
 version = "0.0"
 description = ""
 authors = []
-requires-python=">=3.11,<3.15"
+requires-python=">=3.11,<4"
 
 dependencies = [
     "sekoia-automation-sdk"
@@ -16,7 +16,7 @@ requests = "*"
 requests-mock = "*"
 
 [build-system]
-requires = ["uv_build>=0.9.7,<0.10.0"]
+requires = ["uv_build>=0.9.7,<1.0.0"]
 build-backend = "uv_build"
 
 [tool.uv]

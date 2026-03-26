@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix the template to generate new automation module to work with uv
+- Fix the template for generating new automation modules to work with uv
 
 ## 1.22.4 - 2026-03-05
 

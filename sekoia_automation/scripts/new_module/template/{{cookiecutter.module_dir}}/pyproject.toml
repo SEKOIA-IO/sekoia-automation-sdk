@@ -3,7 +3,7 @@ name = "{{cookiecutter.module_name.lower().replace(' ', '_')}}-automation-module
 version = "0.0"
 description = ""
 authors = []
-requires-python=">=3.11,<4"
+requires-python = ">=3.11,<4"
 
 dependencies = [
     "sekoia-automation-sdk"

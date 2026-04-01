@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+import json
 from abc import abstractmethod
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -214,7 +215,15 @@ class AsyncAssetConnector(Trigger):
                             response_text = await response.text()
 
                             if status_code == 200:
-                                response_json = await response.json()
+                                try:
+                                    response_json = json.loads(response_text)
+                                except json.JSONDecodeError as e:
+                                    self.log_exception(
+                                        e,
+                                        message="Failed to parse JSON response from "
+                                        "Sekoia.io asset connector API",
+                                    )
+                                    return None
         except TimeoutError as ex:
             self.log_exception(
                 ex,

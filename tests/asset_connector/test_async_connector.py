@@ -1,7 +1,7 @@
 import json
 import os
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
 import aiohttp
 import pytest
@@ -564,3 +564,23 @@ async def test_get_assets_async_generator(test_async_asset_connector, asset_list
     assert assets[0] == asset_list.items[0]
     assert assets[1] == asset_list.items[1]
     assert assets[2] == asset_list.items[2]
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_reads_body_only_once(test_async_asset_connector, asset_list):
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text = AsyncMock(return_value='{"result": "success"}')
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+
+    mock_response.text.assert_called_once()
+    mock_response.json.assert_not_called()
+    assert response == {"result": "success"}
+

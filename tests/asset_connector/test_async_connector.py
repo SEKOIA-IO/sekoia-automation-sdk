@@ -1,7 +1,7 @@
 import json
 import os
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest

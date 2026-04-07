@@ -1,4 +1,3 @@
-from datetime import datetime
 from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, model_validator
@@ -80,8 +79,8 @@ class SoftwareEnrichmentObject(BaseModel):
     vendor_name: str | None = None
 
     path: str | None = None
-    install_time: datetime | None = None
-    last_used_time: datetime | None = None
+    install_time: float | None = None
+    last_used_time: float | None = None
 
     os: str | None = None
 
@@ -166,5 +165,6 @@ class SoftwareBillOfMaterials(BaseModel):
 
 class SoftwareOCSFModel(OCSFBaseModel):
     device: Device
+    software: SoftwareEnrichmentObject | None = None
     sbom: SoftwareBillOfMaterials | None = None
     enrichments: list[SoftwareEnrichmentObject] | None = None

@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel
@@ -52,6 +53,42 @@ class PackageTypeStr(StrEnum):
     OTHER = "Other"
 
 
+class FileHash(BaseModel):
+    algorithm: str | None = None
+    value: str
+
+
+class Signature(BaseModel):
+    subject: str | None = None
+    issuer: str | None = None
+    valid: bool | None = None
+
+
+class Software(BaseModel):
+    uid: str | None = None
+    name: str | None = None
+    version: str | None = None
+
+    vendor_name: str | None = None
+    product_id: str | None = None
+
+    path: str | None = None
+    install_time: datetime | None = None
+    last_used_time: datetime | None = None
+
+    platform: str | None = None
+
+    cpe_name: str | None = None
+    package_url: str | None = None
+
+    hashes: list[FileHash] | None = None
+
+    is_signed: bool | None = None
+    signature: Signature | None = None
+
+    file_name: str | None = None
+
+
 class SoftwarePackage(BaseModel):
     name: str
     version: str
@@ -83,4 +120,5 @@ class SoftwareBillOfMaterials(BaseModel):
 
 class SoftwareOCSFModel(OCSFBaseModel):
     device: Device
+    software: Software
     sbom: SoftwareBillOfMaterials | None = None

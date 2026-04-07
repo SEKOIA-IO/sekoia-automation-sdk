@@ -10,7 +10,7 @@ from sekoia_automation.asset_connector.models.ocsf.device import Device
 class SBOMTypeId(IntEnum):
     UNKNOWN = 0
     SPDX = 1
-    CYCLOEDX = 2
+    CYCLONEDX = 2
     SWID = 3
     OTHER = 99
 
@@ -53,8 +53,8 @@ class PackageTypeStr(StrEnum):
     OTHER = "Other"
 
 
-class FileHash(BaseModel):
-    algorithm: str | None = None
+class Fingerprint(BaseModel):
+    algorithm_id: str | None = None
     value: str
 
 
@@ -64,9 +64,17 @@ class Signature(BaseModel):
     valid: bool | None = None
 
 
-class Software(BaseModel):
+class SoftwareEnrichmentObject(BaseModel):
+    """
+    Represents software-related information collected from a device.
+
+    This object describes applications installed on an endpoint and
+    enriches the context of a device by providing details such as
+    name, version, vendor, installation path, and usage timestamps.
+    """
+
     uid: str | None = None
-    name: str | None = None
+    product_name: str | None = None
     version: str | None = None
 
     vendor_name: str | None = None
@@ -81,15 +89,15 @@ class Software(BaseModel):
     cpe_name: str | None = None
     package_url: str | None = None
 
-    hashes: list[FileHash] | None = None
+    hashes: list[Fingerprint] | None = None
 
     is_signed: bool | None = None
     signature: Signature | None = None
 
-    file_name: str | None = None
+    binary_name: str | None = None
 
     @model_validator(mode="after")
-    def validate_signature_consistency(self) -> "Software":
+    def validate_signature_consistency(self) -> "SoftwareEnrichmentObject":
         has_signature = self.signature is not None
 
         if self.is_signed is None:
@@ -106,6 +114,15 @@ class Software(BaseModel):
 
 
 class SoftwarePackage(BaseModel):
+    """
+    Represents a distributable software unit (e.g., application, OS package).
+
+    A package corresponds to a deployable or installable artifact, such as an
+    application installer, system package, or container image. It identifies
+    the main software product being described, including its name, version,
+    type, and licensing information.
+    """
+
     name: str
     version: str
     uid: str | None = None
@@ -118,6 +135,14 @@ class SoftwarePackage(BaseModel):
 
 
 class SoftwareComponent(BaseModel):
+    """
+    Represents an individual component within a software package.
+
+    A component is a building block of a software package, such as a library,
+    framework, or module.
+    Components describe the internal composition of a package.
+    """
+
     version: str
     name: str
     author: str | None = None
@@ -126,6 +151,15 @@ class SoftwareComponent(BaseModel):
 
 
 class SoftwareBillOfMaterials(BaseModel):
+    """
+    Describes the composition of a software package.
+
+    A Software Bill of Materials (SBOM) provides a structured inventory of all
+    components included in a software package, along with associated metadata.
+    It is used to track dependencies, assess vulnerabilities, and improve
+    transparency in the software supply chain.
+    """
+
     package: SoftwarePackage
     software_components: list[SoftwareComponent] | None = None
     type: SBOMTypeStr | None = None
@@ -136,5 +170,5 @@ class SoftwareBillOfMaterials(BaseModel):
 
 class SoftwareOCSFModel(OCSFBaseModel):
     device: Device
-    software: Software
     sbom: SoftwareBillOfMaterials | None = None
+    enrichments: list[SoftwareEnrichmentObject] | None = None

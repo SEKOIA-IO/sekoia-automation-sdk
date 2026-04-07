@@ -73,21 +73,17 @@ class SoftwareEnrichmentObject(BaseModel):
     name, version, vendor, installation path, and usage timestamps.
     """
 
-    uid: str | None = None
+    product_id: str | None = None
     product_name: str | None = None
     version: str | None = None
 
     vendor_name: str | None = None
-    product_id: str | None = None
 
     path: str | None = None
     install_time: datetime | None = None
     last_used_time: datetime | None = None
 
-    platform: str | None = None
-
-    cpe_name: str | None = None
-    package_url: str | None = None
+    os: str | None = None
 
     hashes: list[Fingerprint] | None = None
 

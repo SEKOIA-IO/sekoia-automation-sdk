@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import IntEnum, StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
 from sekoia_automation.asset_connector.models.ocsf.device import Device
@@ -87,6 +87,22 @@ class Software(BaseModel):
     signature: Signature | None = None
 
     file_name: str | None = None
+
+    @model_validator(mode="after")
+    def validate_signature_consistency(self) -> "Software":
+        has_signature = self.signature is not None
+
+        if self.is_signed is None:
+            self.is_signed = has_signature
+            return self
+
+        if self.is_signed and not has_signature:
+            raise ValueError("signature is required when is_signed is True")
+
+        if not self.is_signed and has_signature:
+            raise ValueError("signature must be None when is_signed is False")
+
+        return self
 
 
 class SoftwarePackage(BaseModel):

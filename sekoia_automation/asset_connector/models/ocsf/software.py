@@ -3,7 +3,7 @@ from enum import IntEnum, StrEnum
 from pydantic import BaseModel, model_validator
 
 from sekoia_automation.asset_connector.models.ocsf.base import OCSFBaseModel
-from sekoia_automation.asset_connector.models.ocsf.device import Device
+from sekoia_automation.asset_connector.models.ocsf.device import Device, OperatingSystem
 
 
 class SBOMTypeId(IntEnum):
@@ -17,7 +17,7 @@ class SBOMTypeId(IntEnum):
 class SBOMTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     SPDX = "SPDX"
-    CYCLOEDX = "CycloDX"
+    CYCLONEDX = "CycloneDX"
     SWID = "SWID"
     OTHER = "Other"
 
@@ -52,15 +52,108 @@ class PackageTypeStr(StrEnum):
     OTHER = "Other"
 
 
+class SignatureAlgorithmId(IntEnum):
+    UNKNOWN = 0
+    DSA = 1
+    RSA = 2
+    ECDSA = 3
+    AUTHENTICODE = 4
+    OTHER = 99
+
+
+class SignatureAlgorithmStr(StrEnum):
+    UNKNOWN = "Unknown"
+    DSA = "DSA"
+    RSA = "RSA"
+    ECDSA = "ECDSA"
+    AUTHENTICODE = "Authenticode"
+    OTHER = "Other"
+
+
+class SignatureStateId(IntEnum):
+    UNKNOWN = 0
+    VALID = 1
+    EXPIRED = 2
+    REVOKED = 3
+    SUSPENDED = 4
+    PENDING = 5
+    UNTRUSTED = 6
+    DISTRUSTED = 7
+    WRONG_USAGE = 8
+    BAD = 9
+    BROKEN = 10
+    OTHER = 99
+
+
+class SignatureStateStr(StrEnum):
+    UNKNOWN = "Unknown"
+    VALID = "Valid"
+    EXPIRED = "Expired"
+    REVOKED = "Revoked"
+    SUSPENDED = "Suspended"
+    PENDING = "Pending"
+    UNTRUSTED = "Untrusted"
+    DISTRUSTED = "Distrusted"
+    WRONG_USAGE = "WrongUsage"
+    BAD = "Bad"
+    BROKEN = "Broken"
+    OTHER = "Other"
+
+
+# https://schema.ocsf.io/1.8.0/objects/fingerprint
 class Fingerprint(BaseModel):
     algorithm_id: str | None = None
     value: str
 
 
-class Signature(BaseModel):
+# https://schema.ocsf.io/1.8.0/objects/certificate
+class DigitalCertificate(BaseModel):
+    created_time: float | None = None
+    expiration_time: float | None = None
+
+    fingerprints: list[Fingerprint] | None = None
+
+    is_self_signed: bool | None = None
+
+    issuer: str
     subject: str | None = None
-    issuer: str | None = None
-    valid: bool | None = None
+
+    serial_number: str
+
+    sans: list[str] | None = None
+
+    uid: str | None = None
+    version: str | None = None
+
+
+# https://schema.ocsf.io/1.8.0/objects/digital_signature
+class DigitalSignature(BaseModel):
+    """
+    Represents a digital signature used to verify the authenticity
+    and integrity of a software.
+    """
+
+    algorithm: SignatureAlgorithmStr | None = None
+    algorithm_id: SignatureAlgorithmId | None = None
+
+    certificate: DigitalCertificate | None = None
+
+    state: SignatureStateStr | None = None
+    state_id: SignatureStateId | None = None
+
+    created_time: float | None = None
+
+    digest: Fingerprint | None = None
+
+    @model_validator(mode="after")
+    def sync_state_fields(self) -> "DigitalSignature":
+        if self.state_id is not None and self.state is None:
+            self.state = SignatureStateStr[self.state_id.name]
+
+        if self.state is not None and self.state_id is None:
+            self.state_id = SignatureStateId[self.state.name]
+
+        return self
 
 
 class SoftwareEnrichmentObject(BaseModel):
@@ -82,12 +175,12 @@ class SoftwareEnrichmentObject(BaseModel):
     install_time: float | None = None
     last_used_time: float | None = None
 
-    os: str | None = None
+    os: OperatingSystem | None = None
 
     hashes: list[Fingerprint] | None = None
 
     is_signed: bool | None = None
-    signature: Signature | None = None
+    signature: DigitalSignature | None = None
 
     binary_name: str | None = None
 
@@ -167,4 +260,3 @@ class SoftwareOCSFModel(OCSFBaseModel):
     device: Device
     software: SoftwareEnrichmentObject | None = None
     sbom: SoftwareBillOfMaterials | None = None
-    enrichments: list[SoftwareEnrichmentObject] | None = None

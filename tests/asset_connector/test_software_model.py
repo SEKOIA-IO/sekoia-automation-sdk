@@ -1,6 +1,3 @@
-import pytest
-from pydantic import ValidationError
-
 from sekoia_automation.asset_connector.models.ocsf.base import (
     Metadata,
     Product,
@@ -11,9 +8,20 @@ from sekoia_automation.asset_connector.models.ocsf.device import (
     DeviceTypeStr,
 )
 from sekoia_automation.asset_connector.models.ocsf.software import (
-    Signature,
+    DigitalSignature,
+    Fingerprint,
+    FingerprintAlgorithmId,
+    FingerprintAlgorithmStr,
+    SBOMTypeId,
+    SBOMTypeStr,
+    SignatureAlgorithmId,
+    SignatureAlgorithmStr,
+    SignatureStateId,
+    SignatureStateStr,
+    SoftwareBillOfMaterials,
     SoftwareEnrichmentObject,
     SoftwareOCSFModel,
+    SoftwarePackage,
 )
 
 
@@ -40,56 +48,85 @@ def _make_software_ocsf_model(**kwargs) -> SoftwareOCSFModel:
     return SoftwareOCSFModel(**base_kwargs)
 
 
-def test_software_derives_is_signed_to_false_without_signature():
-    software = SoftwareEnrichmentObject(name="example")
-
-    assert software.is_signed is False
-    assert software.signature is None
-
-
-def test_software_derives_is_signed_to_true_with_signature_only():
-    software = SoftwareEnrichmentObject(
-        name="example", signature=Signature(subject="ACME")
-    )
-
-    assert software.is_signed is True
-    assert software.signature is not None
-
-
-def test_software_requires_signature_when_is_signed_true():
-    with pytest.raises(ValidationError, match="signature is required"):
-        SoftwareEnrichmentObject(name="example", is_signed=True)
-
-
-def test_software_rejects_signature_when_is_signed_false():
-    with pytest.raises(ValidationError, match="signature must be None"):
-        SoftwareEnrichmentObject(
-            name="example",
-            is_signed=False,
-            signature=Signature(subject="ACME"),
-        )
-
-
-def test_software_accepts_consistent_signed_state():
+def test_software_accepts_signature_object():
     software = SoftwareEnrichmentObject(
         name="example",
-        is_signed=True,
-        signature=Signature(subject="ACME", issuer="CA", valid=True),
+        signature=DigitalSignature(
+            algorithm=SignatureAlgorithmStr.RSA,
+            state=SignatureStateStr.VALID,
+        ),
     )
 
-    assert software.is_signed is True
     assert software.signature is not None
+    assert software.signature.algorithm == SignatureAlgorithmStr.RSA
+    assert software.signature.state == SignatureStateStr.VALID
 
 
 def test_software_accepts_epoch_time_fields():
     software = SoftwareEnrichmentObject(
-        product_name="example",
+        name="example",
         install_time=1_712_000_000.0,
         last_used_time=1_712_000_123.0,
     )
 
     assert software.install_time == 1_712_000_000.0
     assert software.last_used_time == 1_712_000_123.0
+
+
+def test_digital_signature_syncs_enum_from_ids():
+    signature = DigitalSignature(
+        algorithm_id=SignatureAlgorithmId.RSA,
+        state_id=SignatureStateId.VALID,
+    )
+
+    assert signature.algorithm == SignatureAlgorithmStr.RSA
+    assert signature.state == SignatureStateStr.VALID
+
+
+def test_digital_signature_syncs_ids_from_enum_values():
+    signature = DigitalSignature(
+        algorithm=SignatureAlgorithmStr.ECDSA,
+        state=SignatureStateStr.EXPIRED,
+    )
+
+    assert signature.algorithm_id == SignatureAlgorithmId.ECDSA
+    assert signature.state_id == SignatureStateId.EXPIRED
+
+
+def test_fingerprint_syncs_enum_from_id():
+    fingerprint = Fingerprint(
+        algorithm_id=FingerprintAlgorithmId.SHA256,
+        value="abc",
+    )
+
+    assert fingerprint.algorithm == FingerprintAlgorithmStr.SHA256
+
+
+def test_fingerprint_syncs_id_from_enum():
+    fingerprint = Fingerprint(
+        algorithm=FingerprintAlgorithmStr.SHA512,
+        value="abc",
+    )
+
+    assert fingerprint.algorithm_id == FingerprintAlgorithmId.SHA512
+
+
+def test_sbom_syncs_type_from_type_id():
+    sbom = SoftwareBillOfMaterials(
+        package=SoftwarePackage(name="pkg", version="1.0.0"),
+        type_id=SBOMTypeId.SPDX,
+    )
+
+    assert sbom.type == SBOMTypeStr.SPDX
+
+
+def test_sbom_syncs_type_id_from_type():
+    sbom = SoftwareBillOfMaterials(
+        package=SoftwarePackage(name="pkg", version="1.0.0"),
+        type=SBOMTypeStr.CYCLONEDX,
+    )
+
+    assert sbom.type_id == SBOMTypeId.CYCLONEDX
 
 
 def test_software_ocsf_model_allows_missing_software():
@@ -100,8 +137,8 @@ def test_software_ocsf_model_allows_missing_software():
 
 def test_software_ocsf_model_accepts_software_object():
     model = _make_software_ocsf_model(
-        software=SoftwareEnrichmentObject(product_name="example", version="1.0.0")
+        software=SoftwareEnrichmentObject(name="example", version="1.0.0")
     )
 
     assert model.software is not None
-    assert model.software.product_name == "example"
+    assert model.software.name == "example"

@@ -100,10 +100,72 @@ class SignatureStateStr(StrEnum):
     OTHER = "Other"
 
 
+class FingerprintAlgorithmId(IntEnum):
+    UNKNOWN = 0
+    MD5 = 1
+    SHA1 = 2
+    SHA256 = 3
+    SHA512 = 4
+    CTPH = 5
+    TLSH = 6
+    QUICKXORHASH = 7
+    SHA224 = 8
+    SHA384 = 9
+    SHA512_224 = 10
+    SHA512_256 = 11
+    SHA3_224 = 12
+    SHA3_256 = 13
+    SHA3_384 = 14
+    SHA3_512 = 15
+    XXHASH64 = 16
+    XXHASH128 = 17
+    IMPHASH = 18
+    NPF = 19
+    HASSH = 20
+    OTHER = 99
+
+
+class FingerprintAlgorithmStr(StrEnum):
+    UNKNOWN = "Unknown"
+    MD5 = "MD5"
+    SHA1 = "SHA-1"
+    SHA256 = "SHA-256"
+    SHA512 = "SHA-512"
+    CTPH = "CTPH"
+    TLSH = "TLSH"
+    QUICKXORHASH = "quickXorHash"
+    SHA224 = "SHA-224"
+    SHA384 = "SHA-384"
+    SHA512_224 = "SHA-512/224"
+    SHA512_256 = "SHA-512/256"
+    SHA3_224 = "SHA3-224"
+    SHA3_256 = "SHA3-256"
+    SHA3_384 = "SHA3-384"
+    SHA3_512 = "SHA3-512"
+    XXHASH64 = "xxHash H3 64-bit"
+    XXHASH128 = "xxHash H3 128-bit"
+    IMPHASH = "Imphash"
+    NPF = "NPF"
+    HASSH = "HASSH"
+    OTHER = "Other"
+
+
 # https://schema.ocsf.io/1.8.0/objects/fingerprint
 class Fingerprint(BaseModel):
-    algorithm_id: str | None = None
+    algorithm: FingerprintAlgorithmStr | None = None
+    algorithm_id: FingerprintAlgorithmId | None = None
+
     value: str
+
+    @model_validator(mode="after")
+    def sync_algorithm(self) -> "Fingerprint":
+        if self.algorithm_id is not None and self.algorithm is None:
+            self.algorithm = FingerprintAlgorithmStr[self.algorithm_id.name]
+
+        if self.algorithm is not None and self.algorithm_id is None:
+            self.algorithm_id = FingerprintAlgorithmId[self.algorithm.name]
+
+        return self
 
 
 # https://schema.ocsf.io/1.8.0/objects/certificate
@@ -146,7 +208,13 @@ class DigitalSignature(BaseModel):
     digest: Fingerprint | None = None
 
     @model_validator(mode="after")
-    def sync_state_fields(self) -> "DigitalSignature":
+    def sync_enums(self) -> "DigitalSignature":
+        if self.algorithm_id is not None and self.algorithm is None:
+            self.algorithm = SignatureAlgorithmStr[self.algorithm_id.name]
+
+        if self.algorithm is not None and self.algorithm_id is None:
+            self.algorithm_id = SignatureAlgorithmId[self.algorithm.name]
+
         if self.state_id is not None and self.state is None:
             self.state = SignatureStateStr[self.state_id.name]
 
@@ -165,8 +233,8 @@ class SoftwareEnrichmentObject(BaseModel):
     name, version, vendor, installation path, and usage timestamps.
     """
 
-    product_id: str | None = None
-    product_name: str | None = None
+    uid: str | None = None
+    name: str | None = None
     version: str | None = None
 
     vendor_name: str | None = None
@@ -179,26 +247,9 @@ class SoftwareEnrichmentObject(BaseModel):
 
     hashes: list[Fingerprint] | None = None
 
-    is_signed: bool | None = None
     signature: DigitalSignature | None = None
 
     binary_name: str | None = None
-
-    @model_validator(mode="after")
-    def validate_signature_consistency(self) -> "SoftwareEnrichmentObject":
-        has_signature = self.signature is not None
-
-        if self.is_signed is None:
-            self.is_signed = has_signature
-            return self
-
-        if self.is_signed and not has_signature:
-            raise ValueError("signature is required when is_signed is True")
-
-        if not self.is_signed and has_signature:
-            raise ValueError("signature must be None when is_signed is False")
-
-        return self
 
 
 class SoftwarePackage(BaseModel):
@@ -255,8 +306,19 @@ class SoftwareBillOfMaterials(BaseModel):
     uid: str | None = None
     version: str | None = None
 
+    @model_validator(mode="after")
+    def sync_type(self) -> "SoftwareBillOfMaterials":
+        if self.type_id and not self.type:
+            self.type = SBOMTypeStr[self.type_id.name]
+
+        if self.type and not self.type_id:
+            self.type_id = SBOMTypeId[self.type.name]
+
+        return self
+
 
 class SoftwareOCSFModel(OCSFBaseModel):
     device: Device
     software: SoftwareEnrichmentObject | None = None
+    # sbom corresponds to the software described in `software`
     sbom: SoftwareBillOfMaterials | None = None

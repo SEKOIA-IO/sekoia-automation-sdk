@@ -565,8 +565,11 @@ async def test_get_assets_async_generator(test_async_asset_connector, asset_list
     assert assets[1] == asset_list.items[1]
     assert assets[2] == asset_list.items[2]
 
+
 @pytest.mark.asyncio
-async def test_post_assets_to_api_reads_body_only_once(test_async_asset_connector, asset_list):
+async def test_post_assets_to_api_reads_body_only_once(
+    test_async_asset_connector, asset_list
+):
     mock_response = AsyncMock()
     mock_response.status = 200
     mock_response.text = AsyncMock(return_value='{"result": "success"}')
@@ -579,8 +582,6 @@ async def test_post_assets_to_api_reads_body_only_once(test_async_asset_connecto
             asset_list, "http://example.com/api"
         )
 
-
     mock_response.text.assert_called_once()
     mock_response.json.assert_not_called()
     assert response == {"result": "success"}
-

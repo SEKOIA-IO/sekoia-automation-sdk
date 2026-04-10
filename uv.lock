@@ -2172,7 +2172,7 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-sdk"
-version = "1.22.3"
+version = "1.22.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiobotocore" },

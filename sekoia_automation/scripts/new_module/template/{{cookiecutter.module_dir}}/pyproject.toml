@@ -1,13 +1,13 @@
 [project]
-name = "Automation module for {{cookiecutter.module_name.capitalize()}}"
+name = "{{cookiecutter.module_name.lower().replace(' ', '_')}}-automation-module"
 version = "0.0"
 description = ""
 authors = []
-package-mode = false
+requires-python = ">=3.11,<4"
 
-[project.dependencies]
-python = "^3.11"
-sekoia-automation-sdk = "^1.0"
+dependencies = [
+    "sekoia-automation-sdk"
+]
 
 [project.dependency-group.dev]
 pytest = "*"
@@ -16,8 +16,11 @@ requests = "*"
 requests-mock = "*"
 
 [build-system]
-requires = ["uv_build>=0.9.7,<0.10.0"]
+requires = ["uv_build>=0.9.7,<1.0.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+package = false
 
 [tool.black]
 line-length = 119

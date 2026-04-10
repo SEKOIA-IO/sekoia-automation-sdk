@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Upgrade the SDK to fully support Pydantic V2
+
 ### Fixed
 
 - Fix the template for generating new automation modules to work with uv

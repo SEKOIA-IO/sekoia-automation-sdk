@@ -3,7 +3,7 @@ from functools import wraps
 from inspect import get_annotations, getmro
 
 import sentry_sdk
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from tenacity import RetryCallState
 
 
@@ -14,14 +14,14 @@ def get_as_model(model: type[BaseModel] | None, value: dict | BaseModel | None):
     if isinstance(value, model):
         return value
 
-    return model.parse_obj(value)
+    return model.model_validate(value)
 
 
 def validate_with_model(model: type[BaseModel] | None, value: dict | BaseModel | None):
     if model is None or value is None:
         return value
 
-    return get_as_model(model, value).dict()
+    return get_as_model(model, value).model_dump()
 
 
 def returns(model: type[BaseModel]):

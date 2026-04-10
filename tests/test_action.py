@@ -4,7 +4,7 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import requests_mock
-from pydantic.v1 import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 from requests import Timeout
 from tenacity import wait_none
 
@@ -474,8 +474,8 @@ def test_action_with_arguments_model():
     arguments = action.run({})
     assert arguments.field == "value"
 
-    # Call the action with a value, it should be used and coerced
-    arguments = action.run({"field": 3})
+    # Call the action with a value, it should be used
+    arguments = action.run({"field": "3"})
     assert arguments.field == "3"
 
     # Call the action with a bad value, it should raise a validation error
@@ -500,8 +500,8 @@ def test_action_with_results_model():
     results = action.run({})
     assert results["field"] == "value"
 
-    # Return a value, it should be validated/coerced
-    results = action.run({"field": 3})
+    # Return a value, it should be validated
+    results = action.run({"field": "3"})
     assert results["field"] == "3"
 
     # Return a bad value, it should raise a validation error

@@ -9,7 +9,15 @@
     "properties": {
       "intake_server": {
         "title": "Intake Server",
-        "type": "string"
+        "default": null,
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
       },
       "intake_key": {
         "title": "Intake Key",

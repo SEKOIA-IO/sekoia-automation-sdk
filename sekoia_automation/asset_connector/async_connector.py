@@ -34,7 +34,7 @@ class AsyncAssetConnector(Trigger):
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
 
-    configuration: DefaultAssetConnectorConfiguration  # type: ignore[assignment]
+    configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

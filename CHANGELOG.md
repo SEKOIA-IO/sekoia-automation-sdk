@@ -11,8 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Upgrade the SDK to fully support Pydantic V2
 
+## 1.22.5 - 2026-04-13
+
+### Removed
+
+- Remove AWS async client helper (`sekoia_automation.aio.helpers.aws`) and its `aiobotocore` dependency
+>>>>>>> main
+
 ### Fixed
 
+- Fix http client session handling in async connectors
+- Delete time field from OCSF vulnerability model
 - Fix the template for generating new automation modules to work with uv
 
 ## 1.22.4 - 2026-03-05

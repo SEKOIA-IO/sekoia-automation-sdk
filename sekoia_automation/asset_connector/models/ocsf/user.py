@@ -21,6 +21,7 @@ class UserDataObject(BaseModel):
     last_logon: str | None = None
     bad_password_count: int | None = None
     number_of_logons: int | None = None
+    last_time_password_change: float | None = None
 
 
 class UserEnrichmentObject(BaseModel):
@@ -28,9 +29,9 @@ class UserEnrichmentObject(BaseModel):
     Enrichment Object represents additional information about a user.
     """
 
-    name: str
-    value: str
-    data: UserDataObject
+    name: str | None = None
+    value: str | None = None
+    data: UserDataObject | None = None
 
 
 class AccountTypeId(IntEnum):
@@ -81,7 +82,6 @@ class UserTypeId(IntEnum):
     ADMIN = 2
     SYSTEM = 3
     SERVICE = 4
-    OTHER = 99
 
 
 class UserTypeStr(StrEnum):
@@ -90,7 +90,6 @@ class UserTypeStr(StrEnum):
     ADMIN = "Admin"
     SYSTEM = "System"
     SERVICE = "Service"
-    OTHER = "Other"
 
 
 class Account(BaseModel):

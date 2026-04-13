@@ -12,6 +12,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Introduce a new `SekoiaAutomationBaseModel` (preconfigured Pydantic’s `BaseModel`) to avoid int-to-str issues.
 - Test SDK with Python 3.13 and 3.14.
 
+## 1.22.5 - 2026-04-13
+
+### Removed
+
+- Remove AWS async client helper (`sekoia_automation.aio.helpers.aws`) and its `aiobotocore` dependency
+
+### Fixed
+
+- Fix http client session handling in async connectors
+- Delete time field from OCSF vulnerability model
+- Fix the template for generating new automation modules to work with uv
+
+## 1.22.4 - 2026-03-05
+
+### Fixed
+
+- Fix OCSF device model: simplify `DeviceTypeId`/`DeviceTypeStr` enums, add `Full_qualified_domain_name` field to `DeviceDataObject`, and make `DeviceEnrichmentObject` fields optional
+- Fix OCSF user model: add `last_time_password_change` field to `UserDataObject`, make `UserEnrichmentObject` fields optional, and simplify `UserTypeId`/`UserTypeStr` enums
+
+## 1.22.3 - 2026-02-20
+
+### Fixed
+
+- Add missing aiolimiter dependency required by async connector.
+- fix device field in OCSF schema for assets
+>>>>>>> main
+
 ### Changed
 
 - Move to `uv` to build project

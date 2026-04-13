@@ -100,19 +100,10 @@ class DeviceTypeId(IntEnum):
     UNKNOWN = 0
     SERVER = 1
     DESKTOP = 2
-    LAPTOP = 3
-    TABLET = 4
     MOBILE = 5
     VIRTUAL = 6
-    IOT = 7
-    BROWSER = 8
     FIREWALL = 9
     SWITCH = 10
-    HUB = 11
-    ROUTER = 12
-    IDS = 13
-    IPS = 14
-    LOAD_BALANCER = 15
     OTHER = 99
 
 
@@ -120,19 +111,10 @@ class DeviceTypeStr(StrEnum):
     UNKNOWN = "Unknown"
     SERVER = "Server"
     DESKTOP = "Desktop"
-    LAPTOP = "Laptop"
-    TABLET = "Tablet"
     MOBILE = "Mobile"
     VIRTUAL = "Virtual"
-    IOT = "IOT"
-    BROWSER = "Browser"
     FIREWALL = "Firewall"
     SWITCH = "Switch"
-    HUB = "Hub"
-    ROUTER = "Router"
-    IDS = "IDS"
-    IPS = "IPS"
-    LOAD_BALANCER = "Load Balancer"
     OTHER = "Other"
 
 
@@ -149,7 +131,7 @@ class Device(BaseModel):
     os: OperatingSystem | None = None
     hostname: str
     autoscale_uid: str | None = None
-    boot_time: int | None = None
+    boot_time: float | None = None
     boot_uid: str | None = None
     created_time: float | None = None
     desc: str | None = None
@@ -199,6 +181,7 @@ class DeviceDataObject(BaseModel):
     Firewall_status: Literal["Disabled", "Enabled"] | None = None
     Storage_encryption: EncryptionObject | None = None
     Users: list[str] | None = None
+    Full_qualified_domain_name: str | None = None
 
 
 class DeviceEnrichmentObject(BaseModel):
@@ -206,9 +189,9 @@ class DeviceEnrichmentObject(BaseModel):
     Enrichment Object represents additional information about a device.
     """
 
-    name: str
-    value: str
-    data: DeviceDataObject
+    name: str | None = None
+    value: str | None = None
+    data: DeviceDataObject | None = None
 
 
 class DeviceOCSFModel(OCSFBaseModel):

@@ -18,7 +18,7 @@ def test_prometheus_exporter():
 
     exporter = make_exporter(exporter_class, 0, registry=registry)
     exporter.start()
-    (address, port) = exporter.listening_address
+    address, port = exporter.listening_address
 
     response = requests.get(f"http://{address}:{port}/metrics")
     exporter.stop()

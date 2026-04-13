@@ -582,6 +582,9 @@ async def test_post_assets_to_api_reads_body_only_once(
             asset_list, "http://example.com/api"
         )
 
+    # Clean up
+    await test_async_asset_connector._session.close()
+
     mock_response.text.assert_called_once()
     mock_response.json.assert_not_called()
     assert response == {"result": "success"}
@@ -605,6 +608,9 @@ async def test_post_assets_to_api_invalid_json_response(
         response = await test_async_asset_connector.post_assets_to_api(
             asset_list, "http://example.com/api"
         )
+
+    # Clean up
+    await test_async_asset_connector._session.close()
 
     assert response is None
     test_async_asset_connector.log_exception.assert_called_once()

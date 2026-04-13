@@ -227,7 +227,7 @@ class FilesGenerator:
         """Add module conf's secrets to the manifest, if any
 
         If the module has secrets, they are handled by Pandytic as if
-        the parameter's name is "secret". We parse the model's fieds
+        the parameter's name is "secret". We parse the model's fields
         to find if such secrets exist and if so, we remove the
         "secret" field from the generated JSON and add fields with the
         right names instead

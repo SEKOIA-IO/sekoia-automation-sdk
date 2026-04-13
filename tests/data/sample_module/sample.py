@@ -8,8 +8,8 @@ from sekoia_automation.trigger import Trigger
 
 class ModuleConfiguration(BaseModel):
     module_field: str
-    api_key: str = Field(secret=True)
-    password: str = Field(secret=True)
+    api_key: str = Field(json_schema_extra={"secret": True})
+    password: str = Field(json_schema_extra={"secret": True})
 
 
 class SampleModule(Module):

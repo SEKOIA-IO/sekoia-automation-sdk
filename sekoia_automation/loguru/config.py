@@ -32,8 +32,8 @@ class LoggingConfig(BaseModel):
         ],
     )
 
-    @classmethod
     @field_validator("log_lvl", mode="before")
+    @classmethod
     def assemble_log_lvl(cls, log_lvl: str) -> str:  # pragma: no cover
         """
         Format and validate log lvl str.

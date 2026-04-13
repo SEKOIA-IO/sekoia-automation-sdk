@@ -564,3 +564,54 @@ async def test_get_assets_async_generator(test_async_asset_connector, asset_list
     assert assets[0] == asset_list.items[0]
     assert assets[1] == asset_list.items[1]
     assert assets[2] == asset_list.items[2]
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_reads_body_only_once(
+    test_async_asset_connector, asset_list
+):
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text = AsyncMock(return_value='{"result": "success"}')
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    # Clean up
+    await test_async_asset_connector._session.close()
+
+    mock_response.text.assert_called_once()
+    mock_response.json.assert_not_called()
+    assert response == {"result": "success"}
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_invalid_json_response(
+    test_async_asset_connector, asset_list
+):
+    """Test handling of invalid JSON in a 200 response"""
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text = AsyncMock(return_value="this is not valid json {{{")
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    # Clean up
+    await test_async_asset_connector._session.close()
+
+    assert response is None
+    test_async_asset_connector.log_exception.assert_called_once()
+    test_async_asset_connector.update_checkpoint.assert_not_called()

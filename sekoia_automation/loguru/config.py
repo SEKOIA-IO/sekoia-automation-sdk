@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from loguru import logger
-from pydantic.v1 import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from .formatters import format_record
 from .handlers import InterceptHandler
@@ -32,8 +32,8 @@ class LoggingConfig(BaseModel):
         ],
     )
 
+    @field_validator("log_lvl", mode="before")
     @classmethod
-    @validator("log_lvl", pre=True)
     def assemble_log_lvl(cls, log_lvl: str) -> str:  # pragma: no cover
         """
         Format and validate log lvl str.

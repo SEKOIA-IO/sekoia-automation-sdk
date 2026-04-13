@@ -280,7 +280,7 @@ def test_connector_configuration(test_connector):
     ):
         assert test_connector.configuration == config
         mock_set_sentry_context.assert_called_with(
-            "connector_configuration", config.dict()
+            "connector_configuration", config.model_dump()
         )
         mock_load_config.assert_called_with(
             test_connector.CONNECTOR_CONFIGURATION_FILE_NAME, "json"

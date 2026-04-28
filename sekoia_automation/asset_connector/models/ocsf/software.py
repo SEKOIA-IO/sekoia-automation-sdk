@@ -250,6 +250,8 @@ class SoftwareEnrichmentObject(BaseModel):
     signature: DigitalSignature | None = None
 
     binary_name: str | None = None
+    architecture: str | None = None
+    last_user_name: str | None = None
 
 
 class SoftwarePackage(BaseModel):

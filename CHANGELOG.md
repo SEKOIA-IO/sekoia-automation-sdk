@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Introduce a new `SekoiaAutomationBaseModel` (preconfigured Pydantic’s `BaseModel`) to avoid int-to-str issues.
+- Test SDK with Python 3.13 and 3.14.
+
 ## 1.22.5 - 2026-04-13
 
 ### Removed
@@ -39,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update Ruff and fix existing files.
 - Move away from `datetime.utcnow()` that is deprecated.
 - Remove warning with Sentry and stop client on each test
+- Fully move to Pydantic v2 and drop usage of `pydantic.v1` compatibility layer, that is not compatible with Python
+  3.14.
 
 ## 1.22.2 - 2026-02-05
 
@@ -51,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix some OCSF schema fields 
+- Fix some OCSF schema fields
 
 ## 1.22.0 - 2025-12-15
 

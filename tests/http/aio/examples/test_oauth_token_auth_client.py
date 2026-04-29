@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from aioresponses import aioresponses
 from faker import Faker
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from sekoia_automation.http.aio.http_client import AsyncHttpClient
 from sekoia_automation.http.aio.token_refresher import (

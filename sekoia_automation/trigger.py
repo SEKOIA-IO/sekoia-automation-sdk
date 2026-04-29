@@ -14,7 +14,7 @@ import botocore.exceptions
 import requests
 import sentry_sdk
 from cachetools import TLRUCache
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 from requests import HTTPError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -156,7 +156,9 @@ class Trigger(ModuleItem):
             raise TriggerConfigurationError(str(e))
 
         if isinstance(self._configuration, BaseModel):
-            sentry_sdk.set_context("trigger_configuration", self._configuration.dict())
+            sentry_sdk.set_context(
+                "trigger_configuration", self._configuration.model_dump()
+            )
         elif self._configuration:
             sentry_sdk.set_context("trigger_configuration", self._configuration)
 

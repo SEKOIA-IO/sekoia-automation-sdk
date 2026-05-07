@@ -64,8 +64,8 @@ class TimeStepper:
                 # compute the max date allowed in the future and set the next_end
                 # accordingly
                 current_difference = int((next_end - now).total_seconds())
-                max_difference = min(
-                    current_difference, int(self.frequency.total_seconds())
+                max_difference = max(
+                    min(current_difference, int(self.frequency.total_seconds())), 0
                 )  # limit the end date in the future
                 next_end = now + datetime.timedelta(seconds=max_difference)
 

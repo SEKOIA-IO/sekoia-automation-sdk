@@ -35,6 +35,12 @@ class TimeStepper:
         self.frequency = frequency
         self.timedelta = timedelta
         self.metric = metric
+        self.intake_key = (
+            getattr(self.trigger.configuration, "intake_key", None)
+            or self.trigger.configuration.get("intake_key", None)
+            if self.metric
+            else None
+        )
 
     def ranges(
         self,
@@ -55,9 +61,9 @@ class TimeStepper:
             )
             # Update the metric with the current lag if the metric is defined
             if self.metric:
-                self.metric.labels(
-                    intake_key=self.trigger.configuration.intake_key
-                ).set(int(current_lag.total_seconds()))
+                self.metric.labels(intake_key=self.intake_key).set(
+                    int(current_lag.total_seconds())
+                )
 
             # If the next end is in the future
             if next_end > now:

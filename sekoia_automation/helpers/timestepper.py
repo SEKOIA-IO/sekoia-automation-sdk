@@ -35,12 +35,13 @@ class TimeStepper:
         self.frequency = frequency
         self.timedelta = timedelta
         self.metric = metric
-        self.intake_key = (
-            getattr(self.trigger.configuration, "intake_key", None)
-            or self.trigger.configuration.get("intake_key", None)
-            if self.metric
-            else None
-        )
+        self.intake_key = None
+        if self.metric:
+            configuration = self.trigger.configuration
+            if isinstance(configuration, dict):
+                self.intake_key = configuration.get("intake_key", None)
+            else:
+                self.intake_key = getattr(configuration, "intake_key", None)
 
     def ranges(
         self,
@@ -55,14 +56,15 @@ class TimeStepper:
 
             # Compute current lag
             current_lag = now - next_end
+            current_lag_seconds = max(int(current_lag.total_seconds()), 0)
             self.trigger.log(
-                message=f"Current lag {int(current_lag.total_seconds())} seconds.",
+                message=f"Current lag {current_lag_seconds} seconds.",
                 level="info",
             )
-            # Update the metric with the current lag if the metric is defined
-            if self.metric:
+            # Update the metric with the current lag if the metric and intake key are defined
+            if self.metric and self.intake_key is not None:
                 self.metric.labels(intake_key=self.intake_key).set(
-                    int(current_lag.total_seconds())
+                    current_lag_seconds
                 )
 
             # If the next end is in the future
@@ -77,7 +79,7 @@ class TimeStepper:
 
                 self.trigger.log(
                     message=(
-                        f"Timerange in the future. Waiting {max_difference}"
+                        f"Time range in the future. Waiting {max_difference}"
                         " seconds for next batch."
                     ),
                     level="info",

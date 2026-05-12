@@ -1,7 +1,7 @@
 """Config tests."""
 
 import pytest
-from pydantic.v1 import ValidationError
+from pydantic import ValidationError
 
 from sekoia_automation.loguru.config import LoggingConfig
 

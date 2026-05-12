@@ -142,3 +142,22 @@ def test_software_ocsf_model_accepts_software_object():
 
     assert model.software is not None
     assert model.software.name == "example"
+
+
+def test_software_accepts_architecture():
+    software = SoftwareEnrichmentObject(name="example", architecture="x86_64")
+
+    assert software.architecture == "x86_64"
+
+
+def test_software_accepts_last_user_name():
+    software = SoftwareEnrichmentObject(name="example", last_user_name="jdoe")
+
+    assert software.last_user_name == "jdoe"
+
+
+def test_software_architecture_and_last_user_name_are_optional():
+    software = SoftwareEnrichmentObject(name="example")
+
+    assert software.architecture is None
+    assert software.last_user_name is None

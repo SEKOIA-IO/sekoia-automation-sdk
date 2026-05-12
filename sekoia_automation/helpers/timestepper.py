@@ -61,11 +61,10 @@ class TimeStepper:
                 message=f"Current lag {current_lag_seconds} seconds.",
                 level="info",
             )
-            # Update the metric with the current lag if the metric and intake key are defined
+            # Update the metric with the current lag if the metric and intake key
+            # are defined
             if self.metric and self.intake_key is not None:
-                self.metric.labels(intake_key=self.intake_key).set(
-                    current_lag_seconds
-                )
+                self.metric.labels(intake_key=self.intake_key).set(current_lag_seconds)
 
             # If the next end is in the future
             if next_end > now:

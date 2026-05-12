@@ -96,6 +96,7 @@ class TimeStepper:
         frequency: int = 60,
         timedelta: int = 1,
         start_time: int = 1,
+        metric: Gauge | None = None,
     ) -> "TimeStepper":
         t_frequency = datetime.timedelta(seconds=frequency)
         t_timedelta = datetime.timedelta(minutes=timedelta)
@@ -109,7 +110,7 @@ class TimeStepper:
 
         start = end - t_frequency
 
-        return cls(trigger, start, end, t_frequency, t_timedelta)
+        return cls(trigger, start, end, t_frequency, t_timedelta, metric)
 
     @classmethod
     def create_from_time(
@@ -118,10 +119,11 @@ class TimeStepper:
         start: datetime.datetime,
         frequency: int = 60,
         timedelta: int = 1,
+        metric: Gauge | None = None,
     ) -> "TimeStepper":
         t_frequency = datetime.timedelta(seconds=frequency)
         t_timedelta = datetime.timedelta(minutes=timedelta)
 
         end = start + t_frequency
 
-        return cls(trigger, start, end, t_frequency, t_timedelta)
+        return cls(trigger, start, end, t_frequency, t_timedelta, metric)

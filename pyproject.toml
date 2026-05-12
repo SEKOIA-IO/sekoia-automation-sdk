@@ -84,6 +84,9 @@ default-groups = [
     "dev",
     "lint",
 ]
+constraint-dependencies = [
+    "orjson<3.11.8" # Obfuscaded code issues from socket-security
+]
 
 [tool.hatch.build.targets.sdist]
 include = ["sekoia_automation"]

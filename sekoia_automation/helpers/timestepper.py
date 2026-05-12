@@ -1,0 +1,128 @@
+import datetime
+import time
+from collections.abc import Generator
+
+from prometheus_client import Gauge
+
+from sekoia_automation.trigger import Trigger
+
+
+class TimeStepper:
+    """
+    A class to generate time ranges based on a start time, frequency, and timedelta.
+    It yields successive time ranges and adjusts for any lag in processing.
+    Attributes:
+        trigger (Trigger): The trigger instance for logging.
+        start (datetime.datetime): The start time of the current range.
+        end (datetime.datetime): The end time of the current range.
+        frequency (datetime.timedelta): The duration of each time range.
+        timedelta (datetime.timedelta): The delay to account for late-arriving data.
+        metric (Gauge | None): A metric to track the current lag in seconds.
+    """
+
+    def __init__(
+        self,
+        trigger: Trigger,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        frequency: datetime.timedelta,
+        timedelta: datetime.timedelta,
+        metric: Gauge | None = None,
+    ):
+        self.trigger = trigger
+        self.start = start
+        self.end = end
+        self.frequency = frequency
+        self.timedelta = timedelta
+        self.metric = metric
+        self.intake_key = None
+        if self.metric:
+            configuration = self.trigger.configuration
+            if isinstance(configuration, dict):
+                self.intake_key = configuration.get("intake_key", None)
+            else:
+                self.intake_key = getattr(configuration, "intake_key", None)
+
+    def ranges(
+        self,
+    ) -> Generator[tuple[datetime.datetime, datetime.datetime], None, None]:
+        while True:
+            # return the current time range
+            yield self.start, self.end
+
+            # compute the next time range
+            next_end = self.end + self.frequency
+            now = datetime.datetime.now(datetime.UTC) - self.timedelta
+
+            # Compute current lag
+            current_lag = now - next_end
+            current_lag_seconds = max(int(current_lag.total_seconds()), 0)
+            self.trigger.log(
+                message=f"Current lag {current_lag_seconds} seconds.",
+                level="info",
+            )
+            # Update the metric with the current lag if the metric and intake key
+            # are defined
+            if self.metric and self.intake_key is not None:
+                self.metric.labels(intake_key=self.intake_key).set(current_lag_seconds)
+
+            # If the next end is in the future
+            if next_end > now:
+                # compute the max date allowed in the future and set the next_end
+                # accordingly
+                current_difference = int((next_end - now).total_seconds())
+                max_difference = max(
+                    min(current_difference, int(self.frequency.total_seconds())), 0
+                )  # limit the end date in the future
+                next_end = now + datetime.timedelta(seconds=max_difference)
+
+                self.trigger.log(
+                    message=(
+                        f"Time range in the future. Waiting {max_difference}"
+                        " seconds for next batch."
+                    ),
+                    level="info",
+                )
+                time.sleep(max_difference)
+
+            self.start = self.end
+            self.end = next_end
+
+    @classmethod
+    def create(
+        cls,
+        trigger: Trigger,
+        frequency: int = 60,
+        timedelta: int = 1,
+        start_time: int = 1,
+        metric: Gauge | None = None,
+    ) -> "TimeStepper":
+        t_frequency = datetime.timedelta(seconds=frequency)
+        t_timedelta = datetime.timedelta(minutes=timedelta)
+
+        if start_time == 0:
+            end = datetime.datetime.now(datetime.UTC) - t_timedelta
+        else:
+            end = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+                hours=start_time
+            )
+
+        start = end - t_frequency
+
+        return cls(trigger, start, end, t_frequency, t_timedelta, metric)
+
+    @classmethod
+    def create_from_time(
+        cls,
+        trigger: Trigger,
+        start: datetime.datetime,
+        frequency: int = 60,
+        timedelta: int = 1,
+        metric: Gauge | None = None,
+    ) -> "TimeStepper":
+        t_frequency = datetime.timedelta(seconds=frequency)
+        t_timedelta = datetime.timedelta(minutes=timedelta)
+
+        end = start + t_frequency
+
+        return cls(trigger, start, end, t_frequency, t_timedelta, metric)

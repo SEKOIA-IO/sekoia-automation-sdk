@@ -137,7 +137,7 @@ class Connector(Trigger, MetricsMixin, ABC):
         collect_ids: dict[int, list[str]],
     ):
         try:
-            request_body = {
+            request_body: dict[str, Any] = {
                 "intake_key": self.configuration.intake_key,
                 "jsons": chunk,
             }

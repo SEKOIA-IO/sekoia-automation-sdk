@@ -115,7 +115,7 @@ class Trigger(ModuleItem):
                 secrets = response.json()["value"]
             except HTTPError as exception:
                 self._log_request_error(exception)
-                raise exception
+                raise
         return secrets
 
     def stop(self, *args, **kwargs) -> None:  # noqa: ARG002

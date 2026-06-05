@@ -339,6 +339,11 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 10
+        assert (
+            action._error
+            == "HTTP Request failed after 10 attempts (9 retries): "
+            "http://base_url/resource/fake_uuid/count (last status code: 500)"
+        )
 
     action = init_action()
     with requests_mock.Mocker() as mock:
@@ -351,7 +356,7 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 1
-        assert action._error == "Oops"
+        assert action._error == "Oops (status code: 400, attempts: 1, retries: 0)"
 
     action = init_action(verb="delete")
     with requests_mock.Mocker() as mock:
@@ -373,6 +378,11 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 10
+        assert (
+            action._error
+            == "HTTP Request failed after 10 attempts (9 retries): "
+            "http://base_url/resource/fake_uuid/count (last status code: unknown)"
+        )
 
     # Makes sure `*_path` have been recursively replaced
     action = init_action()

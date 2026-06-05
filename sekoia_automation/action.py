@@ -347,12 +347,23 @@ class GenericAPIAction(Action):
             }
         return query_parameters if query_parameters else None
 
-    def log_request_error(self, url: str, arguments: dict, response: Response):
-        message = f"HTTP Request failed: {url} with {response.status_code}"
+    def log_request_error(
+        self,
+        url: str,
+        arguments: dict,
+        response: Response,
+        attempts: int | None = None,
+    ):
+        retries = max((attempts or 1) - 1, 0)
+        details = (
+            f"(status code: {response.status_code}, "
+            f"attempts: {attempts or 1}, retries: {retries})"
+        )
+        message = f"HTTP Request failed: {url} {details}"
         try:
             content = response.json()
             if isinstance(content, dict) and "message" in content:
-                message = content["message"]
+                message = f"{content['message']} {details}"
         except ValueError:
             content = response.content
         self.log(
@@ -361,17 +372,38 @@ class GenericAPIAction(Action):
             url=url,
             arguments=arguments,
             response=content,
+            retries=retries,
+            attempts=attempts,
             status=response.status_code,
         )
         self.error(message)
 
-    def log_retry_error(self, url: str, arguments: dict):
-        message = f"HTTP Request failed after all retries: {url}"
+    def log_retry_error(
+        self,
+        url: str,
+        arguments: dict,
+        attempts: int | None = None,
+        status_code: int | None = None,
+    ):
+        if attempts is not None:
+            retries = max(attempts - 1, 0)
+            attempts_details = f"after {attempts} attempts ({retries} retries)"
+        else:
+            attempts_details = "after all retries"
+
+        code = status_code if status_code is not None else "unknown"
+        message = (
+            f"HTTP Request failed {attempts_details}: {url} "
+            f"(last status code: {code})"
+        )
         self.log(
             message,
             level="error",
             url=url,
             arguments=arguments,
+            retries=max((attempts or 1) - 1, 0),
+            attempts=attempts,
+            status=status_code,
         )
         self.error(message)
 
@@ -426,11 +458,30 @@ class GenericAPIAction(Action):
                         ):
                             return None
                         if 400 <= response.status_code < 500:
-                            self.log_request_error(url, arguments, response)
+                            self.log_request_error(
+                                url,
+                                arguments,
+                                response,
+                                attempts=attempt.retry_state.attempt_number,
+                            )
                             return None
                         response.raise_for_status()
-        except RetryError:
-            self.log_retry_error(url, arguments)
+        except RetryError as ex:
+            attempts = None
+            status_code = None
+            if ex.last_attempt is not None:
+                attempts = ex.last_attempt.attempt_number
+                if last_exception := ex.last_attempt.exception():
+                    response = getattr(last_exception, "response", None)
+                    if response is not None:
+                        status_code = response.status_code
+
+            self.log_retry_error(
+                url,
+                arguments,
+                attempts=attempts,
+                status_code=status_code,
+            )
             return None
 
         return response.json() if response.status_code != 204 else None

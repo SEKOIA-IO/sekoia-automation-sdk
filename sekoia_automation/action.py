@@ -352,12 +352,13 @@ class GenericAPIAction(Action):
         url: str,
         arguments: dict,
         response: Response,
-        attempts: int | None = None,
+        attempts: int,
     ):
-        retries = max((attempts or 1) - 1, 0)
+        safe_attempts = max(attempts, 1)
+        retries = safe_attempts - 1
         details = (
             f"(status code: {response.status_code}, "
-            f"attempts: {attempts or 1}, retries: {retries})"
+            f"attempts: {safe_attempts}, retries: {retries})"
         )
         message = f"HTTP Request failed: {url} {details}"
         try:
@@ -373,7 +374,7 @@ class GenericAPIAction(Action):
             arguments=arguments,
             response=content,
             retries=retries,
-            attempts=attempts,
+            attempts=safe_attempts,
             status=response.status_code,
         )
         self.error(message)
@@ -382,14 +383,12 @@ class GenericAPIAction(Action):
         self,
         url: str,
         arguments: dict,
-        attempts: int | None = None,
+        attempts: int,
         status_code: int | None = None,
     ):
-        if attempts is not None:
-            retries = max(attempts - 1, 0)
-            attempts_details = f"after {attempts} attempts ({retries} retries)"
-        else:
-            attempts_details = "after all retries"
+        safe_attempts = max(attempts, 1)
+        retries = safe_attempts - 1
+        attempts_details = f"after {safe_attempts} attempts ({retries} retries)"
 
         code = status_code if status_code is not None else "unknown"
         message = (
@@ -400,8 +399,8 @@ class GenericAPIAction(Action):
             level="error",
             url=url,
             arguments=arguments,
-            retries=max((attempts or 1) - 1, 0),
-            attempts=attempts,
+            retries=retries,
+            attempts=safe_attempts,
             status=status_code,
         )
         self.error(message)
@@ -466,7 +465,7 @@ class GenericAPIAction(Action):
                             return None
                         response.raise_for_status()
         except RetryError as ex:
-            attempts = None
+            attempts = 1
             status_code = None
             if ex.last_attempt is not None:
                 attempts = ex.last_attempt.attempt_number

@@ -367,7 +367,7 @@ class GenericAPIAction(Action):
             if isinstance(content, dict) and "message" in content:
                 message = f"{content['message']} {details}"
         except ValueError:
-            content = response.content
+            content = response.text
         self.log(
             message,
             level="error",

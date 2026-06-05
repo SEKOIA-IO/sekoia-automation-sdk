@@ -393,8 +393,7 @@ class GenericAPIAction(Action):
 
         code = status_code if status_code is not None else "unknown"
         message = (
-            f"HTTP Request failed {attempts_details}: {url} "
-            f"(last status code: {code})"
+            f"HTTP Request failed {attempts_details}: {url} (last status code: {code})"
         )
         self.log(
             message,
@@ -472,9 +471,9 @@ class GenericAPIAction(Action):
             if ex.last_attempt is not None:
                 attempts = ex.last_attempt.attempt_number
                 if last_exception := ex.last_attempt.exception():
-                    response = getattr(last_exception, "response", None)
-                    if response is not None:
-                        status_code = response.status_code
+                    failed_response = getattr(last_exception, "response", None)
+                    if failed_response is not None:
+                        status_code = failed_response.status_code
 
             self.log_retry_error(
                 url,

@@ -516,6 +516,26 @@ def test_get_secrets(_, __, ___):
         trigger.stop()
 
 
+@patch.object(Module, "has_secrets", return_value=True)
+def test_get_secrets_http_error_retries(_, mocked_trigger_logs):
+    trigger = DummyTrigger()
+    # Avoid long waits during the test
+    trigger._get_secrets_from_server.retry.wait = wait_none()
+    trigger._send_logs_to_api.retry.wait = wait_none()
+
+    mocked_trigger_logs.register_uri(
+        "GET",
+        "http://sekoia-playbooks/secrets",
+        status_code=500,
+    )
+
+    with pytest.raises(requests.HTTPError):
+        trigger._get_secrets_from_server()
+
+    get_calls = [r for r in mocked_trigger_logs.request_history if r.method == "GET"]
+    assert len(get_calls) == 10
+
+
 @pytest.fixture()
 def monitored_trigger():
     trigger = DummyTrigger()

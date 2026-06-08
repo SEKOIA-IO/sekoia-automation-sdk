@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.23.1 - 2026-05-26
+
+### Fixed
+
+- Raise exception on error when retrieving secrets
+
 ## 1.23.0 - 2026-05-12
 
 ### Added

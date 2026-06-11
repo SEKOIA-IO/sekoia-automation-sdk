@@ -176,6 +176,10 @@ class FilesGenerator:
 
             if configuration_model := get_annotation_for(trigger, "configuration"):
                 manifest["arguments"] = configuration_model.model_json_schema()
+                self.add_secrets_to_configuration(
+                    manifest["arguments"],
+                    configuration_model.model_fields,
+                )
 
             with filepath.open("w") as out:
                 out.write(json.dumps(manifest, indent=2))

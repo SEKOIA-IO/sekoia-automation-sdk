@@ -555,6 +555,14 @@ def test_node_secret_fields_empty_without_model():
     assert DummyTrigger()._node_secret_fields() == []
 
 
+def test_node_secret_fields_empty_for_non_model_configuration():
+    # A trigger annotating configuration with a non-BaseModel type must not raise.
+    class DictConfigTrigger(DummyTrigger):
+        configuration: dict
+
+    assert DictConfigTrigger()._node_secret_fields() == []
+
+
 @patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
 @patch.object(
     Trigger,

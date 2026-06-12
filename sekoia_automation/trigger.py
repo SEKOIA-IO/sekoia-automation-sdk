@@ -127,7 +127,8 @@ class Trigger(ModuleItem):
         (sanitized) configuration file.
         """
         model = get_annotation_for(self.__class__, "configuration")
-        if model is None:
+        # Only Pydantic models declare secret fields; a non-model annotation (dict) has none.
+        if not (isinstance(model, type) and issubclass(model, BaseModel)):
             return []
         return [
             name

@@ -182,9 +182,9 @@ class Trigger(ModuleItem):
         if not resolved:
             return  # fallback: keep the values from the configuration file
 
-        # Overlay onto the loaded configuration in place (like Module.set_secrets), so the
-        # resolved secrets never go through the setter and never reach the Sentry context
-        # (which only sees the sanitized configuration file).
+        # Overlay onto the loaded configuration in place (like Module.set_secrets), so
+        # resolved secrets never go through the setter and never reach the Sentry
+        # context (which only sees the sanitized configuration file).
         configuration = self.configuration
         if isinstance(configuration, BaseModel):
             for key, value in resolved.items():

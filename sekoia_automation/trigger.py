@@ -118,6 +118,81 @@ class Trigger(ModuleItem):
                 raise
         return secrets
 
+    def _node_secret_fields(self) -> list[str]:
+        """Names of the trigger configuration fields declared as secret on the model.
+
+        Mirror of ``Module.manifest_secrets`` but read from the configuration model,
+        which is available in the pod (the trigger's own class). It tells the SDK which
+        fields must be fetched from the secrets endpoint rather than trusted from the
+        (sanitized) configuration file.
+        """
+        model = get_annotation_for(self.__class__, "configuration")
+        # Only Pydantic models declare secret fields; a non-model annotation has none.
+        if not (isinstance(model, type) and issubclass(model, BaseModel)):
+            return []
+        return [
+            name
+            for name, field in model.model_fields.items()
+            if isinstance(field.json_schema_extra, dict)
+            and field.json_schema_extra.get("secret", False)
+        ]
+
+    def _get_node_secrets_from_server(self) -> dict[str, Any]:
+        """Fetch the trigger configuration's own (node-level) secrets from the API.
+
+        Best-effort by design: on any error we return an empty dict and the caller keeps
+        the values already present in the configuration file. This keeps a pod working
+        against an API that does not serve node-level secrets yet (the values are then
+        still delivered in the configuration file).
+        """
+        try:
+            response = requests.get(
+                self.secrets_url,
+                headers=self._headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("node_value", {}) if isinstance(data, dict) else {}
+        except (requests.RequestException, ValueError) as exception:
+            self.log(
+                f"Could not fetch node secrets, keeping configuration: {exception}",
+                "info",
+            )
+            return {}
+
+    def _apply_node_secrets(self) -> None:
+        """Overlay the trigger's node-level secrets onto its configuration.
+
+        Only the fields declared as secret on the model are considered. Values that
+        cannot be resolved (API not serving node secrets yet, transient error, missing
+        field) are left untouched, so the value already in the configuration is kept.
+        """
+        secret_fields = self._node_secret_fields()
+        if not secret_fields:
+            return
+
+        node_secrets = self._get_node_secrets_from_server()
+        if not isinstance(node_secrets, dict):
+            return
+        resolved = {
+            key: value
+            for key, value in node_secrets.items()
+            if key in secret_fields and value is not None
+        }
+        if not resolved:
+            return  # fallback: keep the values from the configuration file
+
+        # Overlay onto the loaded configuration in place (like Module.set_secrets), so
+        # resolved secrets never go through the setter and never reach the Sentry
+        # context (which only sees the sanitized configuration file).
+        configuration = self.configuration
+        if isinstance(configuration, BaseModel):
+            for key, value in resolved.items():
+                setattr(configuration, key, value)
+        elif isinstance(configuration, dict):
+            configuration.update(resolved)
+
     def stop(self, *args, **kwargs) -> None:  # noqa: ARG002
         """
         Engage the trigger exit
@@ -193,6 +268,7 @@ class Trigger(ModuleItem):
         # Always restart the trigger, except if the error seems to be unrecoverable
         self._secrets = self._get_secrets_from_server()
         self.module.set_secrets(self._secrets)
+        self._apply_node_secrets()
         self._logs_timer.start()
         try:
             while not self._stop_event.is_set():

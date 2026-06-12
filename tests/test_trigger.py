@@ -9,6 +9,7 @@ import botocore.exceptions
 import pytest
 import requests
 import requests_mock
+from pydantic import Field
 from tenacity import wait_none
 
 from sekoia_automation import SekoiaAutomationBaseModel
@@ -534,6 +535,93 @@ def test_get_secrets_http_error_retries(_, mocked_trigger_logs):
 
     get_calls = [r for r in mocked_trigger_logs.request_history if r.method == "GET"]
     assert len(get_calls) == 10
+
+
+class _NodeSecretConfiguration(SekoiaAutomationBaseModel):
+    host: str = "host"
+    token: str = Field(default="", json_schema_extra={"secret": True})
+
+
+class NodeSecretTrigger(DummyTrigger):
+    configuration: _NodeSecretConfiguration
+
+
+def test_node_secret_fields_from_model():
+    assert NodeSecretTrigger()._node_secret_fields() == ["token"]
+
+
+def test_node_secret_fields_empty_without_model():
+    # A trigger without a configuration model declares no node-level secrets.
+    assert DummyTrigger()._node_secret_fields() == []
+
+
+def test_node_secret_fields_empty_for_non_model_configuration():
+    # A trigger annotating configuration with a non-BaseModel type must not raise.
+    class DictConfigTrigger(DummyTrigger):
+        configuration: dict
+
+    assert DictConfigTrigger()._node_secret_fields() == []
+
+
+@patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
+@patch.object(
+    Trigger,
+    "secrets_url",
+    new_callable=PropertyMock,
+    return_value="http://sekoia-playbooks/secrets",
+)
+def test_apply_node_secrets_overlays_resolved_values(_, __):
+    trigger = NodeSecretTrigger()
+    with (
+        requests_mock.Mocker() as rmock,
+        patch.object(
+            Module, "load_config", return_value={"host": "host", "token": "*****"}
+        ),
+        patch("sekoia_automation.trigger.sentry_sdk.set_context") as sentry,
+    ):
+        rmock.get(
+            "http://sekoia-playbooks/secrets",
+            json={"value": {}, "node_value": {"token": "real-secret"}},
+        )
+        trigger._apply_node_secrets()
+
+    assert trigger.configuration.token == "real-secret"
+    assert trigger.configuration.host == "host"
+    # The resolved secret must never reach the observability context.
+    sentry.assert_called_with(
+        "trigger_configuration", {"host": "host", "token": "*****"}
+    )
+
+
+@patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
+@patch.object(
+    Trigger,
+    "secrets_url",
+    new_callable=PropertyMock,
+    return_value="http://sekoia-playbooks/secrets",
+)
+def test_apply_node_secrets_falls_back_to_configuration_on_error(_, __):
+    trigger = NodeSecretTrigger()
+    with (
+        requests_mock.Mocker() as rmock,
+        patch.object(
+            Module, "load_config", return_value={"host": "host", "token": "*****"}
+        ),
+    ):
+        rmock.get("http://sekoia-playbooks/secrets", status_code=500)
+        # Must not raise: the API not serving node secrets is a tolerated condition.
+        trigger._apply_node_secrets()
+
+        # The configuration value is kept untouched (lazy load still patched).
+        assert trigger.configuration.token == "*****"
+
+
+def test_apply_node_secrets_skips_fetch_without_secret_fields():
+    trigger = DummyTrigger()
+    with requests_mock.Mocker() as rmock:
+        matcher = rmock.get("http://sekoia-playbooks/secrets")
+        trigger._apply_node_secrets()
+    assert matcher.call_count == 0
 
 
 @pytest.fixture()

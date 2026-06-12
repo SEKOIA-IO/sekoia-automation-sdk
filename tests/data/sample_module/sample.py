@@ -19,6 +19,7 @@ class SampleModule(Module):
 
 class TriggerConfiguration(SekoiaAutomationBaseModel):
     trigger_field: int = 0
+    trigger_token: str = Field(json_schema_extra={"secret": True})
 
 
 class Results(SekoiaAutomationBaseModel):

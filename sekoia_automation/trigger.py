@@ -151,7 +151,8 @@ class Trigger(ModuleItem):
                 timeout=30,
             )
             response.raise_for_status()
-            return response.json().get("node_value") or {}
+            data = response.json()
+            return data.get("node_value", {}) if isinstance(data, dict) else {}
         except (requests.RequestException, ValueError) as exception:
             self.log(
                 f"Could not fetch node secrets, keeping configuration: {exception}",
@@ -171,6 +172,8 @@ class Trigger(ModuleItem):
             return
 
         node_secrets = self._get_node_secrets_from_server()
+        if not isinstance(node_secrets, dict):
+            return
         resolved = {
             key: value
             for key, value in node_secrets.items()
@@ -179,14 +182,15 @@ class Trigger(ModuleItem):
         if not resolved:
             return  # fallback: keep the values from the configuration file
 
-        raw = self.module.load_config(self.TRIGGER_CONFIGURATION_FILE_NAME, "json")
-        if not isinstance(raw, dict):
-            return
-        # Snapshot before overlaying so the observability context never sees secrets.
-        sanitized = {**raw}
-        raw.update(resolved)
-        self.configuration = raw
-        sentry_sdk.set_context("trigger_configuration", sanitized)
+        # Overlay onto the loaded configuration in place (like Module.set_secrets), so the
+        # resolved secrets never go through the setter and never reach the Sentry context
+        # (which only sees the sanitized configuration file).
+        configuration = self.configuration
+        if isinstance(configuration, BaseModel):
+            for key, value in resolved.items():
+                setattr(configuration, key, value)
+        elif isinstance(configuration, dict):
+            configuration.update(resolved)
 
     def stop(self, *args, **kwargs) -> None:  # noqa: ARG002
         """

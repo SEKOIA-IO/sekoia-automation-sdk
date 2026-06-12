@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for node-level (trigger/connector) secrets: configuration fields marked
-  with `Field(json_schema_extra={"secret": True})` are now emitted as `secrets` in
-  the generated trigger/connector manifests, and triggers fetch them from the secrets
-  endpoint at startup. Fetching is best-effort and falls back to the value present in
-  the configuration file, so it stays compatible with an API that does not serve
+- Support for trigger-level secrets: trigger configuration fields marked with
+  `Field(json_schema_extra={"secret": True})` are now emitted as `secrets` in the
+  generated trigger manifest, and triggers fetch them from the secrets endpoint at
+  startup. Fetching is best-effort and falls back to the value present in the
+  configuration file, so it stays compatible with an API that does not serve
   node-level secrets yet.
 
 ## 1.23.1 - 2026-05-26

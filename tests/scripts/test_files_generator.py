@@ -4,8 +4,8 @@ from pathlib import Path
 from shutil import copytree, rmtree
 from tempfile import mkdtemp
 
-import click.exceptions
 import pytest
+import typer
 
 from sekoia_automation.scripts.files_generator import FilesGenerator
 
@@ -77,5 +77,5 @@ def test_files_generator(sample_module):
 
 
 def test_files_generator_wrong_module_path():
-    with pytest.raises(click.exceptions.Exit):
+    with pytest.raises(typer.Exit):
         FilesGenerator(Path("foo")).execute()

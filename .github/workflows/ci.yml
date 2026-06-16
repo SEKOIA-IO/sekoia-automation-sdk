@@ -96,6 +96,7 @@ jobs:
         if: matrix.python-version == 3.12
         with:
           fail_ci_if_error: true
+          use_pypi: true
           files: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
 

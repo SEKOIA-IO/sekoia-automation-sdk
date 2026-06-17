@@ -3,11 +3,13 @@ import random
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
-from unittest.mock import PropertyMock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
+import aioresponses.core
 import pytest
 import requests_mock
 import sentry_sdk
+from aiohttp.client_reqrep import ClientResponse as AioHttpClientResponse
 from faker import Faker
 
 from sekoia_automation import constants
@@ -15,6 +17,13 @@ from sekoia_automation import storage as storage_module
 from sekoia_automation.configuration.filesystem import FileSystemConfiguration
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
+
+
+class _CompatClientResponse(AioHttpClientResponse):
+    def __init__(self, *args, stream_writer=None, **kwargs):
+        if stream_writer is None:
+            stream_writer = Mock()
+        super().__init__(*args, stream_writer=stream_writer, **kwargs)
 
 
 @pytest.fixture
@@ -171,3 +180,12 @@ def stop_sentry():
     yield
     client = sentry_sdk.get_client()
     client.close(timeout=2.0)
+
+
+@pytest.fixture(autouse=True)
+def patch_aioresponses_client_response(monkeypatch):
+    monkeypatch.setattr(
+        aioresponses.core,
+        "ClientResponse",
+        _CompatClientResponse,
+    )

@@ -254,12 +254,15 @@ def test_action_json_result_same_as_argument():
 
 def test_generic_api_action(storage):
     def init_action(verb: str = "get"):
-        action = GenericAPIAction(data_path=storage)
+        class TestGenericAPIAction(GenericAPIAction):
+            def _wait_param(self):
+                return wait_none()
+
+        action = TestGenericAPIAction(data_path=storage)
         action.verb = verb
         action.endpoint = "resource/{uuid}/count"
         action.query_parameters = ["param"]
         action.module.configuration = {"base_url": "http://base_url/"}
-        action._wait_param = lambda: wait_none()
         return action
 
     # success
@@ -339,6 +342,10 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 10
+        assert (
+            action._error == "HTTP Request failed after 10 attempts (9 retries): "
+            "http://base_url/resource/fake_uuid/count (last status code: 500)"
+        )
 
     action = init_action()
     with requests_mock.Mocker() as mock:
@@ -351,7 +358,7 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 1
-        assert action._error == "Oops"
+        assert action._error == "Oops (status code: 400, attempts: 1, retries: 0)"
 
     action = init_action(verb="delete")
     with requests_mock.Mocker() as mock:
@@ -373,6 +380,10 @@ def test_generic_api_action(storage):
 
         assert results is None
         assert mock.call_count == 10
+        assert (
+            action._error == "HTTP Request failed after 10 attempts (9 retries): "
+            "http://base_url/resource/fake_uuid/count (last status code: unknown)"
+        )
 
     # Makes sure `*_path` have been recursively replaced
     action = init_action()

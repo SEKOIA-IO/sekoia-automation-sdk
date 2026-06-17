@@ -4,11 +4,29 @@ import os
 
 import aiofiles
 import pytest
-from aiohttp import ClientSession
-from aioresponses import aioresponses
 
 from sekoia_automation.aio.helpers.files.utils import delete_file
 from sekoia_automation.aio.helpers.http.utils import save_aiohttp_response
+
+
+class _FakeContent:
+    def __init__(self, data: bytes):
+        self._data = data
+        self._offset = 0
+
+    async def read(self, chunk_size: int) -> bytes:
+        if self._offset >= len(self._data):
+            return b""
+
+        next_offset = self._offset + chunk_size
+        chunk = self._data[self._offset : next_offset]
+        self._offset = next_offset
+        return chunk
+
+
+class _FakeResponse:
+    def __init__(self, data: str):
+        self.content = _FakeContent(data.encode("utf-8"))
 
 
 @pytest.mark.asyncio
@@ -24,20 +42,9 @@ async def test_save_response_to_temporary_file(tmp_path, session_faker):
         data_columns={"test": ["name", "name", "name"]},
         num_rows=1000,
     )
-    with aioresponses() as mocked_responses:
-        url = session_faker.uri()
-        mocked_responses.get(
-            url=url,
-            status=200,
-            body=data,
-            headers={"Content-Length": f"{len(data)}"},
-        )
 
-        async with ClientSession() as session:
-            async with session.get(url) as response:
-                file_path = await save_aiohttp_response(
-                    response, temp_dir=str(tmp_path)
-                )
+    response = _FakeResponse(data)
+    file_path = await save_aiohttp_response(response, temp_dir=str(tmp_path))
 
     assert os.path.exists(file_path)
 

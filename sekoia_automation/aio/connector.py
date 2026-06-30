@@ -17,6 +17,7 @@ from sekoia_automation.connector import (
     Connector,
     DefaultConnectorConfiguration,
     EventType,
+    SendEventsChunkError,
 )
 from sekoia_automation.module import Module
 
@@ -106,14 +107,14 @@ class AsyncConnector(Connector, ABC):
                 ) as response:
                     if response.status >= 300:
                         error = await response.text()
-                        error_message = (
-                            f"Chunk {chunk_index} error ({response.status}) "
-                            f"on attempt {attempt.retry_state.attempt_number}: {error}"
+
+                        exception = SendEventsChunkError(
+                            chunk_index=chunk_index,
+                            attempt_number=attempt.retry_state.attempt_number,
+                            status_code=response.status,
+                            response_body=error,
                         )
-                        exception = RuntimeError(error_message)
-
                         self.log_exception(exception)
-
                         raise exception
 
                     result = await response.json()

@@ -9,9 +9,10 @@ import pytest
 from aiolimiter import AsyncLimiter
 from aioresponses import aioresponses
 from faker import Faker
-from tenacity import Retrying, stop_after_attempt, wait_none
+from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.aio.connector import AsyncConnector
+from sekoia_automation.connector import SendEventsChunkError
 
 
 class DummyAsyncConnector(AsyncConnector):
@@ -46,7 +47,9 @@ def async_connector(storage, mocked_trigger_logs, faker: Faker):
         async_connector.log = Mock()
         async_connector.log_exception = Mock()
         async_connector._retry = lambda: Retrying(
-            reraise=True, stop=stop_after_attempt(5), wait=wait_none()
+            reraise=True,
+            stop=stop_after_attempt(5),
+            wait=async_connector._wait_by_error_type,
         )
 
         yield async_connector
@@ -209,7 +212,7 @@ async def test_async_connector_raise_error(
             await async_connector.push_data_to_intakes(events)
 
         except Exception as e:
-            assert isinstance(e, RuntimeError)
+            assert isinstance(e, SendEventsChunkError)
             assert str(e) == expected_error
 
 
@@ -318,7 +321,7 @@ async def test_async_push_events_422_retries_and_succeeds_second_attempt(
     with (
         aioresponses() as mocked_responses,
         patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
-        patch("asyncio.sleep") as mock_sleep,
+        patch("time.sleep") as mock_sleep,
     ):
         # First attempt: 422
         mocked_responses.post(
@@ -351,7 +354,7 @@ async def test_async_push_events_422_retries_and_succeeds_third_attempt(
     with (
         aioresponses() as mocked_responses,
         patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
-        patch("asyncio.sleep") as mock_sleep,
+        patch("time.sleep") as mock_sleep,
     ):
         # First and second attempts: 422
         mocked_responses.post(request_url, status=422, body="Not ready")
@@ -381,13 +384,13 @@ async def test_async_push_events_422_fails_after_max_retries(
     with (
         aioresponses() as mocked_responses,
         patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
-        patch("asyncio.sleep") as mock_sleep,
+        patch("time.sleep") as mock_sleep,
     ):
         # Return 422 for all 4 attempts (initial + 3 retries)
         for _ in range(5):
             mocked_responses.post(request_url, status=422, body="Not ready")
 
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(SendEventsChunkError) as exc_info:
             await async_connector.push_data_to_intakes(events)
 
     # Verify error message
@@ -412,7 +415,7 @@ async def test_async_push_events_other_4xx_fails_immediately(
         with (
             aioresponses() as mocked_responses,
             patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 128),
-            patch("asyncio.sleep") as mock_sleep,
+            patch("time.sleep") as mock_sleep,
         ):
             for _ in range(5):
                 mocked_responses.post(
@@ -421,7 +424,7 @@ async def test_async_push_events_other_4xx_fails_immediately(
                     body="Client error",
                 )
 
-            with pytest.raises(RuntimeError) as exc_info:
+            with pytest.raises(SendEventsChunkError) as exc_info:
                 await async_connector.push_data_to_intakes(events)
 
         assert f"Chunk 0 error ({status_code}) on attempt 5: Client error" in str(
@@ -454,7 +457,7 @@ async def test_async_push_events_5xx_raises_exception(
             body="Service unavailable",
         )
 
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(SendEventsChunkError) as exc_info:
             await async_connector.push_data_to_intakes(events)
 
     # Verify error message contains status code

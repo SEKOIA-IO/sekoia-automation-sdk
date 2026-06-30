@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve `GenericAPIAction` HTTP error messages by including HTTP status code and retry information (attempt count and retry count) for both immediate client errors and final retry failures
 
+### Changed
+
+ - Use a longer wait for 422 errors, while trying to push events
+
 ### Fixed
 
 - Fix test suite compatibility with Python 3.14 by patching `aioresponses` usage in tests and updating a CLI exception assertion to `typer.Exit`

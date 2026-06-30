@@ -15,7 +15,13 @@ import requests
 import sentry_sdk
 from pydantic import BaseModel
 from requests import Response
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import (
+    RetryCallState,
+    Retrying,
+    stop_after_delay,
+    wait_exponential,
+    wait_fixed,
+)
 
 from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
@@ -33,6 +39,26 @@ EventType: TypeAlias = dict[str, Any] | str | BaseModel
 class DefaultConnectorConfiguration(BaseModel):
     intake_server: str | None = None
     intake_key: str
+
+
+class SendEventsChunkError(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        response_body: str,
+        chunk_index: int,
+        attempt_number: int,
+    ):
+        self.status_code = status_code
+        self.response_body = response_body
+        self.chunk_index = chunk_index
+        self.attempt_number = attempt_number
+
+    def __str__(self):
+        return (
+            f"Chunk {self.chunk_index} error ({self.status_code}) "
+            f"on attempt {self.attempt_number}: {self.response_body}"
+        )
 
 
 class Connector(Trigger, MetricsMixin, ABC):
@@ -95,10 +121,23 @@ class Connector(Trigger, MetricsMixin, ABC):
         super().stop(*args, **kwargs)
         self._executor.shutdown(wait=True)
 
+    def _wait_by_error_type(self, retry_state: RetryCallState) -> float:
+        exception = retry_state.outcome.exception() if retry_state.outcome else None
+        if isinstance(exception, SendEventsChunkError):
+            response_code: int = exception.status_code
+            response_text: str = exception.response_body
+            if response_code == 422 and "INTAKE_KEY_ERROR" in response_text:
+                # If we have an INTAKE_KEY_ERROR, then most probably it's
+                # just not ready. We need to wait a bit more to make sure
+                # it's ready to accept events.
+                return wait_fixed(wait=300)(retry_state=retry_state)
+
+        return wait_exponential(multiplier=1, min=1, max=10)(retry_state=retry_state)
+
     def _retry(self):
         return Retrying(
             stop=stop_after_delay(3600),  # 1 hour without being able to send events
-            wait=wait_exponential(multiplier=1, min=1, max=10),
+            wait=self._wait_by_error_type,
             reraise=True,
         )
 
@@ -149,7 +188,17 @@ class Connector(Trigger, MetricsMixin, ABC):
                         json=request_body,
                         timeout=30,
                     )
-                    res.raise_for_status()
+                    try:
+                        res.raise_for_status()
+
+                    except requests.RequestException:
+                        raise SendEventsChunkError(
+                            status_code=res.status_code,
+                            response_body=res.text,
+                            chunk_index=chunk_index,
+                            attempt_number=attempt.retry_state.attempt_number,
+                        )
+
             collect_ids[chunk_index] = res.json().get("event_ids", [])
         except Exception as ex:
             message = f"Failed to forward {len(chunk)} events"

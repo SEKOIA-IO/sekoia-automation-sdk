@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
- - Use a longer wait for 422 errors, while trying to push events
+ - Use a longer wait for INTAKE_KEY_ERROR, while trying to push events
 
 ### Fixed
 

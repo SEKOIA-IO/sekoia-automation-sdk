@@ -464,3 +464,27 @@ async def test_async_push_events_5xx_raises_exception(
     assert "Chunk 0 error (503) on attempt 1: Service unavailable" in str(
         exc_info.value
     )
+
+@pytest.mark.asyncio
+async def test_push_events_with_intake_key_error(async_connector: DummyAsyncConnector, faker: Faker):
+    url = urljoin(async_connector.configuration.intake_server, "batch")
+    events = [faker.word() for _ in range(2)]
+
+    with aioresponses() as mocked_responses, patch("time.sleep") as mock_sleep:
+        mocked_responses.post(
+            url,
+            status=422, body="...INTAKE_KEY_ERROR..."
+        )
+        mocked_responses.post(
+            url,
+            status=422, body="...INTAKE_KEY_ERROR..."
+        )
+        mocked_responses.post(
+            url,
+            status=200, payload={"event_ids": events}
+        )
+        await async_connector.push_data_to_intakes(events)
+
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 300
+    assert mock_sleep.call_args_list[1][0][0] == 300

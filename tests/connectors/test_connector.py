@@ -439,3 +439,25 @@ def test_push_events_5xx_uses_standard_retry(test_connector, mocked_trigger_logs
 
     assert result == ["001", "002"]
     assert mock_sleep.call_args_list[0][0][0] == 1.0
+
+
+def test_push_events_with_intake_key_error(test_connector, mocked_trigger_logs):
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 422, "text": "...INTAKE_KEY_ERROR..."},
+            {"status_code": 422, "text": "...INTAKE_KEY_ERROR..."},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
+    )
+
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    assert result == ["001", "002"]
+
+    # Verify fixed timeout of 300s
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 300
+    assert mock_sleep.call_args_list[1][0][0] == 300

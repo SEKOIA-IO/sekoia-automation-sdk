@@ -483,7 +483,6 @@ def test_trigger_log_critical_only_once(mocked_trigger_logs):
     assert mocked_trigger_logs.request_history[1].json()["logs"][0]["level"] == "error"
 
 
-@patch.object(Module, "has_secrets", return_value=True)
 @patch.object(
     Trigger,
     "secrets_url",
@@ -491,7 +490,7 @@ def test_trigger_log_critical_only_once(mocked_trigger_logs):
     return_value="http://sekoia-playbooks/secrets",
 )
 @patch.object(Trigger, "token", return_value="secure_token")
-def test_get_secrets(_, __, ___):
+def test_get_secrets(_, __):
     trigger = ErrorTrigger(SampleModule())
     trigger.ex = SystemExit
 
@@ -517,8 +516,7 @@ def test_get_secrets(_, __, ___):
         trigger.stop()
 
 
-@patch.object(Module, "has_secrets", return_value=True)
-def test_get_secrets_http_error_retries(_, mocked_trigger_logs):
+def test_get_secrets_http_error_retries(mocked_trigger_logs):
     trigger = DummyTrigger()
     # Avoid long waits during the test
     trigger._get_secrets_from_server.retry.wait = wait_none()
@@ -546,21 +544,30 @@ class NodeSecretTrigger(DummyTrigger):
     configuration: _NodeSecretConfiguration
 
 
-def test_node_secret_fields_from_model():
-    assert NodeSecretTrigger()._node_secret_fields() == ["token"]
+@patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
+@patch.object(
+    Trigger,
+    "secrets_url",
+    new_callable=PropertyMock,
+    return_value="http://sekoia-playbooks/secrets",
+)
+def test_get_secrets_from_server_stores_node_value(_, __):
+    # node_value's keys are computed server-side from the trigger's declared
+    # secrets, so the SDK trusts them as-is instead of figuring out locally
+    # which fields are secret.
+    trigger = DummyTrigger()
+    with requests_mock.Mocker() as rmock:
+        rmock.get(
+            "http://sekoia-playbooks/secrets",
+            json={
+                "value": {"module_secret": "foo"},
+                "node_value": {"token": "real-secret"},
+            },
+        )
+        secrets = trigger._get_secrets_from_server()
 
-
-def test_node_secret_fields_empty_without_model():
-    # A trigger without a configuration model declares no node-level secrets.
-    assert DummyTrigger()._node_secret_fields() == []
-
-
-def test_node_secret_fields_empty_for_non_model_configuration():
-    # A trigger annotating configuration with a non-BaseModel type must not raise.
-    class DictConfigTrigger(DummyTrigger):
-        configuration: dict
-
-    assert DictConfigTrigger()._node_secret_fields() == []
+    assert secrets == {"module_secret": "foo"}
+    assert trigger._node_secrets == {"token": "real-secret"}
 
 
 @patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
@@ -570,19 +577,34 @@ def test_node_secret_fields_empty_for_non_model_configuration():
     new_callable=PropertyMock,
     return_value="http://sekoia-playbooks/secrets",
 )
-def test_apply_node_secrets_overlays_resolved_values(_, __):
+def test_get_secrets_from_server_called_regardless_of_module_secrets(_, __):
+    # No secret is declared anywhere (module or node): the endpoint is
+    # still called, unconditionally.
+    trigger = DummyTrigger()
+    with requests_mock.Mocker() as rmock:
+        matcher = rmock.get("http://sekoia-playbooks/secrets", json={"value": {}})
+        trigger._get_secrets_from_server()
+
+    assert matcher.call_count == 1
+    assert trigger._node_secrets == {}
+
+
+@patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
+@patch.object(
+    Trigger,
+    "secrets_url",
+    new_callable=PropertyMock,
+    return_value="http://sekoia-playbooks/secrets",
+)
+def test_apply_node_secrets_overlays_resolved_values_on_model_configuration(_, __):
     trigger = NodeSecretTrigger()
+    trigger._node_secrets = {"token": "real-secret"}
     with (
-        requests_mock.Mocker() as rmock,
         patch.object(
             Module, "load_config", return_value={"host": "host", "token": "*****"}
         ),
         patch("sekoia_automation.trigger.sentry_sdk.set_context") as sentry,
     ):
-        rmock.get(
-            "http://sekoia-playbooks/secrets",
-            json={"value": {}, "node_value": {"token": "real-secret"}},
-        )
         trigger._apply_node_secrets()
 
     assert trigger.configuration.token == "real-secret"
@@ -593,35 +615,26 @@ def test_apply_node_secrets_overlays_resolved_values(_, __):
     )
 
 
-@patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
-@patch.object(
-    Trigger,
-    "secrets_url",
-    new_callable=PropertyMock,
-    return_value="http://sekoia-playbooks/secrets",
-)
-def test_apply_node_secrets_falls_back_to_configuration_on_error(_, __):
-    trigger = NodeSecretTrigger()
-    with (
-        requests_mock.Mocker() as rmock,
-        patch.object(
-            Module, "load_config", return_value={"host": "host", "token": "*****"}
-        ),
-    ):
-        rmock.get("http://sekoia-playbooks/secrets", status_code=500)
-        # Must not raise: the API not serving node secrets is a tolerated condition.
-        trigger._apply_node_secrets()
-
-        # The configuration value is kept untouched (lazy load still patched).
-        assert trigger.configuration.token == "*****"
-
-
-def test_apply_node_secrets_skips_fetch_without_secret_fields():
+def test_apply_node_secrets_overlays_resolved_values_on_dict_configuration():
+    # A trigger without a configuration model (a plain dict) is overlaid the same way.
     trigger = DummyTrigger()
-    with requests_mock.Mocker() as rmock:
-        matcher = rmock.get("http://sekoia-playbooks/secrets")
+    trigger._node_secrets = {"token": "real-secret"}
+    with patch.object(
+        Module, "load_config", return_value={"host": "host", "token": "*****"}
+    ):
         trigger._apply_node_secrets()
-    assert matcher.call_count == 0
+
+    assert trigger.configuration == {"host": "host", "token": "real-secret"}
+
+
+def test_apply_node_secrets_noop_without_resolved_secrets():
+    # No node secrets were resolved (older platform not serving node_value
+    # yet, or the trigger declares none): the config file is never loaded.
+    trigger = DummyTrigger()
+    with patch.object(Module, "load_config") as mocked_load_config:
+        trigger._apply_node_secrets()
+
+    mocked_load_config.assert_not_called()
 
 
 @pytest.fixture()

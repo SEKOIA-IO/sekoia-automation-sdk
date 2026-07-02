@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generated trigger manifest, and triggers fetch them from the secrets endpoint at
   startup. Fetching is best-effort and falls back to the value present in the
   configuration file, so it stays compatible with an API that does not serve
-  node-level secrets yet.
+  node-level secrets yet. Node-level secrets are resolved from the same `/secrets`
+  call already made for module secrets (its `node_value` field), trusting the
+  field names the server returns rather than re-deriving them from the
+  configuration model, so this works for any `configuration` type (Pydantic model
+  or plain dict).
 
 ## 1.23.1 - 2026-05-26
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [Unreleased] - 2026-07-07
+
+### Added
+
+- Add OCSF `ldap_person` object (`job_title`, `department`, `employee_uid`, `given_name`, `surname`, `office_location`) and expose it as `User.ldap_person` on the user inventory model, giving asset connectors a structured, canonical home for identity attributes
+
 ## [Unreleased] - 2026-06-16
 
 ### Added

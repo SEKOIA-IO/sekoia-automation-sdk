@@ -1,6 +1,8 @@
 import json
 import os
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
@@ -35,6 +37,7 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
 )
+from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
 class ContextDict(dict):
@@ -615,3 +618,99 @@ async def test_post_assets_to_api_invalid_json_response(
     assert response is None
     test_async_asset_connector.log_exception.assert_called_once()
     test_async_asset_connector.update_checkpoint.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_rate_limited_with_retry_after(
+    test_async_asset_connector, asset_list
+):
+    """Test 429 raises AssetConnectorRateLimitError honoring Retry-After header"""
+    mock_response = AsyncMock()
+    mock_response.status = 429
+    mock_response.text = AsyncMock(return_value='{"detail": "rate limited"}')
+    mock_response.headers = {"Retry-After": "30"}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+            await test_async_asset_connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+
+    await test_async_asset_connector._session.close()
+
+    assert exc_info.value.retry_after == 30
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_rate_limited_without_retry_after(
+    test_async_asset_connector, asset_list
+):
+    """Test 429 without Retry-After falls back to the default wait"""
+    mock_response = AsyncMock()
+    mock_response.status = 429
+    mock_response.text = AsyncMock(return_value='{"detail": "rate limited"}')
+    mock_response.headers = {}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+            await test_async_asset_connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+
+    await test_async_asset_connector._session.close()
+
+    assert exc_info.value.retry_after == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+
+
+def test_parse_retry_after_delta_seconds():
+    assert AsyncAssetConnector.parse_retry_after("120", 3600) == 120
+
+
+def test_parse_retry_after_http_date():
+    future = datetime.now(UTC) + timedelta(seconds=50)
+    wait = AsyncAssetConnector.parse_retry_after(format_datetime(future), 3600)
+    assert 45 <= wait <= 50
+
+
+def test_parse_retry_after_missing_or_garbage():
+    assert AsyncAssetConnector.parse_retry_after(None, 3600) == 3600
+    assert AsyncAssetConnector.parse_retry_after("not-a-date", 3600) == 3600
+
+
+def test_parse_retry_after_past_date_is_clamped():
+    past = datetime.now(UTC) - timedelta(seconds=50)
+    assert AsyncAssetConnector.parse_retry_after(format_datetime(past), 3600) == 0.0
+
+
+def test_rate_limit_wait_env_var(test_async_asset_connector, monkeypatch):
+    monkeypatch.setenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT", "42")
+    assert test_async_asset_connector.rate_limit_wait == 42
+
+
+def test_rate_limit_wait_default(test_async_asset_connector):
+    assert test_async_asset_connector.rate_limit_wait == 3600
+
+
+@pytest.mark.asyncio
+async def test_async_run_handles_rate_limit(test_async_asset_connector):
+    """async_run catches the rate limit error, waits, then stops"""
+    test_async_asset_connector.asset_fetch_cycle = AsyncMock(
+        side_effect=AssetConnectorRateLimitError(retry_after=5)
+    )
+
+    async def stop_after_sleep(_):
+        test_async_asset_connector._stop_event.set()
+
+    with patch(
+        "sekoia_automation.asset_connector.async_connector.asyncio.sleep",
+        side_effect=stop_after_sleep,
+    ) as mock_sleep:
+        await test_async_asset_connector.async_run()
+
+    mock_sleep.assert_awaited_once_with(5)

@@ -1,7 +1,9 @@
 import json
 import os
 from collections.abc import Generator
-from unittest.mock import Mock
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -34,6 +36,7 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
 )
+from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
 class ContextDict(dict):
@@ -408,3 +411,72 @@ def test_jsonify_vulnerability_asset(vulnerability_asset):
     assert json_data["vulnerabilities"][0]["cve"]["uid"] == "CVE-12345"
     assert json_data["finding_info"]["kill_chain"][0]["phase"] == "Delivery"
     assert json_data["finding_info"]["kill_chain"][1]["phase"] == "Exploitation"
+
+
+def test_post_assets_to_api_rate_limited_with_retry_after(
+    test_asset_connector, asset_list
+):
+    test_asset_connector._http_session.post = Mock(
+        return_value=Mock(status_code=429, headers={"Retry-After": "30"})
+    )
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+    assert exc_info.value.retry_after == 30
+
+
+def test_post_assets_to_api_rate_limited_without_retry_after(
+    test_asset_connector, asset_list
+):
+    test_asset_connector._http_session.post = Mock(
+        return_value=Mock(status_code=429, headers={})
+    )
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+    assert exc_info.value.retry_after == AssetConnector.RATE_LIMIT_DEFAULT_WAIT
+
+
+def test_parse_retry_after_delta_seconds():
+    assert AssetConnector.parse_retry_after("120", 3600) == 120
+
+
+def test_parse_retry_after_http_date():
+    future = datetime.now(UTC) + timedelta(seconds=50)
+    wait = AssetConnector.parse_retry_after(format_datetime(future), 3600)
+    # Allow a small delta for execution time
+    assert 45 <= wait <= 50
+
+
+def test_parse_retry_after_missing_or_garbage():
+    assert AssetConnector.parse_retry_after(None, 3600) == 3600
+    assert AssetConnector.parse_retry_after("not-a-date", 3600) == 3600
+
+
+def test_parse_retry_after_past_date_is_clamped():
+    past = datetime.now(UTC) - timedelta(seconds=50)
+    assert AssetConnector.parse_retry_after(format_datetime(past), 3600) == 0.0
+
+
+def test_rate_limit_wait_env_var(test_asset_connector, monkeypatch):
+    monkeypatch.setenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT", "42")
+    assert test_asset_connector.rate_limit_wait == 42
+
+
+def test_rate_limit_wait_default(test_asset_connector):
+    assert test_asset_connector.rate_limit_wait == 3600
+
+
+def test_run_handles_rate_limit(test_asset_connector):
+    test_asset_connector.asset_fetch_cycle = Mock(
+        side_effect=AssetConnectorRateLimitError(retry_after=5)
+    )
+
+    def stop_after_sleep(_):
+        test_asset_connector._stop_event.set()
+
+    with patch(
+        "sekoia_automation.asset_connector.connector.time.sleep",
+        side_effect=stop_after_sleep,
+    ) as mock_sleep:
+        test_asset_connector.run()
+
+    mock_sleep.assert_called_once_with(5)

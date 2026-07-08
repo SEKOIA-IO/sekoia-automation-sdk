@@ -1,10 +1,12 @@
 import asyncio
+import email.utils
 import json
 import os
 import time
 from abc import abstractmethod
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from functools import cached_property
 
 import aiohttp
@@ -13,7 +15,10 @@ from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
@@ -34,6 +39,7 @@ class AsyncAssetConnector(Trigger):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
+    RATE_LIMIT_DEFAULT_WAIT = 3600  # 1 hour
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
@@ -125,6 +131,47 @@ class AsyncAssetConnector(Trigger):
             return int(frequency)
         return self.configuration.frequency
 
+    @property
+    def rate_limit_wait(self) -> float:
+        """
+        Default wait (in seconds) after a 429, used when the response carries no
+        usable Retry-After header. Overridable via the
+        ASSET_CONNECTOR_RATE_LIMIT_WAIT env variable.
+
+        Returns:
+            float: Wait time in seconds
+        """
+        if wait := os.getenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT"):
+            return float(wait)
+        return self.RATE_LIMIT_DEFAULT_WAIT
+
+    @staticmethod
+    def parse_retry_after(header_value: str | None, default: float) -> float:
+        """
+        Parse the Retry-After header (RFC 7231): either delta-seconds or an
+        HTTP-date. Falls back to ``default`` when missing or unparseable.
+
+        Args:
+            header_value: Raw Retry-After header value.
+            default: Fallback wait in seconds.
+        Returns:
+            float: Wait time in seconds.
+        """
+        if not header_value:
+            return default
+        try:
+            return float(header_value)
+        except ValueError:
+            pass
+        try:
+            dt = email.utils.parsedate_to_datetime(header_value)
+        except (TypeError, ValueError):
+            return default
+        if dt is None:
+            return default
+        delta = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
+        return max(delta, 0.0)
+
     @staticmethod
     def _retry():
         return Retrying(
@@ -201,6 +248,7 @@ class AsyncAssetConnector(Trigger):
         status_code: int | None = None
         response_text: str | None = None
         response_json: dict | None = None
+        retry_after_header: str | None = None
 
         try:
             for attempt in self._retry():
@@ -213,6 +261,7 @@ class AsyncAssetConnector(Trigger):
                         ) as response:
                             status_code = response.status
                             response_text = await response.text()
+                            retry_after_header = response.headers.get("Retry-After")
 
                             if status_code == 200:
                                 try:
@@ -238,6 +287,20 @@ class AsyncAssetConnector(Trigger):
                 level="error",
             )
             return None
+
+        # Handle rate limiting (HTTP 429)
+        if status_code == 429:
+            retry_after = self.parse_retry_after(
+                retry_after_header, self.rate_limit_wait
+            )
+            self.log(
+                message=(
+                    "Asset connector push rate limited (HTTP 429). "
+                    f"Waiting {retry_after} seconds before refetching."
+                ),
+                level="warning",
+            )
+            raise AssetConnectorRateLimitError(retry_after=retry_after)
 
         # Handle non-200 responses
         if status_code != 200:
@@ -404,6 +467,13 @@ class AsyncAssetConnector(Trigger):
             while self.running:
                 try:
                     await self.asset_fetch_cycle()
+                except AssetConnectorRateLimitError as e:
+                    self.log(
+                        message=f"Rate limit hit, pausing connector "
+                        f"for {e.retry_after} seconds",
+                        level="warning",
+                    )
+                    await asyncio.sleep(e.retry_after)
                 except Exception as e:
                     self.log_exception(
                         e,

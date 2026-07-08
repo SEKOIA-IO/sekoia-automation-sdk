@@ -1,7 +1,9 @@
+import email.utils
 import os
 import time
 from abc import abstractmethod
 from collections.abc import Generator
+from datetime import datetime
 from functools import cached_property
 
 import requests
@@ -10,7 +12,10 @@ from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
@@ -28,6 +33,7 @@ class AssetConnector(Trigger):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
+    RATE_LIMIT_DEFAULT_WAIT = 3600  # 1 hour
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
@@ -117,6 +123,47 @@ class AssetConnector(Trigger):
             return int(frequency)
         return self.configuration.frequency
 
+    @property
+    def rate_limit_wait(self) -> float:
+        """
+        Default wait (in seconds) after a 429, used when the response carries no
+        usable Retry-After header. Overridable via the
+        ASSET_CONNECTOR_RATE_LIMIT_WAIT env variable.
+
+        Returns:
+            float: Wait time in seconds
+        """
+        if wait := os.getenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT"):
+            return float(wait)
+        return self.RATE_LIMIT_DEFAULT_WAIT
+
+    @staticmethod
+    def parse_retry_after(header_value: str | None, default: float) -> float:
+        """
+        Parse the Retry-After header (RFC 7231): either delta-seconds or an
+        HTTP-date. Falls back to ``default`` when missing or unparseable.
+
+        Args:
+            header_value: Raw Retry-After header value.
+            default: Fallback wait in seconds.
+        Returns:
+            float: Wait time in seconds.
+        """
+        if not header_value:
+            return default
+        try:
+            return float(header_value)
+        except ValueError:
+            pass
+        try:
+            dt = email.utils.parsedate_to_datetime(header_value)
+        except (TypeError, ValueError):
+            return default
+        if dt is None:
+            return default
+        delta = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
+        return max(delta, 0.0)
+
     @staticmethod
     def _retry():
         return Retrying(
@@ -196,6 +243,19 @@ class AssetConnector(Trigger):
                 message="Timeout while pushing assets to Sekoia.io asset connector API",
             )
             return None
+
+        if res.status_code == 429:
+            retry_after = self.parse_retry_after(
+                res.headers.get("Retry-After"), self.rate_limit_wait
+            )
+            self.log(
+                message=(
+                    "Asset connector push rate limited (HTTP 429). "
+                    f"Waiting {retry_after} seconds before refetching."
+                ),
+                level="warning",
+            )
+            raise AssetConnectorRateLimitError(retry_after=retry_after)
 
         if res.status_code != 200:
             error_message = self.handle_api_error(res.status_code)
@@ -336,6 +396,13 @@ class AssetConnector(Trigger):
         while self.running:
             try:
                 self.asset_fetch_cycle()
+            except AssetConnectorRateLimitError as e:
+                self.log(
+                    message=f"Rate limit hit, pausing connector "
+                    f"for {e.retry_after} seconds",
+                    level="warning",
+                )
+                time.sleep(e.retry_after)
             except Exception as e:
                 self.log_exception(
                     e,

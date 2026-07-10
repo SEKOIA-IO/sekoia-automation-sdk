@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Improve `GenericAPIAction` HTTP error messages by including HTTP status code and retry information (attempt count and retry count) for both immediate client errors and final retry failures
+- Always log JSON-serializable content when request body is not JSON
+- Handle the 429 coming from the API by retrying the request after 1h.
 
 ### Fixed
 

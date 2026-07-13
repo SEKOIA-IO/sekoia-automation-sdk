@@ -716,16 +716,16 @@ async def test_async_run_handles_rate_limit(test_async_asset_connector):
         side_effect=AssetConnectorRateLimitError(retry_after=5)
     )
 
-    async def stop_after_sleep(_):
+    def stop_during_wait():
         test_async_asset_connector._stop_event.set()
+        return True
 
-    with patch(
-        "sekoia_automation.asset_connector.async_connector.asyncio.sleep",
-        side_effect=stop_after_sleep,
-    ) as mock_sleep:
+    with patch.object(
+        test_async_asset_connector._stop_event, "wait", side_effect=stop_during_wait
+    ) as mock_wait:
         await test_async_asset_connector.async_run()
 
-    mock_sleep.assert_awaited_once_with(5)
+    mock_wait.assert_called_once_with()
 
 
 def test_compute_schema_fingerprint_is_deterministic(test_async_asset_connector):

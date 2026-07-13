@@ -146,7 +146,15 @@ class AsyncAssetConnector(Trigger):
             float: Wait time in seconds
         """
         if wait := os.getenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT"):
-            return float(wait)
+            try:
+                return float(wait)
+            except ValueError:
+                self.log(
+                    message=(
+                        "Invalid ASSET_CONNECTOR_RATE_LIMIT_WAIT value; "
+                        "falling back to the default wait"
+                    )
+                )
         return self.RATE_LIMIT_DEFAULT_WAIT
 
     @staticmethod
@@ -446,16 +454,19 @@ class AsyncAssetConnector(Trigger):
             return
 
         if stored_fingerprint is not None:
-            new_fields = {
-                k: v
-                for k, v in current_fields.items()
-                if k not in stored_fields
+            diff = {
+                "added": {k: v for k, v in current_fields.items() if k not in stored_fields},
+                "removed": {k: v for k, v in stored_fields.items() if k not in current_fields},
+                "changed": {
+                    k: {"from": stored_fields[k], "to": v}
+                    for k, v in current_fields.items()
+                    if k in stored_fields and stored_fields[k] != v
+                },
             }
             self.log(
                 message=(
-                    f"Field mapping change detected — {len(new_fields)} new "
-                    f"mapping(s) added: {new_fields}. "
-                    "Resetting checkpoint to re-fetch all assets."
+                    "Field mapping change detected — "
+                    f"{diff}. Resetting checkpoint to re-fetch all assets."
                 ),
                 level="info",
             )
@@ -551,7 +562,13 @@ class AsyncAssetConnector(Trigger):
                         f"for {e.retry_after} seconds",
                         level="warning",
                     )
-                    await asyncio.sleep(e.retry_after)
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.to_thread(self._stop_event.wait),
+                            timeout=e.retry_after,
+                        )
+                    except asyncio.TimeoutError:
+                        pass
                 except Exception as e:
                     self.log_exception(
                         e,

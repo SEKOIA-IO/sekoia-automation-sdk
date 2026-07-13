@@ -54,6 +54,7 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.context = ContextDict({})
+        self.checkpoint_reset_count = 0
 
     def set_assets(self, assets: AssetList) -> None:
         self.assets = assets
@@ -61,6 +62,17 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
     async def update_checkpoint(self):
         with self.context as cache:
             cache["most_recent_date_seen"] = self._latest_time
+
+    async def reset_checkpoint(self):
+        self.checkpoint_reset_count += 1
+        with self.context as cache:
+            cache.pop("most_recent_date_seen", None)
+
+    def get_mapped_fields(self) -> dict[str, str]:
+        return {
+            "hostname": "device.hostname",
+            "os_name": "device.os.name",
+        }
 
     async def get_assets(
         self,
@@ -81,8 +93,8 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
 
 
 @pytest.fixture
-def test_async_asset_connector():
-    test_connector = FakeAsyncAssetConnector()
+def test_async_asset_connector(tmp_path):
+    test_connector = FakeAsyncAssetConnector(data_path=tmp_path)
 
     test_connector.configuration = {
         "sekoia_base_url": "http://example.com",
@@ -714,3 +726,83 @@ async def test_async_run_handles_rate_limit(test_async_asset_connector):
         await test_async_asset_connector.async_run()
 
     mock_sleep.assert_awaited_once_with(5)
+
+
+def test_compute_schema_fingerprint_is_deterministic(test_async_asset_connector):
+    """The fingerprint must be stable across calls when mappings do not change."""
+    fp1 = test_async_asset_connector._compute_schema_fingerprint()
+    fp2 = test_async_asset_connector._compute_schema_fingerprint()
+    assert fp1 == fp2
+    assert len(fp1) == 64  # SHA-256 hex digest length
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_first_run_saves_without_reset(
+    test_async_asset_connector, tmp_path
+):
+    """On first run no fingerprint is stored — fields and fingerprint are saved."""
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 0
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    assert schema_file.exists()
+    data = json.loads(schema_file.read_text())
+    assert (
+        data["fingerprint"]
+        == test_async_asset_connector._compute_schema_fingerprint()
+    )
+    assert data["fields"] == test_async_asset_connector.get_mapped_fields()
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_no_change_no_reset(test_async_asset_connector):
+    """When the mappings are unchanged no reset should occur."""
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 0
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_change_triggers_reset(
+    test_async_asset_connector, tmp_path
+):
+    """When stale field mappings are found the checkpoint must be reset."""
+    old_fields = {"hostname": "device.hostname"}
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps({"fingerprint": "old_fingerprint_value", "fields": old_fields})
+    )
+
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 1
+    data = json.loads(schema_file.read_text())
+    assert (
+        data["fingerprint"]
+        == test_async_asset_connector._compute_schema_fingerprint()
+    )
+    assert data["fields"] == test_async_asset_connector.get_mapped_fields()
+    # The log should mention the newly detected mapping
+    test_async_asset_connector.log.assert_called()
+    log_message = test_async_asset_connector.log.call_args_list[-1][1]["message"]
+    assert "os_name" in log_message
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
+    test_async_asset_connector, asset_list, tmp_path
+):
+    """asset_fetch_cycle resets checkpoint when the field mappings change."""
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 1

@@ -1,4 +1,6 @@
 import email.utils
+import hashlib
+import json
 import os
 import time
 from abc import abstractmethod
@@ -16,6 +18,7 @@ from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
     TriggerConfigurationError,
 )
+from sekoia_automation.storage import PersistentJSON
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
@@ -30,6 +33,7 @@ class AssetConnector(Trigger):
     an asset and send it to the Sekoia.io platform.
     """
 
+    ASSET_SCHEMA_FIELDS_FILE = "asset_schema_fields.json"
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
@@ -40,6 +44,7 @@ class AssetConnector(Trigger):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._latest_time = None
+        self.schema_store = PersistentJSON(self.ASSET_SCHEMA_FIELDS_FILE, self.data_path)
 
     @property
     def connector_name(self) -> str:
@@ -327,6 +332,79 @@ class AssetConnector(Trigger):
         raise NotImplementedError("This method should be implemented in a subclass")
 
     @abstractmethod
+    def reset_checkpoint(self) -> None:
+        """
+        Reset the checkpoint so all assets will be re-fetched from scratch.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass")
+
+    @abstractmethod
+    def get_mapped_fields(self) -> dict[str, str]:
+        """
+        Return the field mappings declared by this connector as a dict.
+
+        Returns:
+            dict[str, str]: Mapping of source API field → OCSF field path.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass")
+
+    def _compute_schema_fingerprint(self) -> str:
+        """Compute a SHA-256 fingerprint of the connector's declared field mappings.
+
+        The fingerprint changes whenever :meth:`get_mapped_fields` returns a
+        different dict, enabling automatic checkpoint detection.
+
+        Returns:
+            str: SHA-256 hex digest of the sorted field mapping dict.
+        """
+        fields = sorted(self.get_mapped_fields().items())
+        return hashlib.sha256(json.dumps(fields).encode()).hexdigest()
+
+    def _check_schema_and_reset_if_needed(self) -> None:
+        """Compare the current field-mapping fingerprint against the stored one.
+
+        When a difference is detected the checkpoint is reset via
+        :meth:`reset_checkpoint` so that the next fetch cycle re-collects all
+        assets with the updated mapping.  Both the new fingerprint and the
+        full field mapping dict are persisted to ``asset_schema_fields.json``.
+
+        On the very first run (no fingerprint stored yet) the data is saved
+        without triggering a reset.
+        """
+        current_fields = self.get_mapped_fields()
+        current_fingerprint = hashlib.sha256(
+            json.dumps(sorted(current_fields.items())).encode()
+        ).hexdigest()
+
+
+        with self.schema_store as store:
+            stored_fingerprint = store.get("fingerprint")
+            stored_fields: dict[str, str] = store.get("fields", {})
+
+        if stored_fingerprint == current_fingerprint:
+            return
+
+        if stored_fingerprint is not None:
+            new_fields = {
+                k: v
+                for k, v in current_fields.items()
+                if k not in stored_fields
+            }
+            self.log(
+                message=(
+                    f"Field mapping change detected — {len(new_fields)} new "
+                    f"mapping(s) added: {new_fields}. "
+                    "Resetting checkpoint to re-fetch all assets."
+                ),
+                level="info",
+            )
+            self.reset_checkpoint()
+
+        with self.schema_store as store:
+            store["fingerprint"] = current_fingerprint
+            store["fields"] = current_fields
+
+    @abstractmethod
     def get_assets(
         self,
     ) -> Generator[AssetItem, None, None]:
@@ -361,6 +439,8 @@ class AssetConnector(Trigger):
             f"for connector {self.connector_name}",
             level="info",
         )
+
+        self._check_schema_and_reset_if_needed()
 
         # save the starting time processing
         processing_start = time.time()

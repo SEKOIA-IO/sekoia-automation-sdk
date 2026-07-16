@@ -95,7 +95,7 @@ class Trigger(ModuleItem):
         stop=stop_after_attempt(10),
         retry_error_callback=capture_retry_error,
     )
-    def _get_secrets_from_server(self) -> dict[str, Any]:
+    def _get_secrets_from_server(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         Calls the API to fetch this trigger's secrets: its module's secrets (``value``)
         and its own, node-level secrets (``node_value``).
@@ -103,13 +103,13 @@ class Trigger(ModuleItem):
         ``node_value`` is keyed exactly as declared in the trigger manifest's
         ``arguments.secrets`` (computed server-side), so the SDK trusts those keys as-is
         instead of independently figuring out which configuration fields are secret.
-        Stored on ``self._node_secrets`` for ``_apply_node_secrets`` to overlay.
 
         Returns:
-            dict[str, Any]: the module-level secrets.
+            tuple[dict[str, Any], dict[str, Any]]: the module-level secrets and the
+            node-level secrets, for ``_apply_node_secrets`` to overlay.
         """
         secrets: dict[str, Any] = {}
-        self._node_secrets = {}
+        node_secrets: dict[str, Any] = {}
         try:
             response = requests.get(
                 self.secrets_url,
@@ -119,11 +119,11 @@ class Trigger(ModuleItem):
             response.raise_for_status()
             data = response.json()
             secrets = data.get("value", {})
-            self._node_secrets = data.get("node_value") or {}
+            node_secrets = data.get("node_value") or {}
         except HTTPError as exception:
             self._log_request_error(exception)
             raise
-        return secrets
+        return secrets, node_secrets
 
     def _apply_node_secrets(self) -> None:
         """Overlay the trigger's own (node-level) secrets onto its configuration.
@@ -222,7 +222,7 @@ class Trigger(ModuleItem):
     def execute(self) -> None:
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
-        self._secrets = self._get_secrets_from_server()
+        self._secrets, self._node_secrets = self._get_secrets_from_server()
         self.module.set_secrets(self._secrets)
         self._apply_node_secrets()
         self._logs_timer.start()

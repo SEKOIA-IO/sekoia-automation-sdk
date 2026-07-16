@@ -405,7 +405,7 @@ def test_trigger_log_retry(mocked_trigger_logs):
     assert mocked_trigger_logs.call_count == 2
 
 
-@patch.object(Trigger, "_get_secrets_from_server")
+@patch.object(Trigger, "_get_secrets_from_server", return_value=({}, {}))
 def test_configuration_errors_are_critical(_, mocked_trigger_logs):
     class TestTrigger(Trigger):
         raised = False
@@ -434,7 +434,7 @@ def test_configuration_errors_are_critical(_, mocked_trigger_logs):
     trigger.stop()
 
 
-@patch.object(Trigger, "_get_secrets_from_server")
+@patch.object(Trigger, "_get_secrets_from_server", return_value=({}, {}))
 def test_too_many_errors_critical_log(_, mocked_trigger_logs):
     class TestTrigger(Trigger):
         raised = False
@@ -564,10 +564,10 @@ def test_get_secrets_from_server_stores_node_value(_, __):
                 "node_value": {"token": "real-secret"},
             },
         )
-        secrets = trigger._get_secrets_from_server()
+        secrets, node_secrets = trigger._get_secrets_from_server()
 
     assert secrets == {"module_secret": "foo"}
-    assert trigger._node_secrets == {"token": "real-secret"}
+    assert node_secrets == {"token": "real-secret"}
 
 
 @patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")
@@ -583,10 +583,10 @@ def test_get_secrets_from_server_called_regardless_of_module_secrets(_, __):
     trigger = DummyTrigger()
     with requests_mock.Mocker() as rmock:
         matcher = rmock.get("http://sekoia-playbooks/secrets", json={"value": {}})
-        trigger._get_secrets_from_server()
+        _, node_secrets = trigger._get_secrets_from_server()
 
     assert matcher.call_count == 1
-    assert trigger._node_secrets == {}
+    assert node_secrets == {}
 
 
 @patch.object(Trigger, "token", new_callable=PropertyMock, return_value="secure_token")

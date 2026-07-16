@@ -775,8 +775,7 @@ async def test_schema_fingerprint_first_run_saves_without_reset(
     assert schema_file.exists()
     data = json.loads(schema_file.read_text())
     assert (
-        data["fingerprint"]
-        == test_async_asset_connector._compute_schema_fingerprint()
+        data["fingerprint"] == test_async_asset_connector._compute_schema_fingerprint()
     )
     assert data["fields"] == test_async_asset_connector.get_mapped_fields()
 
@@ -806,8 +805,7 @@ async def test_schema_fingerprint_change_triggers_reset(
     assert test_async_asset_connector.checkpoint_reset_count == 1
     data = json.loads(schema_file.read_text())
     assert (
-        data["fingerprint"]
-        == test_async_asset_connector._compute_schema_fingerprint()
+        data["fingerprint"] == test_async_asset_connector._compute_schema_fingerprint()
     )
     assert data["fields"] == test_async_asset_connector.get_mapped_fields()
     # The log should mention the newly detected mapping

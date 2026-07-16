@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Always log JSON-serializable content when request body is not JSON
 - Handle HTTP 429 rate limiting on the asset connector push endpoint by pausing for the `Retry-After` duration (default: 1h, configurable).
 - Refetch assets when a field mapping change is detected
+- Add `is_fix_available` to the OCSF `VulnerabilityDetails` object and `risk_score`/`risk_level`/`risk_level_id`/`risk_details` to the `VulnerabilityOCSFModel` finding class (OCSF 1.5.0 vulnerability_finding)
 
 ### Fixed
 

@@ -468,6 +468,31 @@ def test_parse_retry_after_past_date_is_clamped():
     assert AssetConnector.parse_retry_after(format_datetime(past), 3600) == 0.0
 
 
+def test_parse_retry_after_negative_delta_is_clamped():
+    assert AssetConnector.parse_retry_after("-10", 3600) == 0.0
+
+
+def test_parse_retry_after_non_finite_falls_back_to_default():
+    assert AssetConnector.parse_retry_after("inf", 3600) == 3600
+    assert AssetConnector.parse_retry_after("nan", 3600) == 3600
+
+
+def test_parse_retry_after_far_future_date_is_capped():
+    far = datetime.now(UTC) + timedelta(days=30)
+    # Capped at RATE_LIMIT_DEFAULT_WAIT (1h) regardless of how far the date is.
+    assert (
+        AssetConnector.parse_retry_after(format_datetime(far), 3600)
+        == AssetConnector.RATE_LIMIT_DEFAULT_WAIT
+    )
+
+
+def test_parse_retry_after_large_delta_is_capped():
+    assert (
+        AssetConnector.parse_retry_after("999999", 3600)
+        == AssetConnector.RATE_LIMIT_DEFAULT_WAIT
+    )
+
+
 def test_rate_limit_wait_env_var(test_asset_connector, monkeypatch):
     monkeypatch.setenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT", "42")
     assert test_asset_connector.rate_limit_wait == 42

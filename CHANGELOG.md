@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clamp the parsed asset-connector `Retry-After` value to `[0, 1h]` and reject non-finite values so a malformed server header can never trigger a negative sleep or an arbitrarily long pause
+- Bound the async asset-connector rate-limit pause with a stop-aware wait that no longer leaks a worker thread per pause
+- Keep `AssetConnector`/`AsyncAssetConnector` backward compatible by shipping default no-op `reset_checkpoint`/`get_mapped_fields` implementations instead of new abstract methods
 - Fix test suite compatibility with Python 3.14 by patching `aioresponses` usage in tests and updating a CLI exception assertion to `typer.Exit`
 - Fix CI Codecov upload on Python 3.12 by switching the Codecov action to the PyPI CLI path (`use_pypi: true`) to avoid GPG key validation failures
 

@@ -700,6 +700,30 @@ def test_parse_retry_after_past_date_is_clamped():
     assert AsyncAssetConnector.parse_retry_after(format_datetime(past), 3600) == 0.0
 
 
+def test_parse_retry_after_negative_delta_is_clamped():
+    assert AsyncAssetConnector.parse_retry_after("-10", 3600) == 0.0
+
+
+def test_parse_retry_after_non_finite_falls_back_to_default():
+    assert AsyncAssetConnector.parse_retry_after("inf", 3600) == 3600
+    assert AsyncAssetConnector.parse_retry_after("nan", 3600) == 3600
+
+
+def test_parse_retry_after_far_future_date_is_capped():
+    far = datetime.now(UTC) + timedelta(days=30)
+    assert (
+        AsyncAssetConnector.parse_retry_after(format_datetime(far), 3600)
+        == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+    )
+
+
+def test_parse_retry_after_large_delta_is_capped():
+    assert (
+        AsyncAssetConnector.parse_retry_after("999999", 3600)
+        == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+    )
+
+
 def test_rate_limit_wait_env_var(test_async_asset_connector, monkeypatch):
     monkeypatch.setenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT", "42")
     assert test_async_asset_connector.rate_limit_wait == 42
@@ -716,7 +740,7 @@ async def test_async_run_handles_rate_limit(test_async_asset_connector):
         side_effect=AssetConnectorRateLimitError(retry_after=5)
     )
 
-    def stop_during_wait():
+    def stop_during_wait(timeout=None):
         test_async_asset_connector._stop_event.set()
         return True
 
@@ -725,7 +749,9 @@ async def test_async_run_handles_rate_limit(test_async_asset_connector):
     ) as mock_wait:
         await test_async_asset_connector.async_run()
 
-    mock_wait.assert_called_once_with()
+    # The stop event is waited on with the retry_after timeout so the pause is
+    # bounded and the worker thread returns cleanly (no leaked thread per pause).
+    mock_wait.assert_called_once_with(5)
 
 
 def test_compute_schema_fingerprint_is_deterministic(test_async_asset_connector):

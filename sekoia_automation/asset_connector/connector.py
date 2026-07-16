@@ -1,6 +1,7 @@
 import email.utils
 import hashlib
 import json
+import math
 import os
 import time
 from abc import abstractmethod
@@ -44,7 +45,9 @@ class AssetConnector(Trigger):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._latest_time = None
-        self.schema_store = PersistentJSON(self.ASSET_SCHEMA_FIELDS_FILE, self.data_path)
+        self.schema_store = PersistentJSON(
+            self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
+        )
 
     @property
     def connector_name(self) -> str:
@@ -144,8 +147,8 @@ class AssetConnector(Trigger):
             except ValueError:
                 self.log(
                     message=(
-                         "Invalid ASSET_CONNECTOR_RATE_LIMIT_WAIT value; "
-                         "falling back to the default wait"
+                        "Invalid ASSET_CONNECTOR_RATE_LIMIT_WAIT value; "
+                        "falling back to the default wait"
                     )
                 )
         return self.RATE_LIMIT_DEFAULT_WAIT
@@ -164,18 +167,24 @@ class AssetConnector(Trigger):
         """
         if not header_value:
             return default
+
         try:
-            return float(header_value)
+            seconds = float(header_value)
         except ValueError:
-            pass
-        try:
-            dt = email.utils.parsedate_to_datetime(header_value)
-        except (TypeError, ValueError):
+            try:
+                dt = email.utils.parsedate_to_datetime(header_value)
+            except (TypeError, ValueError):
+                return default
+            if dt is None:
+                return default
+            seconds = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
+
+        # Reject non-finite values (inf/nan) coming from an untrusted server,
+        # and clamp to [0, RATE_LIMIT_DEFAULT_WAIT] so a bogus header can never
+        # force a negative sleep or an arbitrarily long pause.
+        if seconds is None or not math.isfinite(seconds):
             return default
-        if dt is None:
-            return default
-        delta = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
-        return max(delta, 0.0)
+        return min(max(seconds, 0.0), AssetConnector.RATE_LIMIT_DEFAULT_WAIT)
 
     @staticmethod
     def _retry():
@@ -339,22 +348,34 @@ class AssetConnector(Trigger):
         """
         raise NotImplementedError("This method should be implemented in a subclass")
 
-    @abstractmethod
     def reset_checkpoint(self) -> None:
         """
         Reset the checkpoint so all assets will be re-fetched from scratch.
-        """
-        raise NotImplementedError("This method should be implemented in a subclass")
 
-    @abstractmethod
+        Default no-op for backward compatibility: subclasses that declare field
+        mappings (via :meth:`get_mapped_fields`) should override this to clear
+        their checkpoint. If a mapping change is detected but this is not
+        overridden, a warning is logged and no reset happens.
+        """
+        self.log(
+            message=(
+                "Field mapping change detected but reset_checkpoint() is not "
+                "implemented by this connector; skipping checkpoint reset."
+            ),
+            level="warning",
+        )
+
     def get_mapped_fields(self) -> dict[str, str]:
         """
         Return the field mappings declared by this connector as a dict.
 
+        Default empty mapping for backward compatibility: connectors that want
+        automatic checkpoint reset on schema change should override this.
+
         Returns:
             dict[str, str]: Mapping of source API field → OCSF field path.
         """
-        raise NotImplementedError("This method should be implemented in a subclass")
+        return {}
 
     def _compute_schema_fingerprint(self) -> str:
         """Compute a SHA-256 fingerprint of the connector's declared field mappings.
@@ -380,10 +401,14 @@ class AssetConnector(Trigger):
         without triggering a reset.
         """
         current_fields = self.get_mapped_fields()
+        # No declared mapping (default for connectors that don't override
+        # get_mapped_fields): schema-change detection is inert, skip entirely.
+        if not current_fields:
+            return
+
         current_fingerprint = hashlib.sha256(
             json.dumps(sorted(current_fields.items())).encode()
         ).hexdigest()
-
 
         with self.schema_store as store:
             stored_fingerprint = store.get("fingerprint")
@@ -394,8 +419,12 @@ class AssetConnector(Trigger):
 
         if stored_fingerprint is not None:
             diff = {
-                "added": {k: v for k, v in current_fields.items() if k not in stored_fields},
-                "removed": {k: v for k, v in stored_fields.items() if k not in current_fields},
+                "added": {
+                    k: v for k, v in current_fields.items() if k not in stored_fields
+                },
+                "removed": {
+                    k: v for k, v in stored_fields.items() if k not in current_fields
+                },
                 "changed": {
                     k: {"from": stored_fields[k], "to": v}
                     for k, v in current_fields.items()

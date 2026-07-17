@@ -191,6 +191,8 @@ class Trigger(ModuleItem):
             sentry_sdk.set_context(
                 "trigger_configuration", self._configuration.model_dump()
             )
+        elif isinstance(self._configuration, dict):
+            sentry_sdk.set_context("trigger_configuration", dict(self._configuration))
         elif self._configuration:
             sentry_sdk.set_context("trigger_configuration", self._configuration)
 

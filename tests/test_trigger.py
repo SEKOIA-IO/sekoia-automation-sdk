@@ -619,12 +619,20 @@ def test_apply_node_secrets_overlays_resolved_values_on_dict_configuration():
     # A trigger without a configuration model (a plain dict) is overlaid the same way.
     trigger = DummyTrigger()
     trigger._node_secrets = {"token": "real-secret"}
-    with patch.object(
-        Module, "load_config", return_value={"host": "host", "token": "*****"}
+    with (
+        patch.object(
+            Module, "load_config", return_value={"host": "host", "token": "*****"}
+        ),
+        patch("sekoia_automation.trigger.sentry_sdk.set_context") as sentry,
     ):
         trigger._apply_node_secrets()
 
     assert trigger.configuration == {"host": "host", "token": "real-secret"}
+    # The Sentry context must hold a copy: the in-place overlay of the resolved
+    # secret must not reach it.
+    sentry.assert_called_with(
+        "trigger_configuration", {"host": "host", "token": "*****"}
+    )
 
 
 def test_apply_node_secrets_noop_without_resolved_secrets():

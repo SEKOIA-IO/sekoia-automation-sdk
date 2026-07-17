@@ -2297,8 +2297,20 @@ wheels = [
 ]
 
 [[package]]
+name = "sekoia-automation-models"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/61/98/1174ea60591855e59d58ea188aa9ed6fa753841a5f43eb2b833a57dabca3/sekoia_automation_models-1.0.0.tar.gz", hash = "sha256:353fa5b6bd7cd6feaab70090bd8ea904eb25e929baf8130e54de0f72957ac689", size = 7790, upload-time = "2026-07-17T15:31:44.402Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/f6/151b7f29b210392867eae9762fd1d2060d7144a73f3ea9591fdcaafc3e67/sekoia_automation_models-1.0.0-py3-none-any.whl", hash = "sha256:1567ddbcfc878a744c9cd198cc264b477502b8ed614bf8ae5fc345618497064f", size = 11649, upload-time = "2026-07-17T15:31:43.124Z" },
+]
+
+[[package]]
 name = "sekoia-automation-sdk"
-version = "1.23.1"
+version = "1.24.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiocsv" },
@@ -2321,6 +2333,7 @@ dependencies = [
     { name = "requests" },
     { name = "requests-ratelimiter" },
     { name = "s3path" },
+    { name = "sekoia-automation-models" },
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer" },
@@ -2370,6 +2383,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.25,<3" },
     { name = "requests-ratelimiter", specifier = ">=0.7.0,<0.8" },
     { name = "s3path", specifier = ">=0.6.4,<0.7" },
+    { name = "sekoia-automation-models", specifier = ">=1.0.0,<2" },
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer", specifier = ">=0.20" },

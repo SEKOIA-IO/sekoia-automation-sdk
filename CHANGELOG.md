@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- The OCSF asset-connector models are now provided by the standalone `sekoia-automation-models` package. The `sekoia_automation.asset_connector.models.ocsf.*` modules are thin re-exports, so existing import paths keep working unchanged.
+
 ## [Unreleased] - 2026-06-16
 
 ### Added

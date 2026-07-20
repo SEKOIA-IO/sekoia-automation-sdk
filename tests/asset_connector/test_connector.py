@@ -1,9 +1,11 @@
 import json
 import os
 from collections.abc import Generator
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
+import requests
+from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
@@ -317,6 +319,10 @@ def test_handle_api_error(test_asset_connector):
     error_message = test_asset_connector.handle_api_error(error_code)
     assert error_message == "Server error - HTTP (500)"
 
+    error_code = 300
+    error_message = test_asset_connector.handle_api_error(error_code)
+    assert error_message == "Unexpected error (300)"
+
 
 def test_post_assets_to_api_success(test_asset_connector, asset_list):
     test_asset_connector._http_session.post = Mock(
@@ -334,6 +340,59 @@ def test_post_assets_to_api_failure(test_asset_connector, asset_list):
         asset_list, "http://example.com/api"
     )
     assert response is None
+
+
+def test_post_assets_to_api_timeout(test_asset_connector, asset_list):
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(1), reraise=True
+    )
+    test_asset_connector._http_session.post = Mock(side_effect=requests.Timeout())
+
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
+
+    assert response is None
+    test_asset_connector.log_exception.assert_called_once()
+
+
+def test_post_assets_to_api_failure_with_empty_body(test_asset_connector, asset_list):
+    # A falsy response (e.g. 4xx) falls back to its text body.
+    res = MagicMock(status_code=400, text="boom")
+    res.__bool__.return_value = False
+    test_asset_connector._http_session.post = Mock(return_value=res)
+
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
+
+    assert response is None
+    res.json.assert_not_called()
+    test_asset_connector.log.assert_called_once()
+
+
+def test_push_assets_to_sekoia_noop_when_no_assets(test_asset_connector):
+    test_asset_connector.post_assets_to_api = Mock()
+
+    test_asset_connector.push_assets_to_sekoia(None)
+
+    test_asset_connector.post_assets_to_api.assert_not_called()
+
+
+def test_push_assets_to_sekoia_logs_when_response_is_none(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
+    test_asset_connector.post_assets_to_api = Mock(return_value=None)
+
+    test_asset_connector.push_assets_to_sekoia(asset_list)
+
+    assert any(
+        call.kwargs.get("level") == "error"
+        for call in test_asset_connector.log.call_args_list
+    )
 
 
 def test_push_assets_to_sekoia(test_asset_connector, asset_list):
@@ -364,6 +423,31 @@ def test_asset_fetch_cycle(
 
     assert test_asset_connector.push_assets_to_sekoia.call_count == 1
     assert test_asset_connector.push_assets_to_sekoia.call_args[0][0] == asset_list
+
+
+def test_asset_fetch_cycle_pushes_a_batch_when_batch_size_reached(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # One push per asset (batch_size == 1), no trailing batch.
+    assert test_asset_connector.push_assets_to_sekoia.call_count == len(
+        asset_list.items
+    )
+
+
+def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    sleep = Mock()
+    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    sleep.assert_called_once()
 
 
 def test_update_checkpoint(

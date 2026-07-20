@@ -7,15 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
-
-- The asset-connector models are now provided by the standalone `sekoia-automation-models` package (`>=1.1.0`). The `sekoia_automation.asset_connector.models.ocsf.*` modules and `sekoia_automation.asset_connector.models.connector` (`AssetItem`, `AssetList`, `DefaultAssetConnectorConfiguration`) are thin re-exports, so existing import paths keep working unchanged.
-
-## [Unreleased] - 2026-06-16
-
 ### Added
 
 - Improve `GenericAPIAction` HTTP error messages by including HTTP status code and retry information (attempt count and retry count) for both immediate client errors and final retry failures
+
+### Changed
+
+- The asset-connector models are now provided by the standalone `sekoia-automation-models` package (`>=1.1.0`). The `sekoia_automation.asset_connector.models.ocsf.*` modules and `sekoia_automation.asset_connector.models.connector` (`AssetItem`, `AssetList`, `DefaultAssetConnectorConfiguration`) are thin re-exports, so existing import paths keep working unchanged.
 
 ### Fixed
 

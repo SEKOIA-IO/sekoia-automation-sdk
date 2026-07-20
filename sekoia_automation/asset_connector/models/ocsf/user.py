@@ -22,7 +22,6 @@ class UserDataObject(BaseModel):
     bad_password_count: int | None = None
     number_of_logons: int | None = None
     last_time_password_change: float | None = None
-    external_device: str | None = None
 
 
 class UserEnrichmentObject(BaseModel):

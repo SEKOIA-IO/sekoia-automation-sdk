@@ -348,6 +348,7 @@ class AssetConnector(Trigger):
         """
         raise NotImplementedError("This method should be implemented in a subclass")
 
+    @abstractmethod
     def reset_checkpoint(self) -> None:
         """
         Reset the checkpoint so all assets will be re-fetched from scratch.
@@ -357,14 +358,11 @@ class AssetConnector(Trigger):
         their checkpoint. If a mapping change is detected but this is not
         overridden, a warning is logged and no reset happens.
         """
-        self.log(
-            message=(
-                "Field mapping change detected but reset_checkpoint() is not "
-                "implemented by this connector; skipping checkpoint reset."
-            ),
-            level="warning",
+        raise NotImplementedError(
+            "reset_checkpoint must be implemented to support schema-change refetching"
         )
 
+    @abstractmethod
     def get_mapped_fields(self) -> dict[str, str]:
         """
         Return the field mappings declared by this connector as a dict.
@@ -375,7 +373,7 @@ class AssetConnector(Trigger):
         Returns:
             dict[str, str]: Mapping of source API field → OCSF field path.
         """
-        return {}
+        raise NotImplementedError("get_mapped_fields must be implemented to support schema-change refetching")
 
     def _compute_schema_fingerprint(self) -> str:
         """Compute a SHA-256 fingerprint of the connector's declared field mappings.

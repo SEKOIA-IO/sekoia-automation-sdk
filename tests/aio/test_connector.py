@@ -33,7 +33,7 @@ class DummyAsyncConnector(AsyncConnector):
 
 
 @pytest.fixture
-def async_connector(storage, mocked_trigger_logs, faker: Faker):
+def async_connector(storage, mocked_trigger_logs, faker: Faker, event_loop):
     with patch("sentry_sdk.set_tag"):
         async_connector = DummyAsyncConnector(data_path=storage)
 
@@ -52,6 +52,13 @@ def async_connector(storage, mocked_trigger_logs, faker: Faker):
         yield async_connector
 
         async_connector.stop()
+
+        # The connector only closes its aiohttp session at the end of async_run(),
+        # which these tests never reach. Close it here so the garbage collector does
+        # not later emit "Unclosed client session" errors that leak into other tests.
+        session = async_connector._session
+        if session is not None and not session.closed:
+            event_loop.run_until_complete(session.close())
 
 
 @pytest.mark.asyncio

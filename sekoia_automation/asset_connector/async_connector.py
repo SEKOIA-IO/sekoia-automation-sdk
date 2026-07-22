@@ -435,7 +435,9 @@ class AsyncAssetConnector(Trigger):
         Returns:
             dict[str, str]: Mapping of source API field → OCSF field path.
         """
-        raise NotImplementedError("get_mapped_fields must be implemented to support schema-change refetching")
+        raise NotImplementedError(
+            "get_mapped_fields must be implemented to support schema-change refetching"
+        )
 
     def _compute_schema_fingerprint(self) -> str:
         """Compute a SHA-256 fingerprint of the connector's declared field mappings.

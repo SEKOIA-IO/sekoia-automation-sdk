@@ -10,7 +10,10 @@ import requests
 from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
-from sekoia_automation.asset_connector.utils import RATE_LIMIT_DEFAULT_WAIT, parse_retry_after
+from sekoia_automation.asset_connector.utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    parse_retry_after,
+)
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -565,17 +568,11 @@ def test_parse_retry_after_non_finite_falls_back_to_default():
 def test_parse_retry_after_far_future_date_is_capped():
     far = datetime.now(UTC) + timedelta(days=30)
     # Capped at RATE_LIMIT_DEFAULT_WAIT (1h) regardless of how far the date is.
-    assert (
-        parse_retry_after(format_datetime(far), 3600)
-        == RATE_LIMIT_DEFAULT_WAIT
-    )
+    assert parse_retry_after(format_datetime(far), 3600) == RATE_LIMIT_DEFAULT_WAIT
 
 
 def test_parse_retry_after_large_delta_is_capped():
-    assert (
-        parse_retry_after("999999", 3600)
-        == RATE_LIMIT_DEFAULT_WAIT
-    )
+    assert parse_retry_after("999999", 3600) == RATE_LIMIT_DEFAULT_WAIT
 
 
 def test_rate_limit_wait_env_var(test_asset_connector, monkeypatch):

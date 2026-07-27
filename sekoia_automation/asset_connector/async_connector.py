@@ -275,9 +275,7 @@ class AsyncAssetConnector(Trigger):
 
         # Handle rate limiting (HTTP 429)
         if status_code == 429:
-            retry_after = parse_retry_after(
-                retry_after_header, self.rate_limit_wait
-            )
+            retry_after = parse_retry_after(retry_after_header, self.rate_limit_wait)
             self.log(
                 message=(
                     "Asset connector push rate limited (HTTP 429). "

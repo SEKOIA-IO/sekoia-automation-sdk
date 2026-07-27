@@ -1,12 +1,9 @@
-import email.utils
 import hashlib
 import json
-import math
 import os
 import time
 from abc import abstractmethod
 from collections.abc import Generator
-from datetime import datetime
 from functools import cached_property
 
 import requests
@@ -24,6 +21,7 @@ from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
+from .utils import RATE_LIMIT_DEFAULT_WAIT, parse_retry_after
 
 
 class AssetConnector(Trigger):
@@ -38,7 +36,6 @@ class AssetConnector(Trigger):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
-    RATE_LIMIT_DEFAULT_WAIT = 3600  # 1 hour
 
     configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
@@ -151,40 +148,7 @@ class AssetConnector(Trigger):
                         "falling back to the default wait"
                     )
                 )
-        return self.RATE_LIMIT_DEFAULT_WAIT
-
-    @staticmethod
-    def parse_retry_after(header_value: str | None, default: float) -> float:
-        """
-        Parse the Retry-After header (RFC 7231): either delta-seconds or an
-        HTTP-date. Falls back to ``default`` when missing or unparseable.
-
-        Args:
-            header_value: Raw Retry-After header value.
-            default: Fallback wait in seconds.
-        Returns:
-            float: Wait time in seconds.
-        """
-        if not header_value:
-            return default
-
-        try:
-            seconds = float(header_value)
-        except ValueError:
-            try:
-                dt = email.utils.parsedate_to_datetime(header_value)
-            except (TypeError, ValueError):
-                return default
-            if dt is None:
-                return default
-            seconds = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
-
-        # Reject non-finite values (inf/nan) coming from an untrusted server,
-        # and clamp to [0, RATE_LIMIT_DEFAULT_WAIT] so a bogus header can never
-        # force a negative sleep or an arbitrarily long pause.
-        if seconds is None or not math.isfinite(seconds):
-            return default
-        return min(max(seconds, 0.0), AssetConnector.RATE_LIMIT_DEFAULT_WAIT)
+        return RATE_LIMIT_DEFAULT_WAIT
 
     @staticmethod
     def _retry():
@@ -267,7 +231,7 @@ class AssetConnector(Trigger):
             return None
 
         if res.status_code == 429:
-            retry_after = self.parse_retry_after(
+            retry_after = parse_retry_after(
                 res.headers.get("Retry-After"), self.rate_limit_wait
             )
             self.log(

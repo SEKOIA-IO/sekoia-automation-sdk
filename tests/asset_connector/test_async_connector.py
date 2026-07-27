@@ -9,6 +9,7 @@ import aiohttp
 import pytest
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
+from sekoia_automation.asset_connector.utils import RATE_LIMIT_DEFAULT_WAIT, parse_retry_after
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -677,50 +678,50 @@ async def test_post_assets_to_api_rate_limited_without_retry_after(
 
     await test_async_asset_connector._session.close()
 
-    assert exc_info.value.retry_after == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
 
 
 def test_parse_retry_after_delta_seconds():
-    assert AsyncAssetConnector.parse_retry_after("120", 3600) == 120
+    assert parse_retry_after("120", 3600) == 120
 
 
 def test_parse_retry_after_http_date():
     future = datetime.now(UTC) + timedelta(seconds=50)
-    wait = AsyncAssetConnector.parse_retry_after(format_datetime(future), 3600)
+    wait = parse_retry_after(format_datetime(future), 3600)
     assert 45 <= wait <= 50
 
 
 def test_parse_retry_after_missing_or_garbage():
-    assert AsyncAssetConnector.parse_retry_after(None, 3600) == 3600
-    assert AsyncAssetConnector.parse_retry_after("not-a-date", 3600) == 3600
+    assert parse_retry_after(None, 3600) == 3600
+    assert parse_retry_after("not-a-date", 3600) == 3600
 
 
 def test_parse_retry_after_past_date_is_clamped():
     past = datetime.now(UTC) - timedelta(seconds=50)
-    assert AsyncAssetConnector.parse_retry_after(format_datetime(past), 3600) == 0.0
+    assert parse_retry_after(format_datetime(past), 3600) == 0.0
 
 
 def test_parse_retry_after_negative_delta_is_clamped():
-    assert AsyncAssetConnector.parse_retry_after("-10", 3600) == 0.0
+    assert parse_retry_after("-10", 3600) == 0.0
 
 
 def test_parse_retry_after_non_finite_falls_back_to_default():
-    assert AsyncAssetConnector.parse_retry_after("inf", 3600) == 3600
-    assert AsyncAssetConnector.parse_retry_after("nan", 3600) == 3600
+    assert parse_retry_after("inf", 3600) == 3600
+    assert parse_retry_after("nan", 3600) == 3600
 
 
 def test_parse_retry_after_far_future_date_is_capped():
     far = datetime.now(UTC) + timedelta(days=30)
     assert (
-        AsyncAssetConnector.parse_retry_after(format_datetime(far), 3600)
-        == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+        parse_retry_after(format_datetime(far), 3600)
+        == RATE_LIMIT_DEFAULT_WAIT
     )
 
 
 def test_parse_retry_after_large_delta_is_capped():
     assert (
-        AsyncAssetConnector.parse_retry_after("999999", 3600)
-        == AsyncAssetConnector.RATE_LIMIT_DEFAULT_WAIT
+        parse_retry_after("999999", 3600)
+        == RATE_LIMIT_DEFAULT_WAIT
     )
 
 

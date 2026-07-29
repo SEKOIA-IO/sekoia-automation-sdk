@@ -146,11 +146,6 @@ class AssetConnector(AssetConnectorMixin):
     def reset_checkpoint(self) -> None:
         """
         Reset the checkpoint so all assets will be re-fetched from scratch.
-
-        Default no-op for backward compatibility: subclasses that declare field
-        mappings (via :meth:`get_mapped_fields`) should override this to clear
-        their checkpoint. If a mapping change is detected but this is not
-        overridden, a warning is logged and no reset happens.
         """
         raise NotImplementedError(
             "reset_checkpoint must be implemented to support schema-change refetching"

@@ -187,8 +187,8 @@ class AssetConnectorMixin(Trigger):
         """
         Return the field mappings declared by this connector as a dict.
 
-        Default empty mapping for backward compatibility: connectors that want
-        automatic checkpoint reset on schema change should override this.
+        Every connector must implement this method. Return an empty dict if
+        no field mappings are needed (schema-change detection will be skipped).
 
         Returns:
             dict[str, str]: Mapping of source API field → OCSF field path.

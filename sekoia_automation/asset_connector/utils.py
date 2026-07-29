@@ -30,9 +30,7 @@ def parse_retry_after(header_value: str | None, default: float) -> float:
             return default
         seconds = (dt - datetime.now(tz=dt.tzinfo)).total_seconds()
 
-    # Reject non-finite values (inf/nan) coming from an untrusted server,
-    # and clamp to [0, RATE_LIMIT_DEFAULT_WAIT] so a bogus header can never
-    # force a negative sleep or an arbitrarily long pause.
-    if seconds is None or not math.isfinite(seconds):
+
+    if not math.isfinite(seconds):
         return default
     return min(max(seconds, 0.0), RATE_LIMIT_DEFAULT_WAIT)

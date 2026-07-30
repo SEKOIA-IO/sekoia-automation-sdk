@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import os
 import time
@@ -13,11 +14,16 @@ from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
+from sekoia_automation.storage import PersistentJSON
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
+from .utils import RATE_LIMIT_DEFAULT_WAIT, parse_retry_after
 
 
 class AsyncAssetConnector(Trigger):
@@ -31,6 +37,7 @@ class AsyncAssetConnector(Trigger):
     and aiohttp for HTTP requests.
     """
 
+    ASSET_SCHEMA_FIELDS_FILE = "asset_schema_fields.json"
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
@@ -42,6 +49,9 @@ class AsyncAssetConnector(Trigger):
         self._latest_time = None
         self._session: aiohttp.ClientSession | None = None
         self._rate_limiter: AsyncLimiter | None = None
+        self.schema_store = PersistentJSON(
+            self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
+        )
 
     @property
     def connector_name(self) -> str:
@@ -125,6 +135,28 @@ class AsyncAssetConnector(Trigger):
             return int(frequency)
         return self.configuration.frequency
 
+    @property
+    def rate_limit_wait(self) -> float:
+        """
+        Default wait (in seconds) after a 429, used when the response carries no
+        usable Retry-After header. Overridable via the
+        ASSET_CONNECTOR_RATE_LIMIT_WAIT env variable.
+
+        Returns:
+            float: Wait time in seconds
+        """
+        if wait := os.getenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT"):
+            try:
+                return float(wait)
+            except ValueError:
+                self.log(
+                    message=(
+                        "Invalid ASSET_CONNECTOR_RATE_LIMIT_WAIT value; "
+                        "falling back to the default wait"
+                    )
+                )
+        return RATE_LIMIT_DEFAULT_WAIT
+
     @staticmethod
     def _retry():
         return Retrying(
@@ -201,6 +233,7 @@ class AsyncAssetConnector(Trigger):
         status_code: int | None = None
         response_text: str | None = None
         response_json: dict | None = None
+        retry_after_header: str | None = None
 
         try:
             for attempt in self._retry():
@@ -213,6 +246,7 @@ class AsyncAssetConnector(Trigger):
                         ) as response:
                             status_code = response.status
                             response_text = await response.text()
+                            retry_after_header = response.headers.get("Retry-After")
 
                             if status_code == 200:
                                 try:
@@ -238,6 +272,18 @@ class AsyncAssetConnector(Trigger):
                 level="error",
             )
             return None
+
+        # Handle rate limiting (HTTP 429)
+        if status_code == 429:
+            retry_after = parse_retry_after(retry_after_header, self.rate_limit_wait)
+            self.log(
+                message=(
+                    "Asset connector push rate limited (HTTP 429). "
+                    f"Waiting {retry_after} seconds before refetching."
+                ),
+                level="warning",
+            )
+            raise AssetConnectorRateLimitError(retry_after=retry_after)
 
         # Handle non-200 responses
         if status_code != 200:
@@ -327,6 +373,102 @@ class AsyncAssetConnector(Trigger):
         raise NotImplementedError("This method should be implemented in a subclass")
 
     @abstractmethod
+    async def reset_checkpoint(self) -> None:
+        """
+        Reset the checkpoint so all assets will be re-fetched from scratch.
+
+        Default no-op for backward compatibility: subclasses that declare field
+        mappings (via :meth:`get_mapped_fields`) should override this to clear
+        their checkpoint. If a mapping change is detected but this is not
+        overridden, a warning is logged and no reset happens.
+        """
+        raise NotImplementedError(
+            "reset_checkpoint must be implemented to support schema-change refetching"
+        )
+
+    @abstractmethod
+    def get_mapped_fields(self) -> dict[str, str]:
+        """
+        Return the field mappings declared by this connector as a dict.
+
+        Default empty mapping for backward compatibility: connectors that want
+        automatic checkpoint reset on schema change should override this.
+
+        Returns:
+            dict[str, str]: Mapping of source API field → OCSF field path.
+        """
+        raise NotImplementedError(
+            "get_mapped_fields must be implemented to support schema-change refetching"
+        )
+
+    def _compute_schema_fingerprint(self) -> str:
+        """Compute a SHA-256 fingerprint of the connector's declared field mappings.
+
+        The fingerprint changes whenever :meth:`get_mapped_fields` returns a
+        different dict, enabling automatic checkpoint detection.
+
+        Returns:
+            str: SHA-256 hex digest of the sorted field mapping dict.
+        """
+        fields = sorted(self.get_mapped_fields().items())
+        return hashlib.sha256(json.dumps(fields).encode()).hexdigest()
+
+    async def _check_schema_and_reset_if_needed(self) -> None:
+        """Compare the current field-mapping fingerprint against the stored one.
+
+        When a difference is detected the checkpoint is reset via
+        :meth:`reset_checkpoint` so that the next fetch cycle re-collects all
+        assets with the updated mapping.  Both the new fingerprint and the
+        full field mapping dict are persisted to ``asset_schema_fields.json``.
+
+        On the very first run (no fingerprint stored yet) the data is saved
+        without triggering a reset.
+        """
+        current_fields = self.get_mapped_fields()
+        # No declared mapping (default for connectors that don't override
+        # get_mapped_fields): schema-change detection is inert, skip entirely.
+        if not current_fields:
+            return
+
+        current_fingerprint = hashlib.sha256(
+            json.dumps(sorted(current_fields.items())).encode()
+        ).hexdigest()
+
+        with self.schema_store as store:
+            stored_fingerprint = store.get("fingerprint")
+            stored_fields: dict[str, str] = store.get("fields", {})
+
+        if stored_fingerprint == current_fingerprint:
+            return
+
+        if stored_fingerprint is not None:
+            diff = {
+                "added": {
+                    k: v for k, v in current_fields.items() if k not in stored_fields
+                },
+                "removed": {
+                    k: v for k, v in stored_fields.items() if k not in current_fields
+                },
+                "changed": {
+                    k: {"from": stored_fields[k], "to": v}
+                    for k, v in current_fields.items()
+                    if k in stored_fields and stored_fields[k] != v
+                },
+            }
+            self.log(
+                message=(
+                    "Field mapping change detected — "
+                    f"{diff}. Resetting checkpoint to re-fetch all assets."
+                ),
+                level="info",
+            )
+            await self.reset_checkpoint()
+
+        with self.schema_store as store:
+            store["fingerprint"] = current_fingerprint
+            store["fields"] = current_fields
+
+    @abstractmethod
     async def get_assets(
         self,
     ) -> AsyncGenerator[AssetItem, None]:
@@ -366,6 +508,8 @@ class AsyncAssetConnector(Trigger):
             level="info",
         )
 
+        await self._check_schema_and_reset_if_needed()
+
         # save the starting time processing
         processing_start = time.time()
 
@@ -404,6 +548,17 @@ class AsyncAssetConnector(Trigger):
             while self.running:
                 try:
                     await self.asset_fetch_cycle()
+                except AssetConnectorRateLimitError as e:
+                    self.log(
+                        message=f"Rate limit hit, pausing connector "
+                        f"for {e.retry_after} seconds",
+                        level="warning",
+                    )
+                    # Wait in a worker thread with the timeout passed to
+                    # Event.wait itself: the thread returns cleanly after
+                    # retry_after (or immediately when stop() is signalled),
+                    # so no thread is leaked per pause.
+                    await asyncio.to_thread(self._stop_event.wait, e.retry_after)
                 except Exception as e:
                     self.log_exception(
                         e,

@@ -385,6 +385,27 @@ def test_generic_api_action(storage):
             "http://base_url/resource/fake_uuid/count (last status code: unknown)"
         )
 
+    # timeout - the underlying exception should be reported to Sentry
+    action = init_action()
+    arguments = {"uuid": "fake_uuid", "param": "number"}
+    with (
+        patch("requests.request") as mock,
+        patch("sentry_sdk.capture_message") as capture_message_patch,
+        patch("sentry_sdk.capture_exception") as capture_exception_patch,
+    ):
+        mock.side_effect = Timeout("boom")
+        results = action.run(arguments)
+
+        assert results is None
+        assert mock.call_count == 10
+
+        capture_message_patch.assert_called_once()
+        capture_exception_patch.assert_not_called()
+
+        last_log = action.logs[-1]
+        assert last_log["exception_type"] == "Timeout"
+        assert "boom" in last_log["underlying_error"]
+
     # Makes sure `*_path` have been recursively replaced
     action = init_action()
     filepath = storage / "foo.txt"

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Improve `GenericAPIAction` HTTP error messages by including HTTP status code and retry information (attempt count and retry count) for both immediate client errors and final retry failures
+- Surface the underlying exception (type and message) final retry failures in the action logs and the Sentry notification
 - Always log JSON-serializable content when request body is not JSON
 - Handle HTTP 429 rate limiting on the asset connector push endpoint by pausing for the `Retry-After` duration (default: 1h, configurable).
 - Refetch assets when a field mapping change is detected

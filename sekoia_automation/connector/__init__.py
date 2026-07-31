@@ -387,13 +387,16 @@ class Connector(Trigger, MetricsMixin, ABC):
             time.sleep(delta_sleep)
 
     def run(self) -> None:  # pragma: no cover
-        while self.running:
-            try:
-                self.next_run()
-            except Exception as e:
-                self.log_exception(
-                    e,
-                    message=f"Error while running connector {self.connector_name}",
-                )
+        log_backoff = self._log_backoff(
+            f"Error while running connector {self.connector_name}"
+        )
 
-                time.sleep(self.frequency)
+        while self.running:
+            # New controller per iteration, so the delay resets on success.
+            # `self.frequency` is not usable as a pause here: it defaults to 0.
+            for attempt in self._error_backoff(log_backoff):
+                with attempt:
+                    if not self.running:
+                        break
+
+                    self.next_run()

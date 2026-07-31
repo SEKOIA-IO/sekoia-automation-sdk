@@ -173,6 +173,74 @@ def test_trigger_execute(mocked_trigger_logs):
         mock.assert_called_with("test", {})
 
 
+def test_execute_once_reports_whether_run_succeeded(mocked_trigger_logs):
+    with patch.object(Trigger, "send_event"):
+        assert DummyTrigger()._execute_once() is True
+
+    with patch("sentry_sdk.capture_exception"):
+        assert ErrorTrigger()._execute_once() is False
+
+
+def test_execute_paces_restarts_when_run_keeps_failing(mocked_trigger_logs):
+    """A trigger that always fails must not be restarted in a busy loop."""
+    delays: list[float] = []
+    runs = 0
+
+    class FailingTrigger(Trigger):
+        ERROR_BACKOFF_JITTER = 0  # keep the delays deterministic
+
+        def run(self):
+            nonlocal runs
+            runs += 1
+            if runs >= 4:
+                self.stop()
+            raise ValueError("boom")
+
+    trigger = FailingTrigger()
+
+    def record(_event):
+        return delays.append
+
+    with (
+        patch("sekoia_automation.backoff.sleep_using_event", record),
+        patch.object(Trigger, "_get_secrets_from_server", return_value={}),
+        patch.object(Module, "set_secrets"),
+        patch("sentry_sdk.capture_exception"),
+    ):
+        trigger.execute()
+
+    assert runs == 4
+    assert delays == [1, 2, 4]
+
+
+def test_execute_does_not_pace_a_successful_run(mocked_trigger_logs):
+    """A trigger completing normally is restarted immediately, as before."""
+    delays: list[float] = []
+    runs = 0
+
+    class OneShotTrigger(Trigger):
+        def run(self):
+            nonlocal runs
+            runs += 1
+            if runs >= 3:
+                self.stop()
+
+    trigger = OneShotTrigger()
+
+    def record(_event):
+        return delays.append
+
+    with (
+        patch("sekoia_automation.backoff.sleep_using_event", record),
+        patch.object(Trigger, "_get_secrets_from_server", return_value={}),
+        patch.object(Module, "set_secrets"),
+    ):
+        trigger.execute()
+
+    assert runs == 3
+    assert delays == []
+
+
 def test_trigger_configuration_setter():
     trigger = DummyTrigger()
 

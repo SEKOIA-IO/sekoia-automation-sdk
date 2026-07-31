@@ -477,19 +477,25 @@ class AssetConnector(Trigger):
             time.sleep(delta_sleep)
 
     def run(self) -> None:
+        log_backoff = self._log_backoff(
+            f"Error while running asset connector {self.connector_name}"
+        )
+
         while self.running:
-            try:
-                self.asset_fetch_cycle()
-            except AssetConnectorRateLimitError as e:
-                self.log(
-                    message=f"Rate limit hit, pausing connector "
-                    f"for {e.retry_after} seconds",
-                    level="warning",
-                )
-                self._stop_event.wait(e.retry_after)
-            except Exception as e:
-                self.log_exception(
-                    e,
-                    message=f"Error while running asset connector "
-                    f"{self.connector_name}",
-                )
+            # New controller per iteration, so the delay resets on success.
+            for attempt in self._error_backoff(log_backoff):
+                with attempt:
+                    if not self.running:
+                        break
+
+                    try:
+                        self.asset_fetch_cycle()
+                    except AssetConnectorRateLimitError as e:
+                        # Not a failure: handled here so it does not stack with
+                        # the error backoff.
+                        self.log(
+                            message=f"Rate limit hit, pausing connector "
+                            f"for {e.retry_after} seconds",
+                            level="warning",
+                        )
+                        self._stop_event.wait(e.retry_after)

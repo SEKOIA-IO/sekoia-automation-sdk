@@ -1,7 +1,7 @@
 import json
 import signal
 from abc import abstractmethod
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -16,8 +16,23 @@ import sentry_sdk
 from cachetools import TLRUCache
 from pydantic import BaseModel
 from requests import HTTPError
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    Retrying,
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from sekoia_automation.backoff import (
+    DEFAULT_JITTER,
+    DEFAULT_MAX_DELAY,
+    AsyncBeforeSleep,
+    BeforeSleep,
+    async_error_backoff,
+    error_backoff,
+)
 from sekoia_automation.exceptions import (
     InvalidDirectoryError,
     ModuleConfigurationError,
@@ -33,6 +48,10 @@ from sekoia_automation.utils import (
     get_as_model,
     validate_with_model,
 )
+
+
+class _RunAbortedError(Exception):
+    """Tells the retry controller that `run` failed. The error is already logged."""
 
 
 class Trigger(ModuleItem):
@@ -64,6 +83,11 @@ class Trigger(ModuleItem):
 
     # Time to wait for stop event to be received
     _STOP_EVENT_WAIT = 120
+
+    # Pacing applied by the run loops after a failed cycle, so that a permanent
+    # failure does not busy-loop.
+    ERROR_BACKOFF_MAX = DEFAULT_MAX_DELAY
+    ERROR_BACKOFF_JITTER = DEFAULT_JITTER
 
     def __init__(self, module: Module | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
@@ -163,9 +187,56 @@ class Trigger(ModuleItem):
         elif self._configuration:
             sentry_sdk.set_context("trigger_configuration", self._configuration)
 
-    def _execute_once(self) -> None:
+    def _error_backoff(self, before_sleep: BeforeSleep = None) -> Retrying:
+        """Build the controller pacing a synchronous run loop."""
+        return error_backoff(
+            self._stop_event,
+            before_sleep=before_sleep,
+            max_delay=self.ERROR_BACKOFF_MAX,
+            jitter=self.ERROR_BACKOFF_JITTER,
+        )
+
+    def _async_error_backoff(
+        self, before_sleep: AsyncBeforeSleep = None
+    ) -> AsyncRetrying:
+        """Build the controller pacing an asynchronous run loop."""
+        return async_error_backoff(
+            self._stop_event,
+            before_sleep=before_sleep,
+            max_delay=self.ERROR_BACKOFF_MAX,
+            jitter=self.ERROR_BACKOFF_JITTER,
+        )
+
+    def _log_backoff(self, description: str) -> Callable[[RetryCallState], None]:
+        """Build a `before_sleep` hook logging the failure being retried."""
+
+        def hook(retry_state: RetryCallState) -> None:
+            outcome = retry_state.outcome
+            exception = outcome.exception() if outcome is not None else None
+
+            # Constant message: `log` rate-limits per message, so interpolating
+            # the delay would send one log per failed cycle.
+            message = f"{description}. Retrying with an exponential backoff"
+
+            if isinstance(exception, Exception):
+                self.log_exception(exception, message=message)
+            else:
+                # No outcome, or a BaseException `log_exception` cannot take.
+                self.log(message=message, level="error")
+
+        return hook
+
+    def _execute_once(self) -> bool:
+        """
+        Run the trigger once.
+
+        Returns:
+            bool: whether `run` completed without raising.
+        """
+        succeeded = False
         try:
             self.run()
+            succeeded = True
         # Configuration errors are considered to be critical
         except (TriggerConfigurationError, ModuleConfigurationError) as e:
             self.log_exception(e)
@@ -187,6 +258,7 @@ class Trigger(ModuleItem):
             # Prevent the trigger from running
             # and creating other errors until it is stopped
             self._stop_event.wait(self._STOP_EVENT_WAIT)
+        return succeeded
 
     def execute(self) -> None:
         self._ensure_data_path_set()
@@ -196,13 +268,24 @@ class Trigger(ModuleItem):
         self._logs_timer.start()
         try:
             while not self._stop_event.is_set():
-                try:
-                    self._execute_once()
-                except Exception:  # pragma: no cover
-                    # Exception are handled in `_execute_once` but in case
-                    # an error occurred while handling an error we catch everything
-                    # i.e. An error occurred while sending logs to Sekoia.io
-                    pass
+                # New controller per iteration, so the delay resets once `run`
+                # completes. `_execute_once` already logged, hence no hook.
+                for attempt in self._error_backoff():
+                    with attempt:
+                        if not self.running:
+                            break
+
+                        try:
+                            failed = not self._execute_once()
+                        except Exception:  # pragma: no cover
+                            # `_execute_once` handles its own errors, so this
+                            # only catches errors raised while handling one,
+                            # i.e. while sending logs to Sekoia.io
+                            failed = True
+
+                        if failed:
+                            # Raise so the controller paces the next start.
+                            raise _RunAbortedError
         finally:
             # Send remaining logs if any
             self._send_logs_to_api()

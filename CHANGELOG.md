@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Pace every run loop with an exponential backoff after a failed cycle. `Trigger.execute`, `Connector.run`, `AsyncConnector.async_run`, `AssetConnector.run` and `AsyncAssetConnector.async_run` restarted a failed cycle with no delay at all, so a permanent failure (invalid credentials, unreachable endpoint) turned into a busy loop that saturated a CPU and hammered the remote API. The two loops that did pause relied on `Connector.frequency`, which defaults to `0`, so the pause never happened.
+
+### Added
+
+- `sekoia_automation.backoff`, exposing `error_backoff` and `async_error_backoff`: thin `tenacity` factories used by the run loops. The delay grows across consecutive failures, is capped by `Trigger.ERROR_BACKOFF_MAX` (5 minutes) and spread by `Trigger.ERROR_BACKOFF_JITTER` (30 seconds); both are overridable per class. The pause waits on the stop event, so `SIGTERM` is still honoured immediately.
+
+### Changed
+
+- `Trigger._execute_once` now returns whether `run` completed without raising
+
 ## 1.24.0 - 2026-07-30
 
 ### Added

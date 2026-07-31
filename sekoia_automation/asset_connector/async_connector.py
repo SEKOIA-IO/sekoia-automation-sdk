@@ -544,27 +544,35 @@ class AsyncAssetConnector(Trigger):
         """
         Async main loop that continuously fetches and pushes assets.
         """
+        log_backoff = self._log_backoff(
+            f"Error while running asset connector {self.connector_name}"
+        )
+
         try:
             while self.running:
-                try:
-                    await self.asset_fetch_cycle()
-                except AssetConnectorRateLimitError as e:
-                    self.log(
-                        message=f"Rate limit hit, pausing connector "
-                        f"for {e.retry_after} seconds",
-                        level="warning",
-                    )
-                    # Wait in a worker thread with the timeout passed to
-                    # Event.wait itself: the thread returns cleanly after
-                    # retry_after (or immediately when stop() is signalled),
-                    # so no thread is leaked per pause.
-                    await asyncio.to_thread(self._stop_event.wait, e.retry_after)
-                except Exception as e:
-                    self.log_exception(
-                        e,
-                        message=f"Error while running asset connector "
-                        f"{self.connector_name}",
-                    )
+                # New controller per iteration, so the delay resets on success.
+                async for attempt in self._async_error_backoff(log_backoff):
+                    with attempt:
+                        if not self.running:
+                            break
+
+                        try:
+                            await self.asset_fetch_cycle()
+                        except AssetConnectorRateLimitError as e:
+                            # Not a failure: handled here so it does not stack
+                            # with the error backoff.
+                            self.log(
+                                message=f"Rate limit hit, pausing connector "
+                                f"for {e.retry_after} seconds",
+                                level="warning",
+                            )
+                            # Wait in a worker thread with the timeout passed to
+                            # Event.wait itself: the thread returns cleanly after
+                            # retry_after (or immediately when stop() is signalled),
+                            # so no thread is leaked per pause.
+                            await asyncio.to_thread(
+                                self._stop_event.wait, e.retry_after
+                            )
         finally:
             # Clean up session on exit
             if self._session:

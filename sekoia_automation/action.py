@@ -3,6 +3,7 @@ import logging
 import re
 from abc import abstractmethod
 from datetime import UTC, datetime
+from numbers import Real
 from pathlib import Path
 from posixpath import join as urljoin
 from traceback import format_exc
@@ -278,10 +279,80 @@ class GenericAPIAction(Action):
     endpoint: str
     query_parameters: list[str]
     timeout: int = 5
+    strip_empty_string_fields: tuple[str, ...] = ()
+    retry_without_fields_on_failure: tuple[str, ...] = ()
+    skip_request_if_body_empty: bool = False
 
     authentication: SupportedAuthentications = None
     auth_header: str | None = None
     auth_query_param: str | None = None
+
+    @staticmethod
+    def _normalize_timeout_value(value: Any) -> float | tuple[float, float] | None:
+        if isinstance(value, Real):
+            return float(value)
+
+        if (
+            isinstance(value, (list, tuple))
+            and len(value) == 2
+            and all(isinstance(v, Real) for v in value)
+        ):
+            return (float(value[0]), float(value[1]))
+
+        return None
+
+    def get_timeout(self) -> float | tuple[float, float]:
+        configured_connect_timeout = self._module_configuration_value(
+            "http_connect_timeout"
+        )
+        configured_read_timeout = self._module_configuration_value(
+            "http_read_timeout"
+        )
+        if (
+            configured_connect_timeout is not None
+            and configured_read_timeout is not None
+        ):
+            configured_pair = self._normalize_timeout_value(
+                (configured_connect_timeout, configured_read_timeout)
+            )
+            if configured_pair is not None:
+                return configured_pair
+
+            self.log(
+                (
+                    "Invalid HTTP timeout pair in module configuration, "
+                    "falling back to action timeout"
+                ),
+                level="warning",
+                connect_timeout=configured_connect_timeout,
+                read_timeout=configured_read_timeout,
+            )
+
+        configured_timeout = self._module_configuration_value("http_timeout")
+        if configured_timeout is not None:
+            normalized_timeout = self._normalize_timeout_value(configured_timeout)
+            if normalized_timeout is not None:
+                return normalized_timeout
+
+            self.log(
+                (
+                    "Invalid HTTP timeout in module configuration, "
+                    "falling back to action timeout"
+                ),
+                level="warning",
+                http_timeout=configured_timeout,
+            )
+
+        normalized_action_timeout = self._normalize_timeout_value(self.timeout)
+        if normalized_action_timeout is not None:
+            return normalized_action_timeout
+
+        self.log(
+            "Invalid action timeout, falling back to default timeout",
+            level="warning",
+            action_timeout=self.timeout,
+        )
+        return 5.0
 
     def __set_authentication_header(self, headers: dict):
         """
@@ -442,11 +513,43 @@ class GenericAPIAction(Action):
                     res[key] = value
         return res
 
-    def run(self, arguments) -> dict | None:
-        headers = self.get_headers()
-        url = self.get_url(arguments)
-        params = self.get_query_parameters(arguments)
-        body = self.get_body(arguments)
+    def _normalize_request_body(
+        self, body: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
+        if not self.strip_empty_string_fields:
+            return body, []
+
+        normalized = dict(body)
+        removed_fields: list[str] = []
+        for field in self.strip_empty_string_fields:
+            if normalized.get(field) == "":
+                normalized.pop(field)
+                removed_fields.append(field)
+
+        return normalized, removed_fields
+
+    @staticmethod
+    def _drop_fields(body: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+        if not fields:
+            return body
+
+        reduced = dict(body)
+        for field in fields:
+            reduced.pop(field, None)
+        return reduced
+
+    def _execute_http_request(
+        self,
+        *,
+        url: str,
+        headers: dict[str, Any],
+        params: dict[str, Any] | None,
+        body: dict[str, Any],
+        arguments: dict[str, Any],
+        timeout: float | tuple[float, float],
+    ) -> dict | None:
+        self._last_http_attempts = 1
+        self._last_http_status_code = None
 
         try:
             for attempt in Retrying(
@@ -460,7 +563,7 @@ class GenericAPIAction(Action):
                         url,
                         json=body,
                         headers=headers,
-                        timeout=self.timeout,
+                        timeout=timeout,
                         params=params,
                     )
                     if not response.ok:
@@ -493,6 +596,85 @@ class GenericAPIAction(Action):
             return None
 
         return response.json() if response.status_code != 204 else None
+
+    def run(self, arguments) -> dict | None:
+        headers = self.get_headers()
+        url = self.get_url(arguments)
+        params = self.get_query_parameters(arguments)
+        body = self.get_body(arguments)
+        timeout = self.get_timeout()
+
+        if isinstance(body, dict):
+            body, removed_fields = self._normalize_request_body(body)
+            if removed_fields:
+                self.log(
+                    "Removed empty string fields from request body",
+                    level="warning",
+                    removed_fields=removed_fields,
+                )
+
+            if self.skip_request_if_body_empty and not body:
+                self.log(
+                    (
+                        "Skipping HTTP request because request body is empty "
+                        "after normalization"
+                    ),
+                    level="warning",
+                )
+                self._error = None
+                return {}
+
+        result = self._execute_http_request(
+            url=url,
+            headers=headers,
+            params=params,
+            body=body,
+            arguments=arguments,
+            timeout=timeout,
+        )
+        if result is not None:
+            return result
+
+        if isinstance(body, dict) and self.retry_without_fields_on_failure:
+            reduced_body = self._drop_fields(
+                body, self.retry_without_fields_on_failure
+            )
+            if reduced_body != body:
+                if self.skip_request_if_body_empty and not reduced_body:
+                    self.log(
+                        (
+                            "Skipping fallback HTTP request because reduced "
+                            "request body is empty"
+                        ),
+                        level="warning",
+                        removed_fields=list(self.retry_without_fields_on_failure),
+                    )
+                    self._error = None
+                    return {}
+
+                self.log(
+                    "Retrying HTTP request with reduced request body",
+                    level="warning",
+                    removed_fields=list(self.retry_without_fields_on_failure),
+                )
+                self._error = None
+                fallback_result = self._execute_http_request(
+                    url=url,
+                    headers=headers,
+                    params=params,
+                    body=reduced_body,
+                    arguments=arguments,
+                    timeout=timeout,
+                )
+                if fallback_result is not None:
+                    self._error = None
+                    self.log(
+                        "HTTP request succeeded with reduced request body",
+                        level="warning",
+                    )
+                    return fallback_result
+
+        return None
 
     def _wait_param(self) -> wait_base:
         return wait_exponential(multiplier=2, min=2, max=300)

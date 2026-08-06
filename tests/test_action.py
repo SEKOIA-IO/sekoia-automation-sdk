@@ -1,5 +1,6 @@
 import json
 import logging
+from types import SimpleNamespace
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -9,8 +10,12 @@ from requests import Timeout
 from tenacity import wait_none
 
 from sekoia_automation import SekoiaAutomationBaseModel
-from sekoia_automation.action import Action, GenericAPIAction
-from sekoia_automation.exceptions import MissingActionArgumentError, SendEventError
+from sekoia_automation.action import Action, ActionLogHandler, GenericAPIAction
+from sekoia_automation.exceptions import (
+    MissingActionArgumentError,
+    MissingActionArgumentFileError,
+    SendEventError,
+)
 from sekoia_automation.module import Module
 from tests.conftest import DEFAULT_ARGUMENTS, FAKE_URL, MANIFEST_WITH_SECRETS
 
@@ -18,6 +23,18 @@ from tests.conftest import DEFAULT_ARGUMENTS, FAKE_URL, MANIFEST_WITH_SECRETS
 class DummyAction(Action):
     def run(self, arguments):
         return {}
+
+
+def test_action_log_handler_emit_ignores_internal_errors():
+    class FailingAction:
+        def log(self, _msg, _level):
+            raise RuntimeError("boom")
+
+    handler = ActionLogHandler(FailingAction())
+    record = logging.LogRecord("test", logging.INFO, __file__, 1, "message", (), None)
+
+    # Should not propagate errors from action.log().
+    handler.emit(record)
 
 
 def test_action_logs(capsys):
@@ -207,6 +224,36 @@ def test_action_results_invalid(mock_volume):
         }
 
 
+def test_validate_results_dict_serialization_error_calls_sentry():
+    class NotSerializable:
+        pass
+
+    action = DummyAction()
+    action._results = {"bad": NotSerializable()}
+
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        action.validate_results()
+
+    assert action.results is None
+    assert action.error_message is not None
+    assert action.error_message.startswith("Results are invalid:")
+    sentry_patch.assert_called_once()
+
+
+def test_validate_results_list_serialization_error_calls_sentry():
+    class NotSerializable:
+        pass
+
+    action = DummyAction()
+    action._results = [{"bad": NotSerializable()}]
+
+    with patch("sentry_sdk.capture_exception") as sentry_patch:
+        action.validate_results()
+
+    assert action.error_message is None
+    sentry_patch.assert_called_once()
+
+
 def test_action_json_argument(storage):
     action = DummyAction(data_path=storage)
 
@@ -218,6 +265,13 @@ def test_action_json_argument(storage):
         out.write('"value"')
 
     assert action.json_argument("test", {"test_path": "test.txt"}) == "value"
+
+
+def test_action_json_argument_missing_file_raises(storage):
+    action = DummyAction(data_path=storage)
+
+    with pytest.raises(MissingActionArgumentFileError):
+        action.json_argument("test", {"test_path": "missing.txt"})
 
 
 def test_action_json_argument_missing():
@@ -450,6 +504,146 @@ def test_generic_api_action(storage):
         action.run(arguments)
         assert mock.request_history[0].headers["Authorization"] == "Basic dXNlcjpwYXNz"
 
+
+def test_generic_api_action_get_url_uses_action_base_url_when_module_has_none(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        base_url = "http://class_base_url/"
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "get"
+    action.endpoint = "resource/{uuid}/count"
+    action.query_parameters = []
+    action.module.configuration = {}
+
+    with requests_mock.Mocker() as mock:
+        mock.get("http://class_base_url/resource/fake_uuid/count", json={"count": 1})
+        result = action.run({"uuid": "fake_uuid"})
+
+    assert result == {"count": 1}
+
+
+def test_generic_api_action_log_request_error_handles_non_json_response(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    response = Mock()
+    response.status_code = 400
+    response.json.side_effect = ValueError("not json")
+    response.text = "plain error"
+
+    action.log_request_error("http://base_url/resource", {}, response)
+
+    assert action.error_message is not None
+    assert "HTTP Request failed" in action.error_message
+
+
+def test_generic_api_action_get_body_keeps_missing_path_argument(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    body = action.get_body({"bundle_path": "missing_bundle.json"})
+    assert body == {"bundle_path": "missing_bundle.json"}
+
+
+def test_generic_api_action_drop_fields_with_empty_configuration():
+    body = {"description": "value"}
+    reduced = GenericAPIAction._drop_fields(body, ())
+    assert reduced == body
+
+
+def test_generic_api_action_wait_param_returns_wait_strategy(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        pass
+
+    action = TestGenericAPIAction(data_path=storage)
+    assert action._wait_param() is not None
+
+
+def test_generic_api_action_reads_module_configuration_from_object(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.module._configuration = SimpleNamespace(base_url="http://base_url/")
+    assert action._module_configuration_value("base_url") == "http://base_url/"
+
+
+def test_generic_api_action_timeout_from_module_configuration(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "get"
+    action.endpoint = "resource/{uuid}/count"
+    action.query_parameters = []
+    action.module.configuration = {
+        "base_url": "http://base_url/",
+        "http_timeout": 42,
+    }
+
+    expected_response = {"count": 10}
+    with patch("requests.request") as mock:
+        mock.return_value = Mock(
+            status_code=200,
+            ok=True,
+            json=Mock(return_value=expected_response),
+        )
+        results = action.run({"uuid": "fake_uuid"})
+
+    assert results == expected_response
+    assert mock.call_count == 1
+    assert mock.call_args.kwargs["timeout"] == 42.0
+
+
+def test_generic_api_action_timeout_pair_from_module_configuration(storage):
+    def init_action() -> GenericAPIAction:
+        class TestGenericAPIAction(GenericAPIAction):
+            def _wait_param(self):
+                return wait_none()
+
+        init = TestGenericAPIAction(data_path=storage)
+        init.verb = "get"
+        init.endpoint = "resource/{uuid}/count"
+        init.query_parameters = []
+        init.module.configuration = {"base_url": "http://base_url/"}
+        return init
+
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "get"
+    action.endpoint = "resource/{uuid}/count"
+    action.query_parameters = []
+    action.module.configuration = {
+        "base_url": "http://base_url/",
+        "http_connect_timeout": 3,
+        "http_read_timeout": 55,
+    }
+
+    expected_response = {"count": 10}
+    with patch("requests.request") as mock:
+        mock.return_value = Mock(
+            status_code=200,
+            ok=True,
+            json=Mock(return_value=expected_response),
+        )
+        results = action.run({"uuid": "fake_uuid"})
+
+    assert results == expected_response
+    assert mock.call_count == 1
+    assert mock.call_args.kwargs["timeout"] == (3.0, 55.0)
+
     # API Key
     action = init_action()
     action.authentication = "aPiKey"
@@ -490,6 +684,154 @@ def test_generic_api_action(storage):
         mock.get("http://base_url/resource/10/count", json=expected_response)
         action.run(arguments)
         assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
+
+
+def test_generic_api_action_strips_empty_string_fields(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        strip_empty_string_fields = ("description",)
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "patch"
+    action.endpoint = "resource/{uuid}"
+    action.query_parameters = []
+    action.module.configuration = {"base_url": "http://base_url/"}
+
+    with patch("requests.request") as mock:
+        mock.return_value = Mock(status_code=200, ok=True, json=Mock(return_value={}))
+        action.run({"uuid": "fake_uuid", "description": "", "title": "updated"})
+
+    assert mock.call_count == 1
+    assert mock.call_args.kwargs["json"] == {"title": "updated"}
+
+
+def test_generic_api_action_skips_request_when_body_empty_after_normalization(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        strip_empty_string_fields = ("description",)
+        skip_request_if_body_empty = True
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "patch"
+    action.endpoint = "resource/{uuid}"
+    action.query_parameters = []
+    action.module.configuration = {"base_url": "http://base_url/"}
+
+    with patch("requests.request") as mock:
+        result = action.run({"uuid": "fake_uuid", "description": ""})
+
+    assert result == {}
+    assert mock.call_count == 0
+
+
+def test_generic_api_action_retries_with_reduced_body_on_failure(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        retry_without_fields_on_failure = ("description",)
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "patch"
+    action.endpoint = "resource/{uuid}"
+    action.query_parameters = []
+    action.module.configuration = {"base_url": "http://base_url/"}
+
+    with patch.object(action, "_execute_http_request") as execute_http_request:
+        execute_http_request.side_effect = [None, {"ok": True}]
+        result = action.run(
+            {
+                "uuid": "fake_uuid",
+                "title": "updated",
+                "description": "large description",
+            }
+        )
+
+    assert result == {"ok": True}
+    assert execute_http_request.call_count == 2
+    assert execute_http_request.call_args_list[0].kwargs["body"] == {
+        "title": "updated",
+        "description": "large description",
+    }
+    assert execute_http_request.call_args_list[1].kwargs["body"] == {"title": "updated"}
+
+
+def test_generic_api_action_skips_fallback_when_reduced_body_is_empty(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        retry_without_fields_on_failure = ("description",)
+        skip_request_if_body_empty = True
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "patch"
+    action.endpoint = "resource/{uuid}"
+    action.query_parameters = []
+    action.module.configuration = {"base_url": "http://base_url/"}
+
+    with patch.object(action, "_execute_http_request") as execute_http_request:
+        execute_http_request.return_value = None
+        result = action.run({"uuid": "fake_uuid", "description": "large description"})
+
+    assert result == {}
+    assert execute_http_request.call_count == 1
+
+
+def test_generic_api_action_does_not_retry_when_reduced_body_is_identical(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        retry_without_fields_on_failure = ("description",)
+
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "patch"
+    action.endpoint = "resource/{uuid}"
+    action.query_parameters = []
+    action.module.configuration = {"base_url": "http://base_url/"}
+
+    with patch.object(action, "_execute_http_request") as execute_http_request:
+        execute_http_request.return_value = None
+        result = action.run({"uuid": "fake_uuid", "title": "updated"})
+
+    assert result is None
+    assert execute_http_request.call_count == 1
+
+
+def test_generic_api_action_timeout_falls_back_to_default_if_invalid(storage):
+    class TestGenericAPIAction(GenericAPIAction):
+        def _wait_param(self):
+            return wait_none()
+
+    action = TestGenericAPIAction(data_path=storage)
+    action.verb = "get"
+    action.endpoint = "resource/{uuid}/count"
+    action.query_parameters = []
+    action.timeout = "invalid"
+    action.module.configuration = {
+        "base_url": "http://base_url/",
+        "http_timeout": "invalid",
+        "http_connect_timeout": "invalid",
+        "http_read_timeout": 55,
+    }
+
+    expected_response = {"count": 10}
+    with patch("requests.request") as mock:
+        mock.return_value = Mock(
+            status_code=200,
+            ok=True,
+            json=Mock(return_value=expected_response),
+        )
+        results = action.run({"uuid": "fake_uuid"})
+
+    assert results == expected_response
+    assert mock.call_count == 1
+    assert mock.call_args.kwargs["timeout"] == 5.0
 
 
 def test_action_with_arguments_model():

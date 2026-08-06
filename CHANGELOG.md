@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.25.0 - 2026-08-06
+
+### Added
+
+- Add configurable request timeouts for `GenericAPIAction` through module configuration:
+  - `http_timeout` for a single timeout value
+  - `http_connect_timeout` + `http_read_timeout` for split connect/read timeouts
+- Allow action-level timeout definitions to use either a single value or a `(connect_timeout, read_timeout)` pair
+- Add optional, non-breaking payload controls to `GenericAPIAction`:
+  - `strip_empty_string_fields` to drop configured empty string fields before sending the request
+  - `retry_without_fields_on_failure` to retry once with selected fields removed when the first request fails
+  - `skip_request_if_body_empty` to return early when normalization/reduction yields an empty payload
+
 ## 1.24.0 - 2026-07-30
 
 ### Added

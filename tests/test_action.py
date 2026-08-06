@@ -686,6 +686,44 @@ def test_generic_api_action_timeout_pair_from_module_configuration(storage):
         assert mock.request_history[0].headers["Authorization"] == "Bearer api_key"
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        False,
+        0,
+        -1,
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_generic_api_action_normalize_timeout_value_rejects_invalid_numbers(value):
+    assert GenericAPIAction._normalize_timeout_value(value) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        (True, 1),
+        (1, False),
+        (0, 1),
+        (1, 0),
+        (-1, 1),
+        (1, -1),
+        (float("inf"), 1),
+        (1, float("nan")),
+    ],
+)
+def test_generic_api_action_normalize_timeout_value_rejects_invalid_pairs(value):
+    assert GenericAPIAction._normalize_timeout_value(value) is None
+
+
+def test_generic_api_action_normalize_timeout_value_accepts_positive_finite_numbers():
+    assert GenericAPIAction._normalize_timeout_value(5) == 5.0
+    assert GenericAPIAction._normalize_timeout_value((3, 12.5)) == (3.0, 12.5)
+
+
 def test_generic_api_action_strips_empty_string_fields(storage):
     class TestGenericAPIAction(GenericAPIAction):
         strip_empty_string_fields = ("description",)

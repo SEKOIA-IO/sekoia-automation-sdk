@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import re
 from abc import abstractmethod
 from datetime import UTC, datetime
@@ -278,7 +279,7 @@ class GenericAPIAction(Action):
     verb: str
     endpoint: str
     query_parameters: list[str]
-    timeout: int = 5
+    timeout: float | tuple[float, float] = 5
     strip_empty_string_fields: tuple[str, ...] = ()
     retry_without_fields_on_failure: tuple[str, ...] = ()
     skip_request_if_body_empty: bool = False
@@ -288,16 +289,34 @@ class GenericAPIAction(Action):
     auth_query_param: str | None = None
 
     @staticmethod
-    def _normalize_timeout_value(value: Any) -> float | tuple[float, float] | None:
-        if isinstance(value, Real):
-            return float(value)
+    def _normalize_timeout_number(value: Any) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, Real):
+            return None
 
-        if (
-            isinstance(value, (list, tuple))
-            and len(value) == 2
-            and all(isinstance(v, Real) for v in value)
-        ):
-            return (float(value[0]), float(value[1]))
+        normalized = float(value)
+        if normalized <= 0 or not math.isfinite(normalized):
+            return None
+
+        return normalized
+
+    @staticmethod
+    def _normalize_timeout_value(value: Any) -> float | tuple[float, float] | None:
+        normalized_single = GenericAPIAction._normalize_timeout_number(value)
+        if normalized_single is not None:
+            return normalized_single
+
+        if isinstance(value, (list, tuple)) and len(value) == 2:
+            normalized_connect_timeout = GenericAPIAction._normalize_timeout_number(
+                value[0]
+            )
+            normalized_read_timeout = GenericAPIAction._normalize_timeout_number(
+                value[1]
+            )
+            if (
+                normalized_connect_timeout is not None
+                and normalized_read_timeout is not None
+            ):
+                return (normalized_connect_timeout, normalized_read_timeout)
 
         return None
 

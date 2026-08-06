@@ -305,9 +305,7 @@ class GenericAPIAction(Action):
         configured_connect_timeout = self._module_configuration_value(
             "http_connect_timeout"
         )
-        configured_read_timeout = self._module_configuration_value(
-            "http_read_timeout"
-        )
+        configured_read_timeout = self._module_configuration_value("http_read_timeout")
         if (
             configured_connect_timeout is not None
             and configured_read_timeout is not None
@@ -636,9 +634,7 @@ class GenericAPIAction(Action):
             return result
 
         if isinstance(body, dict) and self.retry_without_fields_on_failure:
-            reduced_body = self._drop_fields(
-                body, self.retry_without_fields_on_failure
-            )
+            reduced_body = self._drop_fields(body, self.retry_without_fields_on_failure)
             if reduced_body != body:
                 if self.skip_request_if_body_empty and not reduced_body:
                     self.log(

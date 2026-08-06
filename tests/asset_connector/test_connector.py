@@ -10,10 +10,6 @@ import requests
 from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
-from sekoia_automation.asset_connector.utils import (
-    RATE_LIMIT_DEFAULT_WAIT,
-    parse_retry_after,
-)
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -41,6 +37,10 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     KillChainPhaseID,
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
+)
+from sekoia_automation.asset_connector.utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    parse_retry_after,
 )
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 

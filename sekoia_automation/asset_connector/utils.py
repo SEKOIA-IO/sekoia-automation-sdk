@@ -1,8 +1,15 @@
 import email.utils
 import math
+import os
 from datetime import datetime
 
 RATE_LIMIT_DEFAULT_WAIT = 3600  # 1 hour
+
+# Statuses a task can hold while the platform has not finished ingesting the
+# pushed assets yet. Anything else is terminal.
+TASK_PENDING_STATUSES = frozenset({"PENDING", "RUNNING"})
+TASK_POLL_INTERVAL_DEFAULT = 5.0  # seconds between two task status checks
+TASK_POLL_TIMEOUT_DEFAULT = 300.0  # give up waiting after 5 minutes
 
 
 def parse_retry_after(header_value: str | None, default: float) -> float:
@@ -36,3 +43,24 @@ def parse_retry_after(header_value: str | None, default: float) -> float:
     if seconds is None or not math.isfinite(seconds):
         return default
     return min(max(seconds, 0.0), RATE_LIMIT_DEFAULT_WAIT)
+
+
+def get_env_float(name: str, default: float) -> float:
+    """
+    Read a float from the environment, falling back to ``default`` when the
+    variable is unset or does not hold a valid number.
+
+    Args:
+        name: Environment variable name.
+        default: Fallback value.
+    Returns:
+        float: The parsed value or the default.
+    """
+    value = os.getenv(name)
+    if not value:
+        return default
+
+    try:
+        return float(value)
+    except ValueError:
+        return default

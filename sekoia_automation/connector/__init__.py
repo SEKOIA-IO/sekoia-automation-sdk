@@ -49,6 +49,8 @@ class SendEventsChunkError(Exception):
         chunk_index: int,
         attempt_number: int,
     ):
+        super().__init__()
+
         self.status_code = status_code
         self.response_body = response_body
         self.chunk_index = chunk_index

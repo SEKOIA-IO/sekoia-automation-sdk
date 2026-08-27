@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+ - Use a longer wait for INTAKE_KEY_ERROR, while trying to push events
+ 
 ## 1.24.0 - 2026-07-30
 
 ### Added
@@ -20,10 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The asset-connector models are now provided by the standalone `sekoia-automation-models` package (`>=1.1.0`). The `sekoia_automation.asset_connector.models.ocsf.*` modules and `sekoia_automation.asset_connector.models.connector` (`AssetItem`, `AssetList`, `DefaultAssetConnectorConfiguration`) are thin re-exports, so existing import paths keep working unchanged.
-
-### Changed
-
- - Use a longer wait for INTAKE_KEY_ERROR, while trying to push events
 
 ### Fixed
 

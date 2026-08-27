@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+ - Use a longer wait for INTAKE_KEY_ERROR, while trying to push events
+ 
 ## 1.24.0 - 2026-07-30
 
 ### Added

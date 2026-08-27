@@ -47,7 +47,9 @@ def test_connector(storage, mocked_trigger_logs):
         test_connector.log = Mock()
         test_connector.log_exception = Mock()
         test_connector._retry = lambda: Retrying(
-            reraise=True, stop=stop_after_attempt(3), wait=wait_none()
+            reraise=True,
+            stop=stop_after_attempt(3),
+            wait=test_connector._wait_by_error_type,
         )
 
         yield test_connector
@@ -345,8 +347,9 @@ def test_push_events_422_retries_and_succeeds_second_attempt(
         result = test_connector.push_events_to_intakes(EVENTS)
 
     assert result == ["001", "002"]
-    # Verify exponential backoff: slept 0 second before 2nd attempt because of wait_none
-    mock_sleep.assert_called_once_with(0.0)
+    # Verify exponential backoff: slept 1 second before the 2nd
+    # attempt because of wait_exponential
+    mock_sleep.assert_called_once_with(1.0)
 
 
 def test_push_events_422_retries_and_succeeds_third_attempt(
@@ -367,10 +370,10 @@ def test_push_events_422_retries_and_succeeds_third_attempt(
         result = test_connector.push_events_to_intakes(EVENTS)
 
     assert result == ["001", "002"]
-    # Verify exponential backoff: 0s, then 0s because of wait_none
+    # Verify exponential backoff: 1s, then 2s because of wait_exponential
     assert mock_sleep.call_count == 2
-    assert mock_sleep.call_args_list[0][0][0] == 0.0
-    assert mock_sleep.call_args_list[1][0][0] == 0.0
+    assert mock_sleep.call_args_list[0][0][0] == 1.0
+    assert mock_sleep.call_args_list[1][0][0] == 2.0
 
 
 def test_push_events_422_fails_after_max_retries(test_connector, mocked_trigger_logs):
@@ -392,10 +395,10 @@ def test_push_events_422_fails_after_max_retries(test_connector, mocked_trigger_
 
     # Should return empty list after all retries fail
     assert result == []
-    # Verify exponential backoff: 0s, 0s, 0s because of wait_none
+    # Verify exponential backoff: 0s, 1s, 2s because of wait_exponential
     assert mock_sleep.call_count == 2
-    assert mock_sleep.call_args_list[0][0][0] == 0.0
-    assert mock_sleep.call_args_list[1][0][0] == 0.0
+    assert mock_sleep.call_args_list[0][0][0] == 1.0
+    assert mock_sleep.call_args_list[1][0][0] == 2.0
 
     test_connector.log_exception.assert_called_once()
 
@@ -417,6 +420,7 @@ def test_push_events_other_4xx_fails_immediately(test_connector, mocked_trigger_
         mock_sleep.call_count = 2
         # Error should be logged
         test_connector.log_exception.assert_called_once()
+        assert mock_sleep.call_args_list[0][0][0] == 1.0
 
 
 def test_push_events_5xx_uses_standard_retry(test_connector, mocked_trigger_logs):
@@ -430,10 +434,30 @@ def test_push_events_5xx_uses_standard_retry(test_connector, mocked_trigger_logs
         ],
     )
 
-    # Use standard retry with limited attempts for test
-    test_connector._retry = lambda: Retrying(
-        reraise=True, stop=stop_after_attempt(5), wait=wait_none()
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    assert result == ["001", "002"]
+    assert mock_sleep.call_args_list[0][0][0] == 1.0
+
+
+def test_push_events_with_intake_key_error(test_connector, mocked_trigger_logs):
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(
+        url,
+        [
+            {"status_code": 422, "text": "...INTAKE_KEY_ERROR..."},
+            {"status_code": 422, "text": "...INTAKE_KEY_ERROR..."},
+            {"json": {"event_ids": ["001", "002"]}, "status_code": 200},
+        ],
     )
 
-    result = test_connector.push_events_to_intakes(EVENTS)
+    with patch("time.sleep") as mock_sleep:
+        result = test_connector.push_events_to_intakes(EVENTS)
+
     assert result == ["001", "002"]
+
+    # Verify fixed timeout of 300s
+    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_args_list[0][0][0] == 300
+    assert mock_sleep.call_args_list[1][0][0] == 300

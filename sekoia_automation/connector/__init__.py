@@ -52,6 +52,10 @@ class Connector(Trigger, MetricsMixin, ABC):
         """
         return self.__class__.__name__
 
+    def _apply_node_secrets(self) -> None:
+        # Node-level secrets are supported for triggers only for now; connectors: no-op.
+        return
+
     @property  # type: ignore[no-redef]
     def configuration(self) -> DefaultConnectorConfiguration:
         if self._configuration is None:

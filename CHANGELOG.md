@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Support for trigger-level secrets: trigger configuration fields marked with
+  `Field(json_schema_extra={"secret": True})` are emitted as `secrets` in the
+  generated trigger manifest, and their values are fetched at startup from the
+  same `/secrets` call already used for module secrets (via its `node_value`
+  field). Resolution is best-effort: when the API does not serve trigger-level
+  secrets yet, the value from the configuration file is kept, so the SDK stays
+  compatible with an older platform.
+
 ## 1.24.0 - 2026-07-30
 
 ### Added

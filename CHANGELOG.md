@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [Unreleased] - 2026-06-16
+## 1.24.0 - 2026-07-30
 
 ### Added
 
 - Improve `GenericAPIAction` HTTP error messages by including HTTP status code and retry information (attempt count and retry count) for both immediate client errors and final retry failures
+- Surface the underlying exception (type and message) final retry failures in the action logs and the Sentry notification
+- Always log JSON-serializable content when request body is not JSON
+- Handle HTTP 429 rate limiting on the asset connector push endpoint by pausing for the `Retry-After` duration (default: 1h, configurable).
+- Refetch assets when a field mapping change is detected
+
+### Changed
+
+- The asset-connector models are now provided by the standalone `sekoia-automation-models` package (`>=1.1.0`). The `sekoia_automation.asset_connector.models.ocsf.*` modules and `sekoia_automation.asset_connector.models.connector` (`AssetItem`, `AssetList`, `DefaultAssetConnectorConfiguration`) are thin re-exports, so existing import paths keep working unchanged.
 
 ### Changed
 
@@ -19,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clamp the parsed asset-connector `Retry-After` value to `[0, 1h]` and reject non-finite values so a malformed server header can never trigger a negative sleep or an arbitrarily long pause
+- Bound the async asset-connector rate-limit pause with a stop-aware wait that no longer leaks a worker thread per pause
+- Keep `AssetConnector`/`AsyncAssetConnector` backward compatible by shipping default no-op `reset_checkpoint`/`get_mapped_fields` implementations instead of new abstract methods
 - Fix test suite compatibility with Python 3.14 by patching `aioresponses` usage in tests and updating a CLI exception assertion to `typer.Exit`
 - Fix CI Codecov upload on Python 3.12 by switching the Codecov action to the PyPI CLI path (`use_pypi: true`) to avoid GPG key validation failures
 

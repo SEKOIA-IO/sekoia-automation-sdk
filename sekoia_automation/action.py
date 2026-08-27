@@ -384,6 +384,7 @@ class GenericAPIAction(Action):
         self,
         url: str,
         arguments: dict,
+        retry_error: RetryError | None = None,
     ):
         attempts = getattr(self, "_last_http_attempts", 1)
         status_code = getattr(self, "_last_http_status_code", None)
@@ -396,6 +397,12 @@ class GenericAPIAction(Action):
         message = (
             f"HTTP Request failed {attempts_details}: {url} (last status code: {code})"
         )
+
+        # Extract the underlying exception from RetryError if available
+        underlying_exception: BaseException | None = None
+        if retry_error and retry_error.last_attempt:
+            underlying_exception = retry_error.last_attempt.exception()
+
         self.log(
             message,
             level="error",
@@ -404,6 +411,12 @@ class GenericAPIAction(Action):
             retries=retries,
             attempts=attempts,
             status=status_code,
+            underlying_error=str(underlying_exception)
+            if underlying_exception
+            else None,
+            exception_type=(
+                type(underlying_exception).__name__ if underlying_exception else None
+            ),
         )
         self.error(message)
 
@@ -476,7 +489,7 @@ class GenericAPIAction(Action):
 
             self._last_http_attempts = attempts
             self._last_http_status_code = status_code
-            self.log_retry_error(url, arguments)
+            self.log_retry_error(url, arguments, ex)
             return None
 
         return response.json() if response.status_code != 204 else None

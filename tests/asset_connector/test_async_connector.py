@@ -1,12 +1,18 @@
 import json
 import os
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
+from sekoia_automation.asset_connector.utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    parse_retry_after,
+)
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -35,6 +41,7 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
 )
+from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
 class ContextDict(dict):
@@ -51,6 +58,7 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.context = ContextDict({})
+        self.checkpoint_reset_count = 0
 
     def set_assets(self, assets: AssetList) -> None:
         self.assets = assets
@@ -58,6 +66,17 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
     async def update_checkpoint(self):
         with self.context as cache:
             cache["most_recent_date_seen"] = self._latest_time
+
+    async def reset_checkpoint(self):
+        self.checkpoint_reset_count += 1
+        with self.context as cache:
+            cache.pop("most_recent_date_seen", None)
+
+    def get_mapped_fields(self) -> dict[str, str]:
+        return {
+            "hostname": "device.hostname",
+            "os_name": "device.os.name",
+        }
 
     async def get_assets(
         self,
@@ -78,8 +97,8 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
 
 
 @pytest.fixture
-def test_async_asset_connector():
-    test_connector = FakeAsyncAssetConnector()
+def test_async_asset_connector(tmp_path):
+    test_connector = FakeAsyncAssetConnector(data_path=tmp_path)
 
     test_connector.configuration = {
         "sekoia_base_url": "http://example.com",
@@ -615,3 +634,197 @@ async def test_post_assets_to_api_invalid_json_response(
     assert response is None
     test_async_asset_connector.log_exception.assert_called_once()
     test_async_asset_connector.update_checkpoint.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_rate_limited_with_retry_after(
+    test_async_asset_connector, asset_list
+):
+    """Test 429 raises AssetConnectorRateLimitError honoring Retry-After header"""
+    mock_response = AsyncMock()
+    mock_response.status = 429
+    mock_response.text = AsyncMock(return_value='{"detail": "rate limited"}')
+    mock_response.headers = {"Retry-After": "30"}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+            await test_async_asset_connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+
+    await test_async_asset_connector._session.close()
+
+    assert exc_info.value.retry_after == 30
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_rate_limited_without_retry_after(
+    test_async_asset_connector, asset_list
+):
+    """Test 429 without Retry-After falls back to the default wait"""
+    mock_response = AsyncMock()
+    mock_response.status = 429
+    mock_response.text = AsyncMock(return_value='{"detail": "rate limited"}')
+    mock_response.headers = {}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+
+        with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+            await test_async_asset_connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+
+    await test_async_asset_connector._session.close()
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+
+
+def test_parse_retry_after_delta_seconds():
+    assert parse_retry_after("120", 3600) == 120
+
+
+def test_parse_retry_after_http_date():
+    future = datetime.now(UTC) + timedelta(seconds=50)
+    wait = parse_retry_after(format_datetime(future), 3600)
+    assert 45 <= wait <= 50
+
+
+def test_parse_retry_after_missing_or_garbage():
+    assert parse_retry_after(None, 3600) == 3600
+    assert parse_retry_after("not-a-date", 3600) == 3600
+
+
+def test_parse_retry_after_past_date_is_clamped():
+    past = datetime.now(UTC) - timedelta(seconds=50)
+    assert parse_retry_after(format_datetime(past), 3600) == 0.0
+
+
+def test_parse_retry_after_negative_delta_is_clamped():
+    assert parse_retry_after("-10", 3600) == 0.0
+
+
+def test_parse_retry_after_non_finite_falls_back_to_default():
+    assert parse_retry_after("inf", 3600) == 3600
+    assert parse_retry_after("nan", 3600) == 3600
+
+
+def test_parse_retry_after_far_future_date_is_capped():
+    far = datetime.now(UTC) + timedelta(days=30)
+    assert parse_retry_after(format_datetime(far), 3600) == RATE_LIMIT_DEFAULT_WAIT
+
+
+def test_parse_retry_after_large_delta_is_capped():
+    assert parse_retry_after("999999", 3600) == RATE_LIMIT_DEFAULT_WAIT
+
+
+def test_rate_limit_wait_env_var(test_async_asset_connector, monkeypatch):
+    monkeypatch.setenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT", "42")
+    assert test_async_asset_connector.rate_limit_wait == 42
+
+
+def test_rate_limit_wait_default(test_async_asset_connector):
+    assert test_async_asset_connector.rate_limit_wait == 3600
+
+
+@pytest.mark.asyncio
+async def test_async_run_handles_rate_limit(test_async_asset_connector):
+    """async_run catches the rate limit error, waits, then stops"""
+    test_async_asset_connector.asset_fetch_cycle = AsyncMock(
+        side_effect=AssetConnectorRateLimitError(retry_after=5)
+    )
+
+    def stop_during_wait(timeout=None):
+        test_async_asset_connector._stop_event.set()
+        return True
+
+    with patch.object(
+        test_async_asset_connector._stop_event, "wait", side_effect=stop_during_wait
+    ) as mock_wait:
+        await test_async_asset_connector.async_run()
+
+    # The stop event is waited on with the retry_after timeout so the pause is
+    # bounded and the worker thread returns cleanly (no leaked thread per pause).
+    mock_wait.assert_called_once_with(5)
+
+
+def test_compute_schema_fingerprint_is_deterministic(test_async_asset_connector):
+    """The fingerprint must be stable across calls when mappings do not change."""
+    fp1 = test_async_asset_connector._compute_schema_fingerprint()
+    fp2 = test_async_asset_connector._compute_schema_fingerprint()
+    assert fp1 == fp2
+    assert len(fp1) == 64  # SHA-256 hex digest length
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_first_run_saves_without_reset(
+    test_async_asset_connector, tmp_path
+):
+    """On first run no fingerprint is stored — fields and fingerprint are saved."""
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 0
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    assert schema_file.exists()
+    data = json.loads(schema_file.read_text())
+    assert (
+        data["fingerprint"] == test_async_asset_connector._compute_schema_fingerprint()
+    )
+    assert data["fields"] == test_async_asset_connector.get_mapped_fields()
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_no_change_no_reset(test_async_asset_connector):
+    """When the mappings are unchanged no reset should occur."""
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 0
+
+
+@pytest.mark.asyncio
+async def test_schema_fingerprint_change_triggers_reset(
+    test_async_asset_connector, tmp_path
+):
+    """When stale field mappings are found the checkpoint must be reset."""
+    old_fields = {"hostname": "device.hostname"}
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps({"fingerprint": "old_fingerprint_value", "fields": old_fields})
+    )
+
+    await test_async_asset_connector._check_schema_and_reset_if_needed()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 1
+    data = json.loads(schema_file.read_text())
+    assert (
+        data["fingerprint"] == test_async_asset_connector._compute_schema_fingerprint()
+    )
+    assert data["fields"] == test_async_asset_connector.get_mapped_fields()
+    # The log should mention the newly detected mapping
+    test_async_asset_connector.log.assert_called()
+    log_message = test_async_asset_connector.log.call_args_list[-1][1]["message"]
+    assert "os_name" in log_message
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
+    test_async_asset_connector, asset_list, tmp_path
+):
+    """asset_fetch_cycle resets checkpoint when the field mappings change."""
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.checkpoint_reset_count == 1

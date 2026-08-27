@@ -38,3 +38,11 @@ class ModuleConfigurationError(AutomationSDKError):
 
 class TriggerConfigurationError(AutomationSDKError):
     pass
+
+
+class AssetConnectorRateLimitError(AutomationSDKError):
+    """Raised when the asset-connector push endpoint returns HTTP 429."""
+
+    def __init__(self, retry_after: float):
+        super().__init__("Asset connector push rate limit exceeded (HTTP 429)")
+        self.retry_after = retry_after

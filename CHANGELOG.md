@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.25.0 - 2026-09-03
+
 ### Added
 
 - Asset connectors now wait for the Task API to confirm the assets pushed to Sekoia.io were ingested, and report the outcome of the push task. The polling is tunable with the `ASSET_CONNECTOR_TASK_POLL_INTERVAL` and `ASSET_CONNECTOR_TASK_POLL_TIMEOUT` environment variables

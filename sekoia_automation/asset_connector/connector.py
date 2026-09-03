@@ -21,7 +21,14 @@ from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
-from .utils import RATE_LIMIT_DEFAULT_WAIT, parse_retry_after
+from .utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    TASK_PENDING_STATUSES,
+    TASK_POLL_INTERVAL_DEFAULT,
+    TASK_POLL_TIMEOUT_DEFAULT,
+    get_env_float,
+    parse_retry_after,
+)
 
 
 class AssetConnector(Trigger):
@@ -42,6 +49,7 @@ class AssetConnector(Trigger):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._latest_time = None
+        self._skip_task_wait = False
         self.schema_store = PersistentJSON(
             self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
         )
@@ -150,6 +158,33 @@ class AssetConnector(Trigger):
                 )
         return RATE_LIMIT_DEFAULT_WAIT
 
+    @property
+    def task_poll_interval(self) -> float:
+        """
+        Delay (in seconds) between two checks of an asset push task status.
+        Overridable via the ASSET_CONNECTOR_TASK_POLL_INTERVAL env variable.
+
+        Returns:
+            float: Delay in seconds
+        """
+        return get_env_float(
+            "ASSET_CONNECTOR_TASK_POLL_INTERVAL", TASK_POLL_INTERVAL_DEFAULT
+        )
+
+    @property
+    def task_poll_timeout(self) -> float:
+        """
+        How long (in seconds) to wait for an asset push task to complete before
+        giving up. Overridable via the ASSET_CONNECTOR_TASK_POLL_TIMEOUT env
+        variable.
+
+        Returns:
+            float: Timeout in seconds
+        """
+        return get_env_float(
+            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
+        )
+
     @staticmethod
     def _retry():
         return Retrying(
@@ -188,6 +223,13 @@ class AssetConnector(Trigger):
             f"{base}/api/v2/asset-management/asset-connector/"
             f"{self.module.connector_configuration_uuid}"
         )
+
+    @cached_property
+    def task_endpoint(self) -> str:
+        base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
+            "/"
+        )
+        return f"{base}/api/v1/tasks"
 
     @staticmethod
     def handle_api_error(error_code: int) -> str:
@@ -272,6 +314,108 @@ class AssetConnector(Trigger):
         )
         return res.json()
 
+    def wait_for_push_task(self, task_id: str) -> None:
+        """
+        Poll the Task API until an asset push task reaches a terminal status.
+
+        The platform ingests pushed assets asynchronously and tracks that work
+        with a task. Waiting for it tells us whether the assets really landed
+        on Sekoia.io instead of merely being accepted by the API.
+
+        The outcome is only reported: the checkpoint has already been updated
+        by the push itself, so a failed task does not trigger a re-push.
+
+        Args:
+            task_id (str): UUID of the task returned by the push endpoint.
+        """
+        if self._skip_task_wait:
+            return
+
+        url = f"{self.task_endpoint}/{task_id}"
+        deadline = time.time() + self.task_poll_timeout
+        # Most tasks complete in about a second: poll fast first, then back off
+        # to the configured interval so a slow platform is not hammered.
+        interval = min(1.0, self.task_poll_interval)
+
+        while self.running:
+            try:
+                res: Response = self._http_session.get(url, timeout=30)
+            except requests.RequestException as ex:
+                self.log_exception(
+                    ex,
+                    message=f"Unable to get the status of the asset push task "
+                    f"{task_id}",
+                )
+                self._disable_task_wait()
+                return
+
+            if res.status_code != 200:
+                self.log(
+                    message=(
+                        f"Unable to get the status of the asset push task {task_id} "
+                        f"- {self.handle_api_error(res.status_code)}"
+                    ),
+                    level="error",
+                )
+                self._disable_task_wait()
+                return
+
+            task = res.json()
+            status = task.get("status")
+
+            if status not in TASK_PENDING_STATUSES:
+                self._log_task_outcome(task_id, task, status)
+                return
+
+            if time.time() >= deadline:
+                self.log(
+                    message=(
+                        f"Asset push task {task_id} is still {status} after "
+                        f"{self.task_poll_timeout} seconds. Not waiting for the "
+                        f"push tasks of the remaining batches of this cycle"
+                    ),
+                    level="warning",
+                )
+                self._disable_task_wait()
+                return
+
+            self._stop_event.wait(interval)
+            interval = min(interval * 2, self.task_poll_interval)
+
+    def _disable_task_wait(self) -> None:
+        """
+        Stop waiting for push tasks until the end of the current fetch cycle.
+
+        A cycle can push thousands of batches. Paying the full timeout on each
+        of them once the platform stopped answering would stall the connector
+        for days, so the verification is dropped for the rest of the cycle.
+        """
+        self._skip_task_wait = True
+
+    def _log_task_outcome(self, task_id: str, task: dict, status: str | None) -> None:
+        """
+        Report the terminal status of an asset push task.
+
+        Args:
+            task_id (str): UUID of the task.
+            task (dict): Task as returned by the Task API.
+            status (str | None): Terminal status of the task.
+        """
+        if status == "FINISHED":
+            self.log(
+                message=f"Asset push task {task_id} finished successfully",
+                level="info",
+            )
+            return
+
+        self.log(
+            message=(
+                f"Asset push task {task_id} ended with the status {status} "
+                f"- {task.get('error') or 'no error reported'}"
+            ),
+            level="error",
+        )
+
     def push_assets_to_sekoia(self, assets: AssetList) -> None:
         """
         Push assets to the Sekoia.io asset connector API.
@@ -303,6 +447,12 @@ class AssetConnector(Trigger):
                 level="error",
             )
             return
+
+        # The push endpoint returns the task tracking the ingestion of the assets.
+        # Older platforms - and pushes the platform could not create a task for -
+        # return nothing: there is then nothing to wait for.
+        if task_id := response.get("task_id"):
+            self.wait_for_push_task(task_id)
 
     @abstractmethod
     def update_checkpoint(self) -> None:
@@ -443,6 +593,10 @@ class AssetConnector(Trigger):
             f"for connector {self.connector_name}",
             level="info",
         )
+
+        # Waiting for push tasks is a per-cycle privilege: it is given back on
+        # every cycle and withdrawn as soon as the platform stops answering.
+        self._skip_task_wait = False
 
         self._check_schema_and_reset_if_needed()
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Asset connectors now wait for the Task API to confirm the assets pushed to Sekoia.io were ingested, and report the outcome of the push task. The polling is tunable with the `ASSET_CONNECTOR_TASK_POLL_INTERVAL` and `ASSET_CONNECTOR_TASK_POLL_TIMEOUT` environment variables
 - Support for trigger-level secrets: trigger configuration fields marked with
   `Field(json_schema_extra={"secret": True})` are emitted as `secrets` in the
   generated trigger manifest, and their values are fetched at startup from the

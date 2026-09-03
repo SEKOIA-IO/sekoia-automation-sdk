@@ -11,8 +11,18 @@
                 "title": "Trigger Field",
                 "default": 0,
                 "type": "integer"
+            },
+            "trigger_token": {
+                "title": "Trigger Token",
+                "type": "string"
             }
-        }
+        },
+        "required": [
+            "trigger_token"
+        ],
+        "secrets": [
+            "trigger_token"
+        ]
     },
     "results": {
         "title": "Results",

@@ -74,6 +74,7 @@ class Trigger(ModuleItem):
         self._startup_time = datetime.now(UTC).replace(tzinfo=None)
         sentry_sdk.set_tag("item_type", "trigger")
         self._secrets: dict[str, Any] = {}
+        self._node_secrets: dict[str, Any] = {}
         self._stop_event = Event()
         self._critical_log_sent = False
         self._rate_limited_logs = TLRUCache(4096, self.log_ttl)
@@ -94,29 +95,59 @@ class Trigger(ModuleItem):
         stop=stop_after_attempt(10),
         retry_error_callback=capture_retry_error,
     )
-    def _get_secrets_from_server(self) -> dict[str, Any]:
+    def _get_secrets_from_server(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """
-        Calls the API to fetch this trigger's secrets.
+        Calls the API to fetch this trigger's secrets: its module's secrets (``value``)
+        and its own, node-level secrets (``node_value``).
 
-        If `self.module` has no secrets configured, we don't do anything.
+        ``node_value`` is keyed exactly as declared in the trigger manifest's
+        ``arguments.secrets`` (computed server-side), so the SDK trusts those keys as-is
+        instead of independently figuring out which configuration fields are secret.
 
         Returns:
-            dict[str, Any]:
+            tuple[dict[str, Any], dict[str, Any]]: the module-level secrets and the
+            node-level secrets, for ``_apply_node_secrets`` to overlay.
         """
-        secrets = {}
-        if self.module.has_secrets():
-            try:
-                response = requests.get(
-                    self.secrets_url,
-                    headers=self._headers,
-                    timeout=30,
-                )
-                response.raise_for_status()
-                secrets = response.json()["value"]
-            except HTTPError as exception:
-                self._log_request_error(exception)
-                raise
-        return secrets
+        secrets: dict[str, Any] = {}
+        node_secrets: dict[str, Any] = {}
+        try:
+            response = requests.get(
+                self.secrets_url,
+                headers=self._headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            secrets = data.get("value", {})
+            node_secrets = data.get("node_value") or {}
+        except HTTPError as exception:
+            self._log_request_error(exception)
+            raise
+        return secrets, node_secrets
+
+    def _apply_node_secrets(self) -> None:
+        """Overlay the trigger's own (node-level) secrets onto its configuration.
+
+        The secrets were resolved by ``_get_secrets_from_server`` and stored on
+        ``self._node_secrets``. If none were resolved (older platform not serving
+        ``node_value`` yet, or the trigger declares none), the configuration file's own
+        values (placeholders or not) are kept untouched.
+        """
+        resolved = {
+            key: value for key, value in self._node_secrets.items() if value is not None
+        }
+        if not resolved:
+            return
+
+        # Overlay onto the loaded configuration in place (like Module.set_secrets), so
+        # resolved secrets never go through the setter and never reach the Sentry
+        # context (which only sees the sanitized configuration file).
+        configuration = self.configuration
+        if isinstance(configuration, BaseModel):
+            for key, value in resolved.items():
+                setattr(configuration, key, value)
+        elif isinstance(configuration, dict):
+            configuration.update(resolved)
 
     def stop(self, *args, **kwargs) -> None:  # noqa: ARG002
         """
@@ -160,6 +191,8 @@ class Trigger(ModuleItem):
             sentry_sdk.set_context(
                 "trigger_configuration", self._configuration.model_dump()
             )
+        elif isinstance(self._configuration, dict):
+            sentry_sdk.set_context("trigger_configuration", dict(self._configuration))
         elif self._configuration:
             sentry_sdk.set_context("trigger_configuration", self._configuration)
 
@@ -191,8 +224,9 @@ class Trigger(ModuleItem):
     def execute(self) -> None:
         self._ensure_data_path_set()
         # Always restart the trigger, except if the error seems to be unrecoverable
-        self._secrets = self._get_secrets_from_server()
+        self._secrets, self._node_secrets = self._get_secrets_from_server()
         self.module.set_secrets(self._secrets)
+        self._apply_node_secrets()
         self._logs_timer.start()
         try:
             while not self._stop_event.is_set():

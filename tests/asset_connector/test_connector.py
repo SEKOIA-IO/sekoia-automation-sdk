@@ -461,6 +461,33 @@ def test_asset_fetch_cycle_pushes_a_batch_when_batch_size_reached(
     )
 
 
+def test_max_assets_per_cycle_env_var_exist(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "500")
+    assert test_asset_connector.max_assets_per_cycle == 500
+
+
+def test_max_assets_per_cycle_defaults_to_unlimited(monkeypatch, test_asset_connector):
+    monkeypatch.delenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", raising=False)
+    assert test_asset_connector.max_assets_per_cycle == 0
+
+
+def test_asset_fetch_cycle_stops_at_max_assets_per_cycle(
+    monkeypatch, test_asset_connector, asset_object_1, asset_object_2, asset_object_3
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "2")
+    test_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
+    )
+    test_asset_connector.push_assets_to_sekoia = Mock()
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # The cycle stops after 2 assets even though 3 were available; the third
+    # resumes from the checkpoint on the next cycle.
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
 def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
     test_asset_connector.set_assets(AssetList(version=1, items=[]))
     sleep = Mock()

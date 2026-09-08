@@ -137,6 +137,23 @@ class AssetConnector(Trigger):
         return self.configuration.frequency
 
     @property
+    def max_assets_per_cycle(self) -> int:
+        """
+        Maximum number of assets processed in a single fetch cycle.
+
+        0 (the default) means unlimited. A positive value caps a cycle so a very
+        large initial sync is spread over several cycles, resuming from the
+        checkpoint each time, instead of one unbounded run. Overridable via the
+        ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE env variable.
+
+        Returns:
+            int: Maximum assets per cycle, 0 for unlimited
+        """
+        if value := os.getenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE"):
+            return int(value)
+        return 0
+
+    @property
     def rate_limit_wait(self) -> float:
         """
         Default wait (in seconds) after a 429, used when the response carries no
@@ -613,6 +630,18 @@ class AssetConnector(Trigger):
                 batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
                 self.push_assets_to_sekoia(batch)
                 assets = []
+
+            if (
+                self.max_assets_per_cycle
+                and total_number_of_assets >= self.max_assets_per_cycle
+            ):
+                self.log(
+                    message=f"Reached the per-cycle cap of "
+                    f"{self.max_assets_per_cycle} assets; stopping this cycle and "
+                    f"resuming from the checkpoint on the next one",
+                    level="info",
+                )
+                break
 
         if assets:
             final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)

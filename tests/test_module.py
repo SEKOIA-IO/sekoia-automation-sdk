@@ -1,4 +1,6 @@
 import json
+import os
+from contextlib import chdir
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
@@ -49,13 +51,14 @@ def app():
     return app
 
 
-def test_command_for_fission(app, monkeypatch):
-    module = Module()
-    # Set SYMPHONY_RUNTIME to "Fission"
-    monkeypatch.setenv("SYMPHONY_RUNTIME", "Fission")
+def test_command_for_fission(app):
+    with (
+        patch.dict(os.environ, {"SYMPHONY_RUNTIME": "fission"}),
+        app.test_request_context("/", headers={"command": "some_command"}),
+    ):
+        module = Module()
 
-    # Use a test request context to simulate a Flask request
-    with app.test_request_context("/", headers={"command": "some_command"}):
+        # Use a test request context to simulate a Flask request
         assert module.command == "some_command"
 
 
@@ -162,16 +165,7 @@ def test_configuration_as_model():
         module.configuration = {"number": "NotANumber"}
 
 
-def test_module_working_directory():
-    module = Module()
-    assert module._working_directory == Path(__file__).parent.parent
-
-    module.set_working_directory(Path("/tmp"))
-    assert module._working_directory == Path("/tmp")
-
-
 def test_module_manifest_loading():
-    module = Module()
     manifest_content = {
         "name": "Test Module",
         "version": "1.0.0",
@@ -186,8 +180,9 @@ def test_module_manifest_loading():
         with manifest_path.open("w") as f:
             json.dump(manifest_content, f)
 
-        module.set_working_directory(temp_path)
-        assert module.manifest == manifest_content
+        with chdir(temp_path):
+            module = Module()
+            assert module.manifest == manifest_content
 
 
 def test_configuration_setter_add_secret_not_required():

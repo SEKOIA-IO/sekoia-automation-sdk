@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Asset connectors accept an optional per-cycle cap through the `ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE` environment variable (`0`, the default, means unlimited). A positive value stops a fetch cycle once that many assets have been processed and resumes from the checkpoint on the next cycle, so a very large initial sync is spread over several cycles instead of one unbounded run.
+
 ## 1.25.0 - 2026-09-03
 
 ### Added

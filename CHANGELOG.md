@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raise an explicit `MissingConfigurationError` in case of configuration error
   where we were previously raising a `FileNotFoundError` or `KeyError` depending
   on the execution runtime.
+- Update `ruff` and apply latest rules on code.
 
 ### Removed
 

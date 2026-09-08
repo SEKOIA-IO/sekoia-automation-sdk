@@ -76,7 +76,7 @@ dev = [
     "requests-oauthlib>=2.0.0,<3",
 ]
 lint = [
-    "ruff>=0.14",
+    "ruff>=0.16",
     "mypy",
     "pip>=25.3",
 ]
@@ -100,7 +100,6 @@ include = ["sekoia_automation"]
 minversion = "6.0"
 addopts = '''
     --asyncio-mode=auto
-    --cache-clear
     --cov=sekoia_automation
     --cov-report=html
     --cov-report=term-missing:skip-covered

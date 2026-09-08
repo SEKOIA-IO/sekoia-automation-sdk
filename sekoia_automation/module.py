@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from requests import RequestException, Response
 
 from sekoia_automation.configuration import get_configuration
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
     ModuleConfigurationError,
@@ -337,13 +338,13 @@ class Module:
     def _load_sentry_dsn(self) -> str | None:
         try:
             return self.load_config(self.SENTRY_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return None
 
     def _load_environment(self) -> str | None:
         try:
             return self.load_config(self.ENVIRONMENT_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return None
 
 
@@ -444,14 +445,14 @@ class ModuleItem(ABC):
     def logs_url(self) -> str:
         try:
             return self.module.load_config(self.LOGS_URL_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return self.callback_url.replace("/callback", "/logs")
 
     @cached_property
     def secrets_url(self) -> str:
         try:
             return self.module.load_config(self.SECRETS_URL_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return self.callback_url.replace("/callback", "/secrets")
 
     @cached_property

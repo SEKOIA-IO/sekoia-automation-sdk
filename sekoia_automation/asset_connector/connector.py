@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
     TriggerConfigurationError,
@@ -76,7 +77,7 @@ class AssetConnector(Trigger):
                 self.configuration = self.module.load_config(
                     self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
                 )
-            except FileNotFoundError:
+            except MissingConfigurationError:
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 

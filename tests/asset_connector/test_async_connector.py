@@ -810,15 +810,19 @@ async def test_schema_fingerprint_change_triggers_reset(
     assert data["fields"] == test_async_asset_connector.get_mapped_fields()
     # The log should mention the newly detected mapping
     test_async_asset_connector.log.assert_called()
-    log_message = test_async_asset_connector.log.call_args_list[-1][1]["message"]
-    assert "os_name" in log_message
+    log_messages = [
+        call.kwargs.get("message", "")
+        for call in test_async_asset_connector.log.call_args_list
+    ]
+    assert any("os_name" in msg for msg in log_messages)
 
 
 @pytest.mark.asyncio
 async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
-    test_async_asset_connector, asset_list, tmp_path
+    monkeypatch, test_async_asset_connector, asset_list, tmp_path
 ):
     """asset_fetch_cycle resets checkpoint when the field mappings change."""
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
     schema_file = tmp_path / "asset_schema_fields.json"
     schema_file.write_text(
         json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Correctly define the base directory (where `manifest.json` is located) in
+  Fission environment.
+
+### Added
+
+- Use `pydantic-settings` to manage environment variables and Fission specific
+  configuration.
+
+### Changed
+
+- Raise an explicit `MissingConfigurationError` in case of configuration error
+  where we were previously raising a `FileNotFoundError` or `KeyError` depending
+  on the execution runtime.
+- Update `ruff` and apply latest rules on code.
+
+### Removed
+
+- Remove `Module.set_working_directory()` that was only used in tests.
+
 ## 1.25.0 - 2026-09-03
 
 ### Added

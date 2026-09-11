@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import sys
 import time
 from abc import ABC, abstractmethod
@@ -16,11 +15,13 @@ from pydantic import BaseModel
 from requests import RequestException, Response
 
 from sekoia_automation.configuration import get_configuration
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
     CommandNotFoundError,
     ModuleConfigurationError,
     SendEventError,
 )
+from sekoia_automation.settings import Settings
 from sekoia_automation.storage import get_data_path
 from sekoia_automation.utils import (
     get_annotation_for,
@@ -46,7 +47,11 @@ class Module:
     SENTRY_FILE_NAME = "sentry_dsn"
     ENVIRONMENT_FILE_NAME = "environment"
 
+    _settings: Settings
+
     def __init__(self):
+        self._settings = Settings()
+
         self._command: str | None = None
         self._configuration: dict | BaseModel | None = None
         self._manifest: dict | None = None
@@ -58,36 +63,25 @@ class Module:
         self._trigger_configuration_uuid: str | None = None
         self._connector_configuration_uuid: str | None = None
         self._name = None
-        self._config = get_configuration()
-        self._working_directory = Path.cwd()
+        self._config = get_configuration(self._settings.fission_enabled)
+
         self.init_sentry()
 
     @property
     def command(self) -> str | None:
         if not self._command:
-            runtime = os.environ.get("SYMPHONY_RUNTIME")
-            if runtime is not None and runtime.lower() == "fission":
+            if self._settings.fission_enabled:
                 self._command = request.headers.get("command")
             elif len(sys.argv) >= 2:
                 self._command = sys.argv[1]
 
         return self._command
 
-    def set_working_directory(self, path: Path) -> None:
-        """Set the working directory for the module.
-
-        This is used to load configuration files from a specific directory.
-
-        :param path: Path to set as working directory
-        :type path: Path
-        """
-        self._working_directory = path
-
     @property
     def manifest(self):
         if self._manifest is None:
             try:
-                manifest_path = self._working_directory / "manifest.json"
+                manifest_path = self._settings.base_directory / "manifest.json"
                 with manifest_path.open() as fp:
                     self._manifest = json.load(fp)
             except FileNotFoundError:
@@ -337,13 +331,13 @@ class Module:
     def _load_sentry_dsn(self) -> str | None:
         try:
             return self.load_config(self.SENTRY_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return None
 
     def _load_environment(self) -> str | None:
         try:
             return self.load_config(self.ENVIRONMENT_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return None
 
 
@@ -444,14 +438,14 @@ class ModuleItem(ABC):
     def logs_url(self) -> str:
         try:
             return self.module.load_config(self.LOGS_URL_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return self.callback_url.replace("/callback", "/logs")
 
     @cached_property
     def secrets_url(self) -> str:
         try:
             return self.module.load_config(self.SECRETS_URL_FILE_NAME)
-        except FileNotFoundError:
+        except MissingConfigurationError:
             return self.callback_url.replace("/callback", "/secrets")
 
     @cached_property

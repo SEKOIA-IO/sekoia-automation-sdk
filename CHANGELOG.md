@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Make package PEP 561 compatible to let Mypy use type checks.
 
+### Changed
+
+- Merge `lint` and `dev` dependency groups.
+- Remove the `orjson` dependency contraint.
+
 ## 1.26.0 - 2026-09-11
 
 ### Fixed

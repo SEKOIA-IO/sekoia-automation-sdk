@@ -70,24 +70,13 @@ dev = [
     "pytest-xdist",
     "pytest-env>=1.1.5,<2",
     "requests-mock>=1.9,<2",
-    "faker>=30.0.0,<31",
+    "faker>=40",
     "aioresponses>=0.7.8,<0.8",
     "pre-commit>=3.3.3,<4",
     "requests-oauthlib>=2.0.0,<3",
-]
-lint = [
     "ruff>=0.16",
-    "mypy",
+    "mypy>2.0",
     "pip>=25.3",
-]
-
-[tool.uv]
-default-groups = [
-    "dev",
-    "lint",
-]
-constraint-dependencies = [
-    "orjson<3.11.8" # Obfuscaded code issues from socket-security
 ]
 
 [tool.hatch.build.targets.sdist]

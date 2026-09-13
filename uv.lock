@@ -7,9 +7,6 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 
-[manifest]
-constraints = [{ name = "orjson", specifier = "<3.11.8" }]
-
 [[package]]
 name = "aiocsv"
 version = "1.4.1"
@@ -795,15 +792,14 @@ wheels = [
 
 [[package]]
 name = "faker"
-version = "30.10.0"
+version = "40.41.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-dateutil" },
-    { name = "typing-extensions" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d4/0c/4fa93aa009e076c26e17b16432021b0b19b61b990a026ab0d74670699d4e/faker-30.10.0.tar.gz", hash = "sha256:c2e627d3becec67f7a45400d3670018b5abb3f0728b7dfaa06c135b7df1ce3fb", size = 1850082, upload-time = "2024-11-12T21:49:26.205Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/f5/cf09c597bac1c2600e4f77200a7abb73e20fb2a542c11d0c557c1c4220f5/faker-40.41.0.tar.gz", hash = "sha256:5383e4ebba7061491530ae5952a33dcf8f161a250c89717fa0ac856602dcfaf3", size = 2031440, upload-time = "2026-10-05T22:08:14.767Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/52/c0d8634fc38960037731167028f9332675bbe4db5cb8b9a92954bc6fb000/Faker-30.10.0-py3-none-any.whl", hash = "sha256:5f05ee92ddf0e1736d95dca41b2a16ee06d987b736fa4ddecdb047abf2e9024b", size = 1889119, upload-time = "2024-11-12T21:49:23.279Z" },
+    { url = "https://files.pythonhosted.org/packages/07/52/9ae853e8c70d6b77fe81b1563378d8ee49aa316cf19502a2e0bf1e4a873e/faker-40.41.0-py3-none-any.whl", hash = "sha256:35a7f66282990698c20c3e6dd57180900206b760c2f777112c085cc217e7de92", size = 2067633, upload-time = "2026-10-05T22:08:12.554Z" },
 ]
 
 [[package]]
@@ -2554,6 +2550,8 @@ dependencies = [
 dev = [
     { name = "aioresponses" },
     { name = "faker" },
+    { name = "mypy" },
+    { name = "pip" },
     { name = "pre-commit" },
     { name = "pylint" },
     { name = "pytest" },
@@ -2563,12 +2561,8 @@ dev = [
     { name = "pytest-xdist" },
     { name = "requests-mock" },
     { name = "requests-oauthlib" },
-    { name = "unittest-xml-reporting" },
-]
-lint = [
-    { name = "mypy" },
-    { name = "pip" },
     { name = "ruff" },
+    { name = "unittest-xml-reporting" },
 ]
 
 [package.metadata]
@@ -2604,7 +2598,9 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aioresponses", specifier = ">=0.7.8,<0.8" },
-    { name = "faker", specifier = ">=30.0.0,<31" },
+    { name = "faker", specifier = ">=40" },
+    { name = "mypy", specifier = ">2.0" },
+    { name = "pip", specifier = ">=25.3" },
     { name = "pre-commit", specifier = ">=3.3.3,<4" },
     { name = "pylint" },
     { name = "pytest", specifier = ">=8.3.3,<10" },
@@ -2614,12 +2610,8 @@ dev = [
     { name = "pytest-xdist" },
     { name = "requests-mock", specifier = ">=1.9,<2" },
     { name = "requests-oauthlib", specifier = ">=2.0.0,<3" },
-    { name = "unittest-xml-reporting", specifier = ">=3,<4" },
-]
-lint = [
-    { name = "mypy" },
-    { name = "pip", specifier = ">=25.3" },
     { name = "ruff", specifier = ">=0.16" },
+    { name = "unittest-xml-reporting", specifier = ">=3,<4" },
 ]
 
 [[package]]

@@ -55,7 +55,6 @@ class AsyncAssetConnector(AssetConnectorMixin, Trigger):
         else:
             yield self._session
 
-
     async def post_assets_to_api(
         self, assets: AssetList, asset_connector_api_url: str
     ) -> dict[str, str] | None:
@@ -256,8 +255,6 @@ class AsyncAssetConnector(AssetConnectorMixin, Trigger):
             await asyncio.sleep(interval)
             interval = min(interval * 2, self.task_poll_interval)
 
-
-
     async def push_assets_to_sekoia(self, assets: AssetList) -> None:
         """
         Push assets to the Sekoia.io asset connector API.
@@ -317,8 +314,6 @@ class AsyncAssetConnector(AssetConnectorMixin, Trigger):
         raise NotImplementedError(
             "reset_checkpoint must be implemented to support schema-change refetching"
         )
-
-
 
     async def _check_schema_and_reset_if_needed(self) -> None:
         """Compare the current field-mapping fingerprint against the stored one.

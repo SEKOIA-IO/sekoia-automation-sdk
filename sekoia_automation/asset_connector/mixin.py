@@ -357,9 +357,7 @@ class AssetConnectorMixin(Trigger):
             store["reset_resume_at"] = resume_at
 
         self.log(
-            message=(
-                f"Checkpoint reset — delaying next fetch by {delay:.0f}s "
-            ),
+            message=(f"Checkpoint reset — delaying next fetch by {delay:.0f}s "),
             level="info",
         )
 

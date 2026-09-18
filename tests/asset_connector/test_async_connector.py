@@ -1,8 +1,10 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
@@ -112,6 +114,19 @@ def test_async_asset_connector(tmp_path):
     test_connector.log_exception = Mock()
 
     yield test_connector
+
+    # Close any aiohttp ClientSession created during the test so it is not
+    # garbage-collected later: a leaked session emits "Unclosed client session"
+    # errors that surface in unrelated tests capturing stderr/logs.
+    session = test_connector._session
+    if session is not None and not session.closed:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+        loop.run_until_complete(session.close())
 
 
 @pytest.fixture
@@ -308,6 +323,44 @@ def test_frequency_env_var_exist(test_async_asset_connector):
 def test_frequency_env_var_not_exist(test_async_asset_connector):
     connector_frequency = test_async_asset_connector.frequency
     assert connector_frequency == 60
+
+
+def test_batch_push_interval_default(test_async_asset_connector):
+    assert test_async_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_from_configuration(test_async_asset_connector):
+    # Simulate a sekoia-automation-models version exposing the field.
+    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    assert test_async_asset_connector.batch_push_interval == 3.0
+
+
+def test_batch_push_interval_missing_field_falls_back_to_default(
+    test_async_asset_connector,
+):
+    # Older models version without the field: getattr fallback to 0.
+    test_async_asset_connector._configuration = SimpleNamespace()
+    assert test_async_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_env_var_overrides_configuration(
+    monkeypatch, test_async_asset_connector
+):
+    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_async_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_env_var(monkeypatch, test_async_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_async_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_negative_is_clamped(
+    monkeypatch, test_async_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "-5")
+    assert test_async_asset_connector.batch_push_interval == 0.0
 
 
 def test_http_header(test_async_asset_connector):
@@ -518,6 +571,62 @@ async def test_asset_fetch_cycle_batching(
 
     # Should be called twice: once for 100 assets, once for remaining 50
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_waits_between_batches(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    wait = Mock()
+    monkeypatch.setattr(test_async_asset_connector._stop_event, "wait", wait)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == len(
+        asset_list.items
+    )
+    assert wait.call_count == len(asset_list.items) - 1
+    wait.assert_called_with(0.5)
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    wait = Mock()
+    monkeypatch.setattr(test_async_asset_connector._stop_event, "wait", wait)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    wait.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_stops_while_waiting_between_batches(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    def stop_during_wait(_interval):
+        test_async_asset_connector._stop_event.set()
+
+    monkeypatch.setattr(
+        test_async_asset_connector._stop_event, "wait", stop_during_wait
+    )
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -810,15 +919,19 @@ async def test_schema_fingerprint_change_triggers_reset(
     assert data["fields"] == test_async_asset_connector.get_mapped_fields()
     # The log should mention the newly detected mapping
     test_async_asset_connector.log.assert_called()
-    log_message = test_async_asset_connector.log.call_args_list[-1][1]["message"]
-    assert "os_name" in log_message
+    log_messages = [
+        call.kwargs.get("message", "")
+        for call in test_async_asset_connector.log.call_args_list
+    ]
+    assert any("os_name" in msg for msg in log_messages)
 
 
 @pytest.mark.asyncio
 async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
-    test_async_asset_connector, asset_list, tmp_path
+    monkeypatch, test_async_asset_connector, asset_list, tmp_path
 ):
     """asset_fetch_cycle resets checkpoint when the field mappings change."""
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
     schema_file = tmp_path / "asset_schema_fields.json"
     schema_file.write_text(
         json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})

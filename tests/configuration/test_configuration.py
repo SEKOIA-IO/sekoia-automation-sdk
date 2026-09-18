@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 import pytest
 
 from sekoia_automation.configuration import get_configuration
@@ -25,13 +28,13 @@ def test_get_configuration_filesystem(monkeypatch):
 
 
 def test_get_configuration_fission(app, monkeypatch):
-    # Set SYMPHONY_RUNTIME to "Fission"
-    monkeypatch.setenv("SYMPHONY_RUNTIME", "Fission")
-
-    # Use a test request context to simulate a Flask request
-    with app.test_request_context("/", method="POST"):
+    with (
+        patch.dict(os.environ, {"SYMPHONY_RUNTIME": "fission"}),
+        app.test_request_context("/", method="POST"),
+    ):
+        # Use a test request context to simulate a Flask request
         # Get the configuration
-        config = get_configuration()
+        config = get_configuration(fission_mode=True)
 
         # Assert it's a FissionConfiguration
         assert isinstance(config, FissionConfiguration)

@@ -6,6 +6,7 @@ from tempfile import mkdtemp
 import pytest
 
 from sekoia_automation.configuration.base import Configuration
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.configuration.filesystem import FileSystemConfiguration
 
 
@@ -42,7 +43,7 @@ def test_load_config_not_found_ok(configuration: Configuration, config_storage: 
 def test_load_config_not_found_error(
     configuration: Configuration, config_storage: Path
 ):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(MissingConfigurationError):
         assert configuration.load("foo")
 
 

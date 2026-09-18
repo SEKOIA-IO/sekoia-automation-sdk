@@ -25,7 +25,7 @@ class MyTrigger(Trigger):
     def run(self):
         while True:
             # Do some stuff
-            self.send_event('event_name', {'somekey': 'somevalue'})
+            self.send_event("event_name", {"somekey": "somevalue"})
             # Maybe wait some time
 
 
@@ -86,11 +86,14 @@ class MyTrigger(Trigger):
     def run(self):
         while True:
             # Simple creation of a file
-            filepath = write('test.txt', {'event': 'data'})
+            filepath = write("test.txt", {"event": "data"})
 
             # Attach the file to the event
-            self.send_event('event_name', {'file_path': os.path.basename(filepath)},
-                            os.path.dirname(directory_name))
+            self.send_event(
+                "event_name",
+                {"file_path": os.path.basename(filepath)},
+                os.path.dirname(directory_name),
+            )
 
             # Maybe wait some time
 ```
@@ -160,7 +163,6 @@ It is a common pattern to accept JSON arguments values directly or inside a file
 
 ```python
 class MyAction(Action):
-
     def run(self, arguments):
         test = self.json_argument("test", arguments)
 
@@ -173,7 +175,6 @@ The SDK also provides an helper to do the opposite with results:
 
 ```python
 class MyAction(Action):
-
     def run(self, arguments):
         return self.json_result("test", {"some": "value"})
 ```
@@ -211,8 +212,10 @@ A pydantic model can be used as `self.module.configuration` by adding type hints
 class MyConfigurationModel(BaseModel):
     field: str
 
+
 class MyModule(Module):
     configuration: MyConfiguration
+
 
 class MyAction(Action):
     module: MyModule
@@ -233,6 +236,7 @@ You can also specify the model of created events by setting the `results_model` 
 class Event(BaseModel):
     field: str = "value"
 
+
 class MyTrigger(Trigger):
     results_model = Event
 ```
@@ -245,9 +249,9 @@ You can use a pydantic model as action arguments by adding a type hint:
 class ActionArguments(BaseModel):
     field: str = "value"
 
+
 class MyAction(Action):
-    def run(self, arguments: ActionArguments):
-        ...
+    def run(self, arguments: ActionArguments): ...
 ```
 
 The model of results can also be specified by setting the `results_model` attribute:
@@ -255,6 +259,7 @@ The model of results can also be specified by setting the `results_model` attrib
 ```python
 class Results(BaseModel):
     field: str = "value"
+
 
 class MyAction(action):
     results_model = Results

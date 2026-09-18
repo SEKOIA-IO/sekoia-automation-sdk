@@ -8,6 +8,7 @@ from functools import cached_property
 import requests
 from requests import Response
 
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
 )
@@ -31,13 +32,64 @@ class AssetConnector(AssetConnectorMixin, Trigger):
 
 
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._latest_time = None
+        self._skip_task_wait = False
+        self.schema_store = PersistentJSON(
+            self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
+        )
 
+    @property
+    def connector_name(self) -> str:
+        """
+        Get connector name.
 
+        Returns:
+            str:
+        """
+        return self.__class__.__name__
 
+    @property  # type: ignore[override, no-redef]
+    def configuration(self) -> DefaultAssetConnectorConfiguration:
+        """
+        Get the module configuration.
+        Returns:
+            DefaultAssetConnectorConfiguration: Connector configuration
+        """
+        if self._configuration is None:
+            try:
+                self.configuration = self.module.load_config(
+                    self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
+                )
+            except MissingConfigurationError:
+                return super().configuration  # type: ignore[return-value]
+        return self._configuration  # type: ignore[return-value]
 
+    @configuration.setter  # type: ignore[override]
+    def configuration(self, configuration: dict) -> None:
+        """
+        Set the module configuration.
 
+        Args:
+            configuration: dict
+        """
+        try:
+            self._configuration = get_as_model(
+                get_annotation_for(self.__class__, "configuration"), configuration
+            )
+        except Exception as e:
+            raise TriggerConfigurationError(str(e)) from e
 
+        if isinstance(self._configuration, BaseModel):
+            sentry_sdk.set_context(
+                self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump()
+            )
 
+    @property
+    def batch_size(self) -> int:
+        """
+        Get the batch size from the os env.
 
 
 

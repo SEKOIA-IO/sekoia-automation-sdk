@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
@@ -113,6 +114,19 @@ def test_async_asset_connector(tmp_path):
     test_connector.log_exception = Mock()
 
     yield test_connector
+
+    # Close any aiohttp ClientSession created during the test so it is not
+    # garbage-collected later: a leaked session emits "Unclosed client session"
+    # errors that surface in unrelated tests capturing stderr/logs.
+    session = test_connector._session
+    if session is not None and not session.closed:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+        loop.run_until_complete(session.close())
 
 
 @pytest.fixture

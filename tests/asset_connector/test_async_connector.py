@@ -3,6 +3,7 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
@@ -310,6 +311,44 @@ def test_frequency_env_var_not_exist(test_async_asset_connector):
     assert connector_frequency == 60
 
 
+def test_batch_push_interval_default(test_async_asset_connector):
+    assert test_async_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_from_configuration(test_async_asset_connector):
+    # Simulate a sekoia-automation-models version exposing the field.
+    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    assert test_async_asset_connector.batch_push_interval == 3.0
+
+
+def test_batch_push_interval_missing_field_falls_back_to_default(
+    test_async_asset_connector,
+):
+    # Older models version without the field: getattr fallback to 0.
+    test_async_asset_connector._configuration = SimpleNamespace()
+    assert test_async_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_env_var_overrides_configuration(
+    monkeypatch, test_async_asset_connector
+):
+    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_async_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_env_var(monkeypatch, test_async_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_async_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_negative_is_clamped(
+    monkeypatch, test_async_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "-5")
+    assert test_async_asset_connector.batch_push_interval == 0.0
+
+
 def test_http_header(test_async_asset_connector):
     test_async_asset_connector.module._connector_configuration_uuid = (
         "04716e25-c97f-4a22-925e-8b636ad9c8a4"
@@ -518,6 +557,62 @@ async def test_asset_fetch_cycle_batching(
 
     # Should be called twice: once for 100 assets, once for remaining 50
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_waits_between_batches(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    wait = Mock()
+    monkeypatch.setattr(test_async_asset_connector._stop_event, "wait", wait)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == len(
+        asset_list.items
+    )
+    assert wait.call_count == len(asset_list.items) - 1
+    wait.assert_called_with(0.5)
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    wait = Mock()
+    monkeypatch.setattr(test_async_asset_connector._stop_event, "wait", wait)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    wait.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_stops_while_waiting_between_batches(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    def stop_during_wait(_interval):
+        test_async_asset_connector._stop_event.set()
+
+    monkeypatch.setattr(
+        test_async_asset_connector._stop_event, "wait", stop_during_wait
+    )
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == 1
 
 
 @pytest.mark.asyncio

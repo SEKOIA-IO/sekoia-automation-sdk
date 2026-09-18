@@ -17,6 +17,7 @@ from sekoia_automation.utils import get_annotation_for, get_as_model
 
 from .models.connector import DefaultAssetConnectorConfiguration
 from .utils import (
+    BATCH_PUSH_INTERVAL_DEFAULT,
     RATE_LIMIT_DEFAULT_WAIT,
     RESET_JITTER_DEFAULT_MAX,
     TASK_POLL_INTERVAL_DEFAULT,
@@ -150,6 +151,36 @@ class AssetConnectorMixin(Trigger):
                     )
                 )
         return RATE_LIMIT_DEFAULT_WAIT
+
+    @property
+    def batch_push_interval(self) -> float:
+        """
+        Delay (in seconds) to wait between two consecutive batch pushes within
+        a single fetch cycle. Spacing pushes out avoids tripping the platform
+        rate limiter (HTTP 429) when a cycle produces many batches.
+
+        Read from the connector configuration (so it can be changed from the
+        platform), with an optional ``ASSET_CONNECTOR_BATCH_PUSH_INTERVAL`` env
+        override. Falls back to ``0`` (no delay) when the running
+        ``sekoia-automation-models`` version does not expose the field yet.
+
+        Returns:
+            float: Delay in seconds (never negative).
+        """
+        if interval := os.getenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL"):
+            try:
+                return max(float(interval), 0.0)
+            except ValueError:
+                self.log(
+                    message=(
+                        "Invalid ASSET_CONNECTOR_BATCH_PUSH_INTERVAL value; "
+                        "falling back to the configured value"
+                    )
+                )
+        configured = getattr(
+            self.configuration, "batch_push_interval", BATCH_PUSH_INTERVAL_DEFAULT
+        )
+        return max(configured, 0.0)
 
     @property
     def task_poll_interval(self) -> float:

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Asset connectors handle platform rate limiting: on an HTTP 429 while pushing
+  assets, the connector honours the `Retry-After` header (falling back to
+  `RATE_LIMIT_DEFAULT_WAIT`, 1 hour) and pauses before retrying. The default
+  wait is overridable via the `ASSET_CONNECTOR_RATE_LIMIT_WAIT` env variable.
+- Asset connectors apply a deterministic reset jitter: after a schema-change
+  checkpoint reset, the next full fetch is delayed by a per-configuration jitter
+  (up to `RESET_JITTER_DEFAULT_MAX`, 3 hours) to spread the re-fetch burst across
+  all configurations of the same connector. Overridable via the
+  `ASSET_CONNECTOR_RESET_JITTER_MAX` env variable.
+- Asset connectors wait a configurable delay between two consecutive batch
+  pushes within a fetch cycle to avoid tripping the platform rate limiter
+  (HTTP 429). The value is read from the connector configuration field
+  `batch_push_interval` (added in `sekoia-automation-models`; default `0`, no
+  delay) so it can be changed from the platform, and can be overridden with the
+  `ASSET_CONNECTOR_BATCH_PUSH_INTERVAL` env variable.
+
 ## 1.26.0 - 2026-09-11
 
 ### Fixed

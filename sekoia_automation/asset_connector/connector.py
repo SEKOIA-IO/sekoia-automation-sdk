@@ -306,6 +306,19 @@ class AssetConnector(AssetConnectorMixin, Trigger):
         """
         raise NotImplementedError("This method should be implemented in a subclass")
 
+    def _pause_between_batches(self) -> bool:
+        """
+        Wait the configured inter-batch interval before the next batch push.
+
+        Returns:
+            bool: ``True`` if the connector is still running afterwards,
+            ``False`` if it was stopped while waiting.
+        """
+        interval = self.batch_push_interval
+        if interval > 0:
+            self._stop_event.wait(interval)
+        return self.running
+
     def asset_fetch_cycle(self) -> None:
         """
         Continuously fetch assets from the connector and push them to Sekoia.io.
@@ -355,16 +368,22 @@ class AssetConnector(AssetConnectorMixin, Trigger):
 
         assets = []
         total_number_of_assets = 0
+        pushed_batches = 0
         for asset in self.get_assets():
             assets.append(asset)
             total_number_of_assets += 1
 
             if len(assets) >= self.batch_size:
+                if pushed_batches and not self._pause_between_batches():
+                    return
                 batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
                 self.push_assets_to_sekoia(batch)
+                pushed_batches += 1
                 assets = []
 
         if assets:
+            if pushed_batches and not self._pause_between_batches():
+                return
             final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
             self.push_assets_to_sekoia(final_batch)
 

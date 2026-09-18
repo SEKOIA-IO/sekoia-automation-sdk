@@ -14,6 +14,10 @@ TASK_POLL_TIMEOUT_DEFAULT = 300.0  # give up waiting after 5 minutes
 
 RESET_JITTER_DEFAULT_MAX = 10800  # 3 hours
 
+# Delay (in seconds) between two consecutive batch pushes within a fetch cycle.
+# 0 disables the pause (default), preserving the previous behaviour.
+BATCH_PUSH_INTERVAL_DEFAULT = 0.0
+
 
 def compute_reset_jitter(seed: str, max_seconds: float) -> float:
     """

@@ -3,6 +3,7 @@ import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -40,8 +41,10 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
 )
 from sekoia_automation.asset_connector.utils import (
     RATE_LIMIT_DEFAULT_WAIT,
+    RESET_JITTER_DEFAULT_MAX,
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
+    compute_reset_jitter,
     parse_retry_after,
 )
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
@@ -310,6 +313,48 @@ def test_frequency_env_var_not_exist(test_asset_connector):
     assert connector_frequency == 60
 
 
+def test_batch_push_interval_default(test_asset_connector):
+    assert test_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_from_configuration(test_asset_connector):
+    # Simulate a sekoia-automation-models version exposing the field.
+    test_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    assert test_asset_connector.batch_push_interval == 3.0
+
+
+def test_batch_push_interval_missing_field_falls_back_to_default(test_asset_connector):
+    # Older models version without the field: getattr fallback to 0.
+    test_asset_connector._configuration = SimpleNamespace()
+    assert test_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_env_var_overrides_configuration(
+    monkeypatch, test_asset_connector
+):
+    test_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_env_var(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_negative_is_clamped(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "-5")
+    assert test_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_invalid_falls_back_to_configuration(
+    monkeypatch, test_asset_connector
+):
+    test_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "not-a-number")
+    assert test_asset_connector.batch_push_interval == 3.0
+
+
 def test_http_header(test_asset_connector):
     test_asset_connector.module._connector_configuration_uuid = (
         "04716e25-c97f-4a22-925e-8b636ad9c8a4"
@@ -459,6 +504,60 @@ def test_asset_fetch_cycle_pushes_a_batch_when_batch_size_reached(
     assert test_asset_connector.push_assets_to_sekoia.call_count == len(
         asset_list.items
     )
+
+
+def test_asset_fetch_cycle_waits_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # One push per asset, and a pause between each consecutive push (N - 1).
+    assert test_asset_connector.push_assets_to_sekoia.call_count == len(
+        asset_list.items
+    )
+    assert wait.call_count == len(asset_list.items) - 1
+    wait.assert_called_with(0.5)
+
+
+def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    wait.assert_not_called()
+
+
+def test_asset_fetch_cycle_stops_while_waiting_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+
+    def stop_during_wait(_interval):
+        test_asset_connector._stop_event.set()
+
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", stop_during_wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # The connector was stopped while pausing after the first push, so no
+    # further batch is pushed.
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 1
 
 
 def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
@@ -654,16 +753,20 @@ def test_schema_fingerprint_change_triggers_reset(test_asset_connector, tmp_path
     assert data["fields"] == test_asset_connector.get_mapped_fields()
     # The log should mention the newly detected mapping
     test_asset_connector.log.assert_called()
-    log_message = test_asset_connector.log.call_args_list[-1][1]["message"]
-    assert "os_name" in log_message
+    log_messages = [
+        call.kwargs.get("message", "")
+        for call in test_asset_connector.log.call_args_list
+    ]
+    assert any("os_name" in msg for msg in log_messages)
 
 
 def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
-    test_asset_connector, asset_list, tmp_path
+    monkeypatch, test_asset_connector, asset_list, tmp_path
 ):
     """asset_fetch_cycle resets checkpoint when the field mappings change."""
     import json as _json
 
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
     schema_file = tmp_path / "asset_schema_fields.json"
     schema_file.write_text(
         _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
@@ -839,3 +942,128 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
+
+
+def test_compute_reset_jitter_is_deterministic_and_bounded():
+    """Same seed -> same value; different seeds -> different values; bounded."""
+    seed_a = "config-uuid-a"
+    seed_b = "config-uuid-b"
+    max_window = 3600.0
+
+    a1 = compute_reset_jitter(seed_a, max_window)
+    a2 = compute_reset_jitter(seed_a, max_window)
+    b = compute_reset_jitter(seed_b, max_window)
+
+    assert a1 == a2
+    assert a1 != b
+    assert 0.0 <= a1 <= max_window
+    assert 0.0 <= b <= max_window
+    assert compute_reset_jitter(seed_a, 0) == 0.0
+    assert compute_reset_jitter("", max_window) == 0.0
+
+
+def test_reset_checkpoint_schedules_jitter_and_persists(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """After a schema change the jitter resume timestamp is persisted."""
+    import json as _json
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    test_asset_connector._check_schema_and_reset_if_needed()
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" in data
+    remaining = test_asset_connector._pending_reset_jitter_seconds()
+    assert 0.0 <= remaining <= 1800.0
+
+
+def test_asset_fetch_cycle_waits_for_reset_jitter(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """asset_fetch_cycle waits on _stop_event until the persisted resume time."""
+    import json as _json
+    import time as _time
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps(
+            {
+                "fingerprint": test_asset_connector._compute_schema_fingerprint(),
+                "fields": test_asset_connector.get_mapped_fields(),
+                "reset_resume_at": _time.time() + 5,
+            }
+        )
+    )
+
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    wait_calls = []
+    monkeypatch.setattr(
+        test_asset_connector._stop_event,
+        "wait",
+        lambda timeout: wait_calls.append(timeout),
+    )
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.connector.time.sleep", Mock()
+    )
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert wait_calls, "expected _stop_event.wait to be called for jitter"
+    assert 0 < wait_calls[0] <= 5
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" not in data
+
+
+def test_reset_jitter_disabled_when_max_is_zero(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """Setting the env var to 0 disables the jitter (nothing persisted)."""
+    import json as _json
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+
+    test_asset_connector._check_schema_and_reset_if_needed()
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" not in data
+    assert test_asset_connector._pending_reset_jitter_seconds() == 0.0
+
+
+def test_reset_jitter_default_matches_documented_window(test_asset_connector):
+    """Default jitter window is the documented 3-hour value."""
+    assert test_asset_connector.reset_jitter_max_seconds == float(
+        RESET_JITTER_DEFAULT_MAX
+    )
+    assert RESET_JITTER_DEFAULT_MAX == 10800
+
+
+def test_reset_jitter_uses_random_when_uuid_missing(monkeypatch, test_asset_connector):
+    """Without a configuration UUID the delay is randomised, not class-name
+    based, so multiple configurations of the same connector don't restart
+    together."""
+    test_asset_connector.module._connector_configuration_uuid = None
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    sentinel = 123.0
+    random_mock = Mock(return_value=sentinel)
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.mixin.random.uniform", random_mock
+    )
+
+    test_asset_connector._schedule_reset_jitter()
+
+    random_mock.assert_called_once_with(0, 1800.0)
+    remaining = test_asset_connector._pending_reset_jitter_seconds()
+    assert 0.0 < remaining <= sentinel

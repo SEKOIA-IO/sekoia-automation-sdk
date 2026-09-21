@@ -944,6 +944,8 @@ async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
 
     assert test_async_asset_connector.checkpoint_reset_count == 1
 
+def test_task_endpoint(test_async_asset_connector):
+    assert test_async_asset_connector.task_endpoint == "http://example.com/api/v1/tasks"
 
 @pytest.mark.asyncio
 async def test_async_asset_fetch_cycle_waits_for_reset_jitter(

@@ -12,9 +12,7 @@ from aiolimiter import AsyncLimiter
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
 )
-from sekoia_automation.trigger import Trigger
-
-from .mixin import AssetConnectorMixin
+from .mixin import AssetConnectorBase
 from .models.connector import AssetItem, AssetList
 from .utils import (
     TASK_PENDING_STATUSES,
@@ -22,7 +20,7 @@ from .utils import (
 )
 
 
-class AsyncAssetConnector(AssetConnectorMixin, Trigger):
+class AsyncAssetConnector(AssetConnectorBase):
     """
     Async base class for all asset connectors.
 

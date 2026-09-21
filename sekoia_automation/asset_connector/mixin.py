@@ -27,10 +27,10 @@ from .utils import (
 )
 
 
-class AssetConnectorMixin(Trigger):
+class AssetConnectorBase(Trigger):
     """
-    Mixin providing shared configuration, HTTP helpers, and schema-fingerprint
-    logic for both AssetConnector and AsyncAssetConnector.
+    Base class providing shared configuration, HTTP helpers, and
+    schema-fingerprint logic for both AssetConnector and AsyncAssetConnector.
     """
 
     ASSET_SCHEMA_FIELDS_FILE = "asset_schema_fields.json"

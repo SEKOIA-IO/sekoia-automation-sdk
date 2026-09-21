@@ -1047,3 +1047,26 @@ def test_reset_jitter_default_matches_documented_window(test_asset_connector):
         RESET_JITTER_DEFAULT_MAX
     )
     assert RESET_JITTER_DEFAULT_MAX == 10800
+
+
+def test_reset_jitter_uses_random_when_uuid_missing(
+    monkeypatch, test_asset_connector
+):
+    """Without a configuration UUID the delay is randomised, not class-name
+    based, so multiple configurations of the same connector don't restart
+    together."""
+    test_asset_connector.module._connector_configuration_uuid = None
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    sentinel = 123.0
+    random_mock = Mock(return_value=sentinel)
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.mixin.random.uniform", random_mock
+    )
+
+    test_asset_connector._schedule_reset_jitter()
+
+    random_mock.assert_called_once_with(0, 1800.0)
+    remaining = test_asset_connector._pending_reset_jitter_seconds()
+    assert 0.0 < remaining <= sentinel
+

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import random
 import time
 from abc import abstractmethod
 from functools import cached_property
@@ -349,8 +350,11 @@ class AssetConnectorBase(Trigger):
         if max_seconds <= 0:
             return
 
-        seed = self.module.connector_configuration_uuid or self.connector_name
-        delay = compute_reset_jitter(seed, max_seconds)
+        uuid = self.module.connector_configuration_uuid
+        if uuid:
+            delay = compute_reset_jitter(uuid, max_seconds)
+        else:
+            delay = random.uniform(0, max_seconds)
         resume_at = time.time() + delay
 
         with self.schema_store as store:

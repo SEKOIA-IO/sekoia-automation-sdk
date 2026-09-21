@@ -945,7 +945,105 @@ async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
     assert test_async_asset_connector.checkpoint_reset_count == 1
 
 
-def test_task_endpoint(test_async_asset_connector):
+@pytest.mark.asyncio
+async def test_async_asset_fetch_cycle_waits_for_reset_jitter(
+    monkeypatch, test_async_asset_connector, asset_list, tmp_path
+):
+    """asset_fetch_cycle waits out a persisted reset jitter via
+    asyncio.to_thread, then clears the timestamp and proceeds to fetch."""
+    import time as _time
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps(
+            {
+                "fingerprint": (
+                    test_async_asset_connector._compute_schema_fingerprint()
+                ),
+                "fields": test_async_asset_connector.get_mapped_fields(),
+                "reset_resume_at": _time.time() + 5,
+            }
+        )
+    )
+
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    wait_calls = []
+    monkeypatch.setattr(
+        test_async_asset_connector._stop_event,
+        "wait",
+        lambda timeout: wait_calls.append(timeout),
+    )
+
+    to_thread_calls = []
+    real_to_thread = asyncio.to_thread
+
+    async def spy_to_thread(func, *args, **kwargs):
+        to_thread_calls.append(func)
+        return await real_to_thread(func, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.async_connector.asyncio.to_thread",
+        spy_to_thread,
+    )
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    # The jitter wait happened once, and it went through asyncio.to_thread.
+    assert wait_calls, "expected _stop_event.wait to be called for jitter"
+    assert 0 < wait_calls[0] <= 5
+    assert test_async_asset_connector._stop_event.wait in to_thread_calls
+
+    # The timestamp is cleared and the cycle proceeded to fetch and push.
+    data = json.loads(schema_file.read_text())
+    assert "reset_resume_at" not in data
+    test_async_asset_connector.push_assets_to_sekoia.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_asset_fetch_cycle_stops_during_reset_jitter(
+    monkeypatch, test_async_asset_connector, asset_list, tmp_path
+):
+    """If the connector is stopped while waiting out the reset jitter, the
+    cycle exits without fetching and leaves the timestamp for the next run."""
+    import time as _time
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    resume_at = _time.time() + 5
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        json.dumps(
+            {
+                "fingerprint": (
+                    test_async_asset_connector._compute_schema_fingerprint()
+                ),
+                "fields": test_async_asset_connector.get_mapped_fields(),
+                "reset_resume_at": resume_at,
+            }
+        )
+    )
+
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    def stop_during_wait(_timeout):
+        test_async_asset_connector._stop_event.set()
+
+    monkeypatch.setattr(
+        test_async_asset_connector._stop_event, "wait", stop_during_wait
+    )
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    # Stopped mid-jitter: no assets were fetched or pushed.
+    test_async_asset_connector.push_assets_to_sekoia.assert_not_called()
+    # The timestamp is preserved because we returned before clearing it.
+    data = json.loads(schema_file.read_text())
+    assert data["reset_resume_at"] == resume_at
     assert test_async_asset_connector.task_endpoint == "http://example.com/api/v1/tasks"
 
 

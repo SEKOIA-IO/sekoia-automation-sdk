@@ -7,6 +7,7 @@ from concurrent.futures import wait as wait_futures
 from datetime import UTC, datetime
 from datetime import time as datetime_time
 from functools import cached_property
+from itertools import tee
 from os.path import join as urljoin
 from typing import Any, TypeAlias
 
@@ -207,10 +208,10 @@ class Connector(Trigger, MetricsMixin, ABC):
         # pushing the events
         chunks: Iterable[list[Any]] = self._chunk_events(events)
 
-        # when requested, keep the chunks to report the ones not forwarded
-        expected_chunks: list[list[Any]] = []
+        # when requested, keep a copy of the chunks to report the ones not forwarded
+        expected_chunks: Iterable[list[Any]] = []
         if raise_on_error:
-            chunks = expected_chunks = list(chunks)
+            chunks, expected_chunks = tee(chunks)
 
         # if requested, or if the executor is down
         if sync or not self.running:
@@ -228,13 +229,14 @@ class Connector(Trigger, MetricsMixin, ABC):
             wait_futures(futures)
 
         # a chunk is added to collect_ids only once forwarded
-        if raise_on_error and len(collect_ids) < len(expected_chunks):
+        if raise_on_error:
             nb_failed_events = sum(
                 len(chunk)
                 for chunk_index, chunk in enumerate(expected_chunks)
                 if chunk_index not in collect_ids
             )
-            raise SendEventError(f"Failed to forward {nb_failed_events} events")
+            if nb_failed_events > 0:
+                raise SendEventError(f"Failed to forward {nb_failed_events} events")
 
         # reorder event_ids according chunk index
         event_ids = [

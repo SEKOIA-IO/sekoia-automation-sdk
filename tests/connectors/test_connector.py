@@ -338,9 +338,10 @@ def test_push_events_to_intakes_raise_on_error_all_forwarded(
     assert result == ["001", "002"]
 
 
+@pytest.mark.parametrize("raise_on_error", [False, True])
 @pytest.mark.parametrize("sync", [True, False])
-def test_push_events_to_intakes_forwards_chunks_before_a_bad_event_by_default(
-    test_connector, mocked_trigger_logs, sync
+def test_push_events_to_intakes_forwards_chunks_before_a_bad_event(
+    test_connector, mocked_trigger_logs, sync, raise_on_error
 ):
     url = "https://intake.sekoia.io/batch"
     foo_mock = mocked_trigger_logs.post(
@@ -352,7 +353,9 @@ def test_push_events_to_intakes_forwards_chunks_before_a_bad_event_by_default(
         pytest.raises(TypeError),
     ):
         # the set is not serializable
-        test_connector.push_events_to_intakes(["foo", "bar", {"baz": {1}}], sync=sync)
+        test_connector.push_events_to_intakes(
+            ["foo", "bar", {"baz": {1}}], sync=sync, raise_on_error=raise_on_error
+        )
 
     # the chunks are sent as they are built: the first one was forwarded
     test_connector._executor.shutdown(wait=True)

@@ -1,3 +1,4 @@
+import time
 from collections.abc import Generator
 from datetime import datetime
 from unittest.mock import Mock, PropertyMock, patch
@@ -7,7 +8,7 @@ from tenacity import Retrying, stop_after_attempt, wait_none
 
 from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import SendEventError, TriggerConfigurationError
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
 from tests.utils import match_events
@@ -252,6 +253,110 @@ def test_push_events_to_intakes_api_failed_retried(test_connector, mocked_trigge
     )
     result = test_connector.push_events_to_intakes(EVENTS)
     assert result == ["001", "002"]
+
+
+@pytest.mark.parametrize("sync", [True, False])
+def test_push_events_to_intakes_raise_on_error(
+    test_connector, mocked_trigger_logs, sync
+):
+    url = "https://intake.sekoia.io/batch"
+    refused = mocked_trigger_logs.post(
+        url, status_code=400, additional_matcher=match_events("a")
+    )
+    accepted = mocked_trigger_logs.post(
+        url, json={"event_ids": ["003"]}, additional_matcher=match_events("ccc")
+    )
+    test_connector._retry = lambda: Retrying(
+        reraise=True, stop=stop_after_attempt(3), wait=wait_none()
+    )
+
+    # the forwarded chunk is the last one to complete
+    send_chunk = test_connector._send_chunk
+
+    def slow_send_chunk(batch_api, chunk_index, chunk, collect_ids):
+        if chunk == ["ccc"]:
+            time.sleep(0.1)
+        send_chunk(batch_api, chunk_index, chunk, collect_ids)
+
+    test_connector._send_chunk = slow_send_chunk
+
+    with (
+        patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4),  # [a, b], [ccc]
+        pytest.raises(SendEventError, match="2 events"),
+    ):
+        test_connector.push_events_to_intakes(
+            ["a", "b", "ccc"], sync=sync, raise_on_error=True
+        )
+
+    # the error is raised once every chunk has been processed
+    assert refused.call_count == 3
+    assert accepted.call_count == 1
+
+
+@pytest.mark.parametrize("sync", [True, False])
+def test_push_events_to_intakes_raise_on_error_ignores_discarded_events(
+    test_connector, mocked_trigger_logs, sync
+):
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(url, json={"event_ids": ["001"]})
+
+    # an event exceeding the size limit is discarded, not failed
+    too_long_event = "a" * (EVENT_BYTES_MAX_SIZE + 1)
+    result = test_connector.push_events_to_intakes(
+        ["foo", too_long_event], sync=sync, raise_on_error=True
+    )
+    assert result == ["001"]
+
+
+def test_push_events_to_intakes_partial_failure_not_raised_by_default(
+    test_connector, mocked_trigger_logs
+):
+    url = "https://intake.sekoia.io/batch"
+    test_connector._retry = lambda: Retrying(
+        reraise=True, stop=stop_after_attempt(3), wait=wait_none()
+    )
+    mocked_trigger_logs.post(
+        url, status_code=400, additional_matcher=match_events("foo")
+    )
+    mocked_trigger_logs.post(
+        url, json={"event_ids": ["002"]}, additional_matcher=match_events("bar")
+    )
+
+    with patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4):  # len("foo") + 1
+        result = test_connector.push_events_to_intakes(EVENTS)
+
+    assert result == ["002"]
+
+
+def test_push_events_to_intakes_raise_on_error_all_forwarded(
+    test_connector, mocked_trigger_logs
+):
+    url = "https://intake.sekoia.io/batch"
+    mocked_trigger_logs.post(url, json={"event_ids": ["001", "002"]})
+
+    result = test_connector.push_events_to_intakes(EVENTS, raise_on_error=True)
+    assert result == ["001", "002"]
+
+
+@pytest.mark.parametrize("sync", [True, False])
+def test_push_events_to_intakes_forwards_chunks_before_a_bad_event_by_default(
+    test_connector, mocked_trigger_logs, sync
+):
+    url = "https://intake.sekoia.io/batch"
+    foo_mock = mocked_trigger_logs.post(
+        url, json={"event_ids": ["001"]}, additional_matcher=match_events("foo")
+    )
+
+    with (
+        patch("sekoia_automation.connector.CHUNK_BYTES_MAX_SIZE", 4),  # len("foo") + 1
+        pytest.raises(TypeError),
+    ):
+        # the set is not serializable
+        test_connector.push_events_to_intakes(["foo", "bar", {"baz": {1}}], sync=sync)
+
+    # the chunks are sent as they are built: the first one was forwarded
+    test_connector._executor.shutdown(wait=True)
+    assert foo_mock.call_count == 1
 
 
 def test_push_events_to_intake_invalid_intake_key(test_connector):

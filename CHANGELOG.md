@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add an optional `raise_on_error` parameter to `Connector.push_events_to_intakes()`.
+  When set, a `SendEventError` is raised once all the chunks were processed if some
+  events could not be forwarded (events discarded for exceeding the size limit do not
+  count), so that a connector can keep its checkpoint instead of losing these events.
+  The default behavior is unchanged.
+
 ## 1.26.0 - 2026-09-11
 
 ### Fixed

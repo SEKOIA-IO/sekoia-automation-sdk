@@ -1,12 +1,13 @@
 import time
 import uuid
 from abc import ABC
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
 from datetime import UTC, datetime
 from datetime import time as datetime_time
 from functools import cached_property
+from itertools import tee
 from os.path import join as urljoin
 from typing import Any, TypeAlias
 
@@ -20,7 +21,7 @@ from tenacity import Retrying, stop_after_delay, wait_exponential
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import SendEventError, TriggerConfigurationError
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
@@ -172,7 +173,7 @@ class Connector(Trigger, MetricsMixin, ABC):
         return 0
 
     def push_events_to_intakes(
-        self, events: list[EventType], sync: bool = False
+        self, events: list[EventType], sync: bool = False, raise_on_error: bool = False
     ) -> list[str]:
         """
         Push events to intakes.
@@ -180,9 +181,14 @@ class Connector(Trigger, MetricsMixin, ABC):
         Args:
             events: list[str]
             sync: bool
+            raise_on_error: bool
 
         Returns:
             list[str]
+
+        Raises:
+            SendEventError: if `raise_on_error` is set and some events could not
+                be forwarded. Raised once all the chunks were processed.
         """
         # no event to push
         if not events:
@@ -200,7 +206,12 @@ class Connector(Trigger, MetricsMixin, ABC):
         collect_ids: dict[int, list] = {}
 
         # pushing the events
-        chunks = self._chunk_events(events)
+        chunks: Iterable[list[Any]] = self._chunk_events(events)
+
+        # when requested, keep a copy of the chunks to report the ones not forwarded
+        expected_chunks: Iterable[list[Any]] = []
+        if raise_on_error:
+            chunks, expected_chunks = tee(chunks)
 
         # if requested, or if the executor is down
         if sync or not self.running:
@@ -216,6 +227,16 @@ class Connector(Trigger, MetricsMixin, ABC):
                 for chunk_index, chunk in enumerate(chunks)
             ]
             wait_futures(futures)
+
+        # a chunk is added to collect_ids only once forwarded
+        if raise_on_error:
+            nb_failed_events = sum(
+                len(chunk)
+                for chunk_index, chunk in enumerate(expected_chunks)
+                if chunk_index not in collect_ids
+            )
+            if nb_failed_events > 0:
+                raise SendEventError(f"Failed to forward {nb_failed_events} events")
 
         # reorder event_ids according chunk index
         event_ids = [

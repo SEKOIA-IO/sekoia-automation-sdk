@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import pytest
+import sentry_sdk
 from sentry_sdk import get_isolation_scope
 
 from sekoia_automation import SekoiaAutomationBaseModel
@@ -312,3 +313,45 @@ def test_init_sentry():
         assert tags["playbook_run_uuid"] == "playbook_run"
         assert tags["trigger_configuration_uuid"] == "trigger_configuration"
         assert tags["connector_configuration_uuid"] == "connector_configuration"
+
+
+@pytest.fixture
+def reset_sentry_client():
+    Module._sentry_client = None
+    Module._sentry_options = None
+    yield
+    Module._sentry_client = None
+    Module._sentry_options = None
+
+
+def test_init_sentry_reuses_client(reset_sentry_client):
+    dsn = "http://1234@localhost/1234"
+    with (
+        patch.object(Module, "_load_sentry_dsn", return_value=dsn),
+        patch.object(Module, "_load_environment", return_value=None),
+        patch("sentry_sdk.init", wraps=sentry_sdk.init) as init,
+    ):
+        Module()
+        Module()
+
+    init.assert_called_once_with(dsn, environment=None)
+
+
+def test_init_sentry_replaces_client_on_new_options(reset_sentry_client):
+    with (
+        patch.object(Module, "_load_environment", return_value="test"),
+        patch("sentry_sdk.init", wraps=sentry_sdk.init) as init,
+    ):
+        with patch.object(
+            Module, "_load_sentry_dsn", return_value="http://1234@localhost/1234"
+        ):
+            Module()
+            first_client = sentry_sdk.get_client()
+        with patch.object(
+            Module, "_load_sentry_dsn", return_value="http://5678@localhost/5678"
+        ):
+            Module()
+
+    assert init.call_count == 2
+    assert sentry_sdk.get_client() is not first_client
+    assert sentry_sdk.get_client().options["dsn"] == "http://5678@localhost/5678"

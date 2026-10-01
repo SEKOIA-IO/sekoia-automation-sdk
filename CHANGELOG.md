@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix memory leaks when several actions run in the same process (e.g. in
+  Fission):
+  - Detach the action log handler from the root logger once the action is
+    executed, instead of keeping every past action alive.
+  - Reuse the Sentry client across `Module` instances when the DSN and
+    environment are unchanged, instead of creating (and leaking) a new client
+    on each instantiation.
+
 ## 1.26.0 - 2026-09-11
 
 ### Fixed

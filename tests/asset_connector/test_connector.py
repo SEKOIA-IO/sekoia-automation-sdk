@@ -3,6 +3,7 @@ import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -468,6 +469,29 @@ def test_max_assets_per_cycle_env_var_exist(monkeypatch, test_asset_connector):
 
 def test_max_assets_per_cycle_defaults_to_unlimited(monkeypatch, test_asset_connector):
     monkeypatch.delenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", raising=False)
+    assert test_asset_connector.max_assets_per_cycle == 0
+
+
+def test_max_assets_per_cycle_reads_the_configuration(
+    monkeypatch, test_asset_connector
+):
+    monkeypatch.delenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", raising=False)
+    test_asset_connector._configuration = SimpleNamespace(max_assets_per_cycle=7)
+    assert test_asset_connector.max_assets_per_cycle == 7
+
+
+def test_max_assets_per_cycle_env_var_wins_over_the_configuration(
+    monkeypatch, test_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "500")
+    test_asset_connector._configuration = SimpleNamespace(max_assets_per_cycle=7)
+    assert test_asset_connector.max_assets_per_cycle == 500
+
+
+def test_max_assets_per_cycle_treats_a_negative_value_as_unlimited(
+    monkeypatch, test_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "-1")
     assert test_asset_connector.max_assets_per_cycle == 0
 
 

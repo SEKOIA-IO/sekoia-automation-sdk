@@ -143,15 +143,17 @@ class AssetConnector(Trigger):
 
         0 (the default) means unlimited. A positive value caps a cycle so a very
         large initial sync is spread over several cycles, resuming from the
-        checkpoint each time, instead of one unbounded run. Overridable via the
-        ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE env variable.
+        checkpoint each time, instead of one unbounded run. Read from the connector
+        configuration, overridable via the ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE env
+        variable. A negative value counts as 0.
 
         Returns:
             int: Maximum assets per cycle, 0 for unlimited
         """
         if value := os.getenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE"):
-            return int(value)
-        return 0
+            return max(int(value), 0)
+        # Falls back to 0 while the installed sekoia-automation-models has no such field
+        return max(getattr(self.configuration, "max_assets_per_cycle", 0), 0)
 
     @property
     def rate_limit_wait(self) -> float:

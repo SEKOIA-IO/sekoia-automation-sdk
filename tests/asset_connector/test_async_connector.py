@@ -3,6 +3,7 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
@@ -517,6 +518,38 @@ async def test_asset_fetch_cycle_batching(
     await test_async_asset_connector.asset_fetch_cycle()
 
     # Should be called twice: once for 100 assets, once for remaining 50
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+def test_async_max_assets_per_cycle_reads_env_then_configuration(
+    monkeypatch, test_async_asset_connector
+):
+    monkeypatch.delenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", raising=False)
+    assert test_async_asset_connector.max_assets_per_cycle == 0
+    test_async_asset_connector._configuration = SimpleNamespace(max_assets_per_cycle=7)
+    assert test_async_asset_connector.max_assets_per_cycle == 7
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "-1")
+    assert test_async_asset_connector.max_assets_per_cycle == 0
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_stops_at_max_assets_per_cycle(
+    monkeypatch,
+    test_async_asset_connector,
+    asset_object_1,
+    asset_object_2,
+    asset_object_3,
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "2")
+    test_async_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
+    )
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    # Stops after 2 assets; the third resumes from the checkpoint on the next cycle
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
 
 

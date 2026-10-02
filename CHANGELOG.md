@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.26.1 - 2026-10-02
+
 ### Fixed
 
 - Fix memory leaks when several actions run in the same process (e.g. in

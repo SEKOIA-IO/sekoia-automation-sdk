@@ -2676,7 +2676,7 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-sdk"
-version = "1.26.1"
+version = "1.27.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiocsv" },

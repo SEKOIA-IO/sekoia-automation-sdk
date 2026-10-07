@@ -966,15 +966,18 @@ def test_scalability_labels_default_to_non_scalable(
     }
 
 
+class _SettingsWithoutBaseDirectory:
+    @property
+    def base_directory(self) -> Path:
+        raise EnvironmentRuntimeError("no base directory")
+
+
 def test_scalability_labels_unknown_base_directory():
     trigger = _trigger_with_command("foo")
+    # Only break the settings of this module, not the Settings class globally
+    trigger.module._settings = _SettingsWithoutBaseDirectory()  # type: ignore[assignment]
 
-    with patch(
-        "sekoia_automation.settings.Settings.base_directory",
-        new_callable=PropertyMock,
-        side_effect=EnvironmentRuntimeError("no base directory"),
-    ):
-        assert trigger.scalability_labels == {
-            "scalable_horizontally": "false",
-            "scalable_vertically": "false",
-        }
+    assert trigger.scalability_labels == {
+        "scalable_horizontally": "false",
+        "scalable_vertically": "false",
+    }

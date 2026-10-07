@@ -179,8 +179,10 @@ class Trigger(ModuleItem):
         try:
             base_directory = self.module._settings.base_directory
         except Exception as e:
-            self.log_exception(e)
-            self.log("Directory not found", "warning")
+            self.log(
+                message=f"Unable to locate the descriptors to read the labels: {e}",
+                level="warning",
+            )
             return {}
 
         sorted_connectors_descriptors = sorted(base_directory.glob("connector_*.json"))

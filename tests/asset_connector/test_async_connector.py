@@ -1041,3 +1041,17 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
+
+
+def test_configuration_api_key_not_sent_to_sentry(test_async_asset_connector):
+    with patch(
+        "sekoia_automation.asset_connector.async_connector.sentry_sdk.set_context"
+    ) as set_context:
+        test_async_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+        }
+
+    context = set_context.call_args[0][1]
+    assert "sekoia_api_key" not in context
+    assert context["sekoia_base_url"] == "http://example.com"

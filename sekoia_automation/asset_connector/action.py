@@ -1,3 +1,4 @@
+import signal
 import time
 from collections import Counter
 from threading import Timer
@@ -39,6 +40,8 @@ class AssetConnectorAction(Action):
     A cycle stopped before its end (time limit, rate limit, SIGTERM) returns
     `has_more: true`: the platform runs the action again, resuming from the
     connector checkpoint.
+
+    Only synchronous `AssetConnector` subclasses are supported.
     """
 
     connector_class: type[AssetConnector]
@@ -56,6 +59,12 @@ class AssetConnectorAction(Action):
         # Drives the push endpoint and the User-Agent of the connector
         self.module._connector_configuration_uuid = asset_connector_uuid
 
+        # The connector registers its own SIGINT/SIGTERM handlers: restore the
+        # previous ones once done, the process may run other actions
+        previous_handlers = {
+            signum: signal.getsignal(signum)
+            for signum in (signal.SIGINT, signal.SIGTERM)
+        }
         connector = self.connector_class(module=self.module, data_path=self.data_path)
         connector.configuration = configuration  # type: ignore[assignment]
         connector._token = token
@@ -81,7 +90,6 @@ class AssetConnectorAction(Action):
                     connector.asset_fetch_cycle()
                     break
                 except AssetConnectorRateLimitError as error:
-                    stats.update(connector.cycle_stats)
                     connector.log(
                         message=f"Rate limit hit, pausing for {error.retry_after} "
                         f"seconds",
@@ -93,9 +101,9 @@ class AssetConnectorAction(Action):
                     if connector._stop_event.wait(error.retry_after):
                         has_more = True
                         break
-            stats.update(connector.cycle_stats)
+                finally:
+                    stats.update(connector.cycle_stats)
         except AssetConnectorStoppedError:
-            stats.update(connector.cycle_stats)
             has_more = True
         except Exception as error:
             connector.log(
@@ -107,6 +115,8 @@ class AssetConnectorAction(Action):
         finally:
             stop_timer.cancel()
             connector.stop()
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
             try:
                 connector._send_logs_to_api()
             except Exception as error:

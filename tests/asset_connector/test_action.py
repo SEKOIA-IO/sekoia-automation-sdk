@@ -1,3 +1,4 @@
+import signal
 from collections.abc import Generator
 from typing import ClassVar
 
@@ -140,7 +141,12 @@ def test_run_returns_has_more_when_the_rate_limit_exceeds_the_time_budget(action
 
     results = action.run(ARGUMENTS)
 
-    assert results["has_more"] is True
+    assert results == {
+        "fetched": 1,
+        "pushed_batches": 0,
+        "failed_batches": 0,
+        "has_more": True,
+    }
     assert len(requests_to(api, PUSH_URL)) == 1
 
 
@@ -166,3 +172,16 @@ def test_run_requires_the_connector_configuration(action, api):
         action.run(arguments)
 
     assert not api.request_history
+
+
+def test_run_restores_the_signal_handlers(action, api):
+    def handler(*_):
+        pass
+
+    previous = signal.signal(signal.SIGTERM, handler)
+    try:
+        action.run(ARGUMENTS)
+
+        assert signal.getsignal(signal.SIGTERM) is handler
+    finally:
+        signal.signal(signal.SIGTERM, previous)

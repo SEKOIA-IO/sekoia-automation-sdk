@@ -105,7 +105,8 @@ class AsyncAssetConnector(Trigger):
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context(
-                self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump()
+                self.CONNECTOR_CONFIGURATION_FILE_NAME,
+                self._configuration.model_dump(exclude={"sekoia_api_key"}),
             )
 
     @property

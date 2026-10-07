@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.27.0 - 2026-10-06
+
+### Added
+
+- Make package PEP 561 compatible to let Mypy use type checks.
+
+### Changed
+
+- Merge `lint` and `dev` dependency groups.
+- Remove the `orjson` dependency contraint.
+
+## 1.26.1 - 2026-10-02
+
+### Fixed
+
+- Fix memory leaks when several actions run in the same process (e.g. in
+  Fission):
+  - Detach the action log handler from the root logger once the action is
+    executed, instead of keeping every past action alive.
+  - Reuse the Sentry client across `Module` instances when the DSN and
+    environment are unchanged, instead of creating (and leaking) a new client
+    on each instantiation.
+
 ## 1.26.0 - 2026-09-11
 
 ### Fixed

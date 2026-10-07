@@ -3,6 +3,8 @@ from collections import Counter
 from threading import Timer
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
+
 from sekoia_automation.action import Action
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
@@ -10,6 +12,15 @@ from sekoia_automation.exceptions import (
 )
 
 from .connector import AssetConnector
+
+
+class AssetConnectorActionArguments(BaseModel):
+    """Arguments of the asset connector, plus the connector configuration to act for."""
+
+    model_config = ConfigDict(extra="allow")
+
+    asset_connector_uuid: str
+    connector_configuration_token: str
 
 
 class AssetConnectorAction(Action):
@@ -35,10 +46,12 @@ class AssetConnectorAction(Action):
     # The platform marks a run failed after 2 hours: keep time to stop cleanly.
     MAX_DURATION = 100 * 60
 
-    def run(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        configuration = dict(arguments)
-        asset_connector_uuid = configuration.pop("asset_connector_uuid")
-        token = configuration.pop("connector_configuration_token")
+    def run(self, arguments: AssetConnectorActionArguments) -> dict[str, Any]:
+        asset_connector_uuid = arguments.asset_connector_uuid
+        token = arguments.connector_configuration_token
+        configuration = arguments.model_dump(
+            exclude={"asset_connector_uuid", "connector_configuration_token"}
+        )
 
         # Drives the push endpoint and the User-Agent of the connector
         self.module._connector_configuration_uuid = asset_connector_uuid

@@ -3,6 +3,7 @@ from typing import ClassVar
 
 import pytest
 import requests_mock
+from pydantic import ValidationError
 
 from sekoia_automation.asset_connector import AssetConnector, AssetConnectorAction
 from sekoia_automation.asset_connector.models.connector import AssetItem
@@ -155,3 +156,13 @@ def test_run_logs_errors_to_the_connector_configuration(action, api, fake_connec
         for log in request.json()["logs"]
     ]
     assert any("LDAP is down" in message for message in messages)
+
+
+def test_run_requires_the_connector_configuration(action, api):
+    arguments = dict(ARGUMENTS)
+    del arguments["connector_configuration_token"]
+
+    with pytest.raises(ValidationError):
+        action.run(arguments)
+
+    assert not api.request_history

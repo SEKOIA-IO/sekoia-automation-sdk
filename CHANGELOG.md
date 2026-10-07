@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the connector configuration given by `asset_connector_uuid` and
   `connector_configuration_token`. The action stops before 100 minutes and
   returns counters with `has_more: true` when the cycle did not complete.
+  `AssetConnectorActionArguments` declares the two extra arguments.
 - Expose the counters of the last fetch cycle in `AssetConnector.cycle_stats`.
 
 ### Changed

@@ -184,9 +184,7 @@ class Trigger(ModuleItem):
             return {}
 
         sorted_connectors_descriptors = sorted(base_directory.glob("connector_*.json"))
-        sorted_triggers_descriptors = sorted(
-            base_directory.glob("trigger_*.json")
-        )
+        sorted_triggers_descriptors = sorted(base_directory.glob("trigger_*.json"))
         descriptors = sorted_connectors_descriptors + sorted_triggers_descriptors
 
         for descriptor in descriptors:

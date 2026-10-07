@@ -48,5 +48,12 @@ class AssetConnectorRateLimitError(AutomationSDKError):
         self.retry_after = retry_after
 
 
+class AssetConnectorStoppedError(AutomationSDKError):
+    """Raised when an asset connector is stopped in the middle of a fetch cycle."""
+
+    def __init__(self):
+        super().__init__("Asset connector stopped during a fetch cycle")
+
+
 class EnvironmentRuntimeError(AutomationSDKError):
     """Raised when an issue with the runtime engine (e.g., Fission) is raised"""

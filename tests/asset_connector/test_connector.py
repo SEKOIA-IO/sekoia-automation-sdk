@@ -44,7 +44,10 @@ from sekoia_automation.asset_connector.utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    AssetConnectorStoppedError,
+)
 
 
 class ContextDict(dict):
@@ -461,14 +464,112 @@ def test_asset_fetch_cycle_pushes_a_batch_when_batch_size_reached(
     )
 
 
-def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
+def test_asset_fetch_cycle_does_not_sleep_when_no_assets(
+    monkeypatch, test_asset_connector
+):
     test_asset_connector.set_assets(AssetList(version=1, items=[]))
     sleep = Mock()
     monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
 
     test_asset_connector.asset_fetch_cycle()
 
+    sleep.assert_not_called()
+    assert test_asset_connector.cycle_stats["fetched"] == 0
+
+
+def test_run_sleeps_when_no_assets(monkeypatch, test_asset_connector):
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    sleep = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+
+    test_asset_connector.run()
+
     sleep.assert_called_once()
+    assert 0 < sleep.call_args[0][0] <= 60
+
+
+def test_run_does_not_sleep_when_assets_were_fetched(
+    monkeypatch, test_asset_connector, asset_list
+):
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock(
+        side_effect=lambda _: test_asset_connector.stop()
+    )
+    sleep = Mock()
+    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+
+    test_asset_connector.run()
+
+    sleep.assert_not_called()
+
+
+def test_asset_fetch_cycle_counts_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=[True, False, True])
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.cycle_stats == {
+        "fetched": 3,
+        "pushed_batches": 2,
+        "failed_batches": 1,
+    }
+
+
+def test_asset_fetch_cycle_raises_when_stopped_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+
+    def push_then_stop(_):
+        test_asset_connector.stop()
+        return True
+
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 1
+
+
+def test_run_returns_when_stopped_during_a_cycle(test_asset_connector):
+    test_asset_connector.asset_fetch_cycle = Mock(
+        side_effect=AssetConnectorStoppedError()
+    )
+
+    test_asset_connector.run()
+
+    test_asset_connector.asset_fetch_cycle.assert_called_once()
+    test_asset_connector.log_exception.assert_not_called()
+
+
+def test_push_assets_to_sekoia_returns_whether_assets_were_pushed(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.module._connector_configuration_uuid = "uuid"
+    test_asset_connector.post_assets_to_api = Mock(side_effect=[{}, None])
+
+    assert test_asset_connector.push_assets_to_sekoia(asset_list) is True
+    assert test_asset_connector.push_assets_to_sekoia(asset_list) is False
+
+
+def test_configuration_api_key_not_sent_to_sentry(test_asset_connector):
+    with patch(
+        "sekoia_automation.asset_connector.connector.sentry_sdk.set_context"
+    ) as set_context:
+        test_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+        }
+
+    context = set_context.call_args[0][1]
+    assert "sekoia_api_key" not in context
+    assert context["sekoia_base_url"] == "http://example.com"
 
 
 def test_update_checkpoint(

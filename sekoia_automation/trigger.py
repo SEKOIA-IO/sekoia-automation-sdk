@@ -4,6 +4,7 @@ from abc import abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
@@ -33,6 +34,8 @@ from sekoia_automation.utils import (
     get_as_model,
     validate_with_model,
 )
+
+SCALABILITY_LABEL_NAMES = ("scalable_horizontally", "scalable_vertically")
 
 
 class Trigger(ModuleItem):
@@ -162,6 +165,56 @@ class Trigger(ModuleItem):
         Return if the trigger is still active or not
         """
         return not self._stop_event.is_set()
+
+    @cached_property
+    def descriptor_labels(self) -> dict[str, Any]:
+        """
+        Get the labels declared in the descriptor of the running trigger/connector.
+        """
+
+        command = self.module.command
+        if not command:
+            return {}
+
+        try:
+            base_directory = self.module._settings.base_directory
+        except Exception as e:
+            self.log_exception(e)
+            self.log("Directory not found", "warning")
+            return {}
+
+        sorted_connectors_descriptors = sorted(base_directory.glob("connector_*.json"))
+        sorted_triggers_descriptors = sorted(
+            base_directory.glob("trigger_*.json")
+        )
+        descriptors = sorted_connectors_descriptors + sorted_triggers_descriptors
+
+        for descriptor in descriptors:
+            try:
+                data = json.loads(descriptor.read_bytes())
+            except (OSError, ValueError):
+                continue
+
+            if not isinstance(data, dict) or data.get("docker_parameters") != command:
+                continue
+
+            labels = data.get("labels")
+            if isinstance(labels, dict) and labels:
+                return labels
+
+        return {}
+
+    @cached_property
+    def scalability_labels(self) -> dict[str, str]:
+        """
+        Get the scalability labels of the running trigger/connector,
+        """
+        return {
+            name: str(
+                str(self.descriptor_labels.get(name, False)).lower() == "true"
+            ).lower()
+            for name in SCALABILITY_LABEL_NAMES
+        }
 
     @property
     def configuration(self) -> dict | BaseModel | None:

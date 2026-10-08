@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
+from typing import Any
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
@@ -31,7 +32,7 @@ class AsyncConnector(Connector, ABC):
 
     def __init__(
         self,
-        module: Module | None = None,
+        module: Module[Any] | None = None,
         data_path: Path | None = None,
         *args,
         **kwargs,
@@ -42,7 +43,7 @@ class AsyncConnector(Connector, ABC):
         Optionally accepts event_loop to use, otherwise will use default event loop.
 
         Args:
-            module: Module | None
+            module: Module[Any] | None
             data_path: Path | None
             event_loop: AbstractEventLoop | None
         """

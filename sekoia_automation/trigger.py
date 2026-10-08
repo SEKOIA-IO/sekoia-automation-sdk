@@ -65,7 +65,9 @@ class Trigger(ModuleItem):
     # Time to wait for stop event to be received
     _STOP_EVENT_WAIT = 120
 
-    def __init__(self, module: Module | None = None, data_path: Path | None = None):
+    def __init__(
+        self, module: Module[Any] | None = None, data_path: Path | None = None
+    ):
         super().__init__(module, data_path)
         self._configuration: dict | BaseModel | None = None
         self._error_count = 0

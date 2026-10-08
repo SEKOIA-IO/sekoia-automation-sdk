@@ -166,6 +166,48 @@ def test_configuration_as_model():
         module.configuration = {"number": "NotANumber"}
 
 
+def test_configuration_as_generic_model():
+    class MyConfiguration(SekoiaAutomationBaseModel):
+        number: int = 0
+
+    class MyModule(Module[MyConfiguration]):
+        pass
+
+    class MySubModule(MyModule):
+        pass
+
+    assert MyModule.get_configuration_model() is MyConfiguration
+    assert MySubModule.get_configuration_model() is MyConfiguration
+
+    module = MySubModule()
+
+    module.configuration = {"number": "42"}
+    assert isinstance(module.configuration, MyConfiguration)
+    assert module.configuration.number == 42
+
+    with pytest.raises(ModuleConfigurationError):
+        module.configuration = {"number": "NotANumber"}
+
+
+def test_configuration_model_closest_definition_wins():
+    class BaseConfiguration(SekoiaAutomationBaseModel):
+        number: int = 0
+
+    class ChildConfiguration(BaseConfiguration):
+        name: str = "child"
+
+    class GenericModule(Module[BaseConfiguration]):
+        pass
+
+    class AnnotatedModule(GenericModule):
+        configuration: ChildConfiguration  # type: ignore[assignment]
+
+    assert Module.get_configuration_model() is None
+    assert Module[dict]().get_configuration_model() is None
+    assert GenericModule.get_configuration_model() is BaseConfiguration
+    assert AnnotatedModule.get_configuration_model() is ChildConfiguration
+
+
 def test_module_manifest_loading():
     manifest_content = {
         "name": "Test Module",

@@ -53,7 +53,9 @@ class ActionLogHandler(logging.StreamHandler):
 class Action(ModuleItem):
     ARGUMENTS_FILE_NAME = "arguments"
 
-    def __init__(self, module: Module | None = None, data_path: Path | None = None):
+    def __init__(
+        self, module: Module[Any] | None = None, data_path: Path | None = None
+    ):
         super().__init__(module, data_path)
 
         self._arguments: dict | None = None

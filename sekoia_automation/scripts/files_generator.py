@@ -211,7 +211,7 @@ class FilesGenerator:
             print(f"[green][+][/green] Generated {filepath}")
 
     def update_module_manifest(self, module: type[Module]):
-        configuration_model = get_annotation_for(module, "configuration")
+        configuration_model = module.get_configuration_model()
 
         if configuration_model is None:
             return

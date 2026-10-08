@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Make `Module` generic over its configuration type: `Module[MyConfigurationModel]`
+  types `module.configuration` as `MyConfigurationModel` and validates the
+  configuration against it. The `configuration: MyConfigurationModel` annotation
+  is still supported.
+- Add `Module.get_configuration_model()` to get the Pydantic model of the
+  module configuration.
+
+### Changed
+
+- `Module.configuration` is no longer typed as optional.
+- Add `typing-extensions` as an explicit dependency.
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

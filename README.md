@@ -206,20 +206,24 @@ It is recommended to use Pydantic to develop new modules. This should ease devel
 
 ### Module Configuration
 
-A pydantic model can be used as `self.module.configuration` by adding type hints:
+A pydantic model can be used as `self.module.configuration` by passing it as type parameter
+of `Module`. The configuration is then validated against the model and correctly typed:
 
 ```python
 class MyConfigurationModel(BaseModel):
     field: str
 
 
-class MyModule(Module):
-    configuration: MyConfiguration
+class MyModule(Module[MyConfigurationModel]):
+    pass
 
 
 class MyAction(Action):
     module: MyModule
 ```
+
+The former syntax, using a `configuration: MyConfigurationModel` annotation on the module
+class, is still supported.
 
 ### Triggers
 

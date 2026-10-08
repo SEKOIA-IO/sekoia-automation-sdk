@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Module.configuration` is no longer typed as optional.
 - Add `typing-extensions` as an explicit dependency.
+- Type `GenericAPIAction.query_parameters` as a `ClassVar`.
 
 ## 1.27.0 - 2026-10-06
 

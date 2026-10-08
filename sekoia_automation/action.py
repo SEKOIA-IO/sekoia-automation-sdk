@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
 from traceback import format_exc
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 import orjson
@@ -285,7 +285,7 @@ class GenericAPIAction(Action):
     base_url = ""
     verb: str
     endpoint: str
-    query_parameters: list[str]
+    query_parameters: ClassVar[list[str]]
     timeout: int = 5
 
     authentication: SupportedAuthentications = None

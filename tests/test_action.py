@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import ClassVar
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -278,13 +279,14 @@ def test_action_json_result_same_as_argument():
 def test_generic_api_action(storage):
     def init_action(verb: str = "get"):
         class TestGenericAPIAction(GenericAPIAction):
+            query_parameters: ClassVar[list[str]] = ["param"]
+
             def _wait_param(self):
                 return wait_none()
 
         action = TestGenericAPIAction(data_path=storage)
         action.verb = verb
         action.endpoint = "resource/{uuid}/count"
-        action.query_parameters = ["param"]
         action.module.configuration = {"base_url": "http://base_url/"}
         return action
 

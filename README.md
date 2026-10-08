@@ -216,23 +216,45 @@ class MyConfigurationModel(BaseModel):
 
 class MyModule(Module[MyConfigurationModel]):
     pass
-
-
-class MyAction(Action):
-    module: MyModule
 ```
 
-The former syntax, using a `configuration: MyConfigurationModel` annotation on the module
-class, is still supported.
+Actions, triggers and connectors take the type of their module as type parameter, so that
+`self.module.configuration` is correctly typed too. When no module is given to their
+constructor, an instance of this type is created:
+
+```python
+class MyAction(Action[MyModule]):
+    pass
+```
 
 ### Triggers
 
-The Trigger configuration can also be a pydantic model by adding a type hint:
+The Trigger configuration can also be a pydantic model by passing it as first type
+parameter of `Trigger`. The module type can be given as second type parameter:
 
 ```python
-class MyTrigger(Trigger):
-    configuration: MyConfigurationModel
+class MyTrigger(Trigger[MyTriggerConfigurationModel, MyModule]):
+    pass
 ```
+
+### Connectors
+
+The Connector configuration works the same way. Its model must inherit from
+`DefaultConnectorConfiguration`, which is used when no type parameter is given:
+
+```python
+class MyConnectorConfigurationModel(DefaultConnectorConfiguration):
+    frequency: int = 60
+
+
+class MyConnector(Connector[MyConnectorConfigurationModel, MyModule]):
+    pass
+```
+
+`AsyncConnector`, `AssetConnector` and `AsyncAssetConnector` take the same type parameters.
+
+The former syntax, using a `configuration: MyConfigurationModel` annotation on the module,
+trigger or connector class (or `module: MyModule` on an action), is still supported.
 
 You can also specify the model of created events by setting the `results_model` attribute:
 

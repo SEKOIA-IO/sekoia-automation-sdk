@@ -231,6 +231,26 @@ def test_action_execute_detaches_log_handler(mock_volume):
         assert [log["message"] for log in action.logs] == ["from run"]
 
 
+def test_action_module_as_generic():
+    class TestModule(Module):
+        pass
+
+    class TestAction(Action[TestModule]):
+        def run(self, arguments):
+            pass
+
+    class TestSubAction(TestAction):
+        pass
+
+    class DefaultAction(Action):
+        def run(self, arguments):
+            pass
+
+    assert type(TestAction().module) is TestModule
+    assert type(TestSubAction().module) is TestModule
+    assert type(DefaultAction().module) is Module
+
+
 def test_action_json_argument(storage):
     action = DummyAction(data_path=storage)
 

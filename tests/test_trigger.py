@@ -300,6 +300,44 @@ def test_trigger_configuration_as_model():
         trigger.configuration = {"number": "NotANumber"}
 
 
+def test_trigger_configuration_as_generic_model():
+    class TestConfiguration(SekoiaAutomationBaseModel):
+        number: int = 0
+
+    class TestTrigger(Trigger[TestConfiguration]):
+        def run(self):
+            pass
+
+    assert Trigger.get_configuration_model() is None
+    assert TestTrigger.get_configuration_model() is TestConfiguration
+
+    trigger = TestTrigger()
+
+    trigger.configuration = {"number": "4"}
+    assert isinstance(trigger.configuration, TestConfiguration)
+    assert trigger.configuration.number == 4
+
+    with pytest.raises(TriggerConfigurationError):
+        trigger.configuration = {"number": "NotANumber"}
+
+
+def test_trigger_module_as_generic():
+    class TestModule(Module):
+        pass
+
+    class TestTrigger(Trigger[dict, TestModule]):
+        def run(self):
+            pass
+
+    assert TestTrigger.get_module_class() is TestModule
+    assert type(TestTrigger().module) is TestModule
+    assert type(DummyTrigger().module) is Module
+
+    # A given module is used as is
+    module = Module()
+    assert TestTrigger(module=module).module is module
+
+
 def test_trigger_log(mocked_trigger_logs):
     trigger = DummyTrigger()
     trigger.LOGS_MAX_BATCH_SIZE = 0

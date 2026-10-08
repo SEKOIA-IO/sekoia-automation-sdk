@@ -1,14 +1,11 @@
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any
 
-from sekoia_automation.module import Module, ModuleItem
+from sekoia_automation.module import ModuleItem, ModuleT
 
 
-class AccountValidator(ModuleItem):
-    def __init__(
-        self, module: Module[Any] | None = None, data_path: Path | None = None
-    ):
+class AccountValidator(ModuleItem[ModuleT]):
+    def __init__(self, module: ModuleT | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
         self._error: str | None = None
 

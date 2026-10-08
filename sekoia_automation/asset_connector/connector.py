@@ -5,21 +5,24 @@ import time
 from abc import abstractmethod
 from collections.abc import Generator
 from functools import cached_property
+from typing import cast
 
 import requests
 import sentry_sdk
 from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
+from typing_extensions import TypeVar
 
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
     TriggerConfigurationError,
 )
+from sekoia_automation.module import ModuleT
 from sekoia_automation.storage import PersistentJSON
 from sekoia_automation.trigger import Trigger
-from sekoia_automation.utils import get_annotation_for, get_as_model
+from sekoia_automation.utils import get_as_model
 
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
 from .utils import (
@@ -31,8 +34,14 @@ from .utils import (
     parse_retry_after,
 )
 
+AssetConnectorConfigurationT = TypeVar(
+    "AssetConnectorConfigurationT",
+    bound=DefaultAssetConnectorConfiguration,
+    default=DefaultAssetConnectorConfiguration,
+)
 
-class AssetConnector(Trigger):
+
+class AssetConnector(Trigger[AssetConnectorConfigurationT, ModuleT]):
     """
     Base class for all asset connectors.
 
@@ -44,8 +53,6 @@ class AssetConnector(Trigger):
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     PRODUCTION_BASE_URL = "https://api.sekoia.io"
     OCSF_SCHEMA_VERSION = 1
-
-    configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,12 +72,12 @@ class AssetConnector(Trigger):
         """
         return self.__class__.__name__
 
-    @property  # type: ignore[override, no-redef]
-    def configuration(self) -> DefaultAssetConnectorConfiguration:
+    @property
+    def configuration(self) -> AssetConnectorConfigurationT:
         """
         Get the module configuration.
         Returns:
-            DefaultAssetConnectorConfiguration: Connector configuration
+            AssetConnectorConfigurationT: Connector configuration
         """
         if self._configuration is None:
             try:
@@ -78,10 +85,10 @@ class AssetConnector(Trigger):
                     self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
                 )
             except MissingConfigurationError:
-                return super().configuration  # type: ignore[return-value]
-        return self._configuration  # type: ignore[return-value]
+                return super().configuration
+        return cast(AssetConnectorConfigurationT, self._configuration)
 
-    @configuration.setter  # type: ignore[override]
+    @configuration.setter
     def configuration(self, configuration: dict) -> None:
         """
         Set the module configuration.
@@ -90,8 +97,9 @@ class AssetConnector(Trigger):
             configuration: dict
         """
         try:
-            self._configuration = get_as_model(
-                get_annotation_for(self.__class__, "configuration"), configuration
+            self._configuration = cast(
+                AssetConnectorConfigurationT,
+                get_as_model(self.get_configuration_model(), configuration),
             )
         except Exception as e:
             raise TriggerConfigurationError(str(e)) from e

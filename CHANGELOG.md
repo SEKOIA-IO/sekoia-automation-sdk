@@ -15,10 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is still supported.
 - Add `Module.get_configuration_model()` to get the Pydantic model of the
   module configuration.
+- Make `ModuleItem` (and so `Action`, `AccountValidator`, `Trigger` and
+  connectors) generic over the module type: `Action[MyModule]` types
+  `self.module` as `MyModule`. When no module is given to the constructor, an
+  instance of this type is created.
+- Make `Trigger`, `Connector`, `AsyncConnector`, `AssetConnector` and
+  `AsyncAssetConnector` generic over their configuration type:
+  `Trigger[MyConfigurationModel, MyModule]` types `self.configuration` as
+  `MyConfigurationModel` and validates the configuration against it.
+- Add `Trigger.get_configuration_model()` and `ModuleItem.get_module_class()`.
 
 ### Changed
 
-- `Module.configuration` is no longer typed as optional.
+- `Module.configuration` and `Trigger.configuration` are no longer typed as optional.
+- The manifest generator gets configuration models from the type parameters.
 - Add `typing-extensions` as an explicit dependency.
 - Type `GenericAPIAction.query_parameters` as a `ClassVar`.
 

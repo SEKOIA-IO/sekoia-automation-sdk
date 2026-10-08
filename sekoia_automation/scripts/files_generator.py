@@ -17,7 +17,6 @@ from sekoia_automation.action import Action
 from sekoia_automation.connector import Connector
 from sekoia_automation.module import Module
 from sekoia_automation.trigger import Trigger
-from sekoia_automation.utils import get_annotation_for
 
 
 class FilesGenerator:
@@ -174,7 +173,7 @@ class FilesGenerator:
             if trigger.results_model:
                 manifest["results"] = trigger.results_model.model_json_schema()
 
-            if configuration_model := get_annotation_for(trigger, "configuration"):
+            if configuration_model := trigger.get_configuration_model():
                 arguments = configuration_model.model_json_schema()
                 self.add_secrets_to_configuration(
                     arguments,
@@ -202,7 +201,7 @@ class FilesGenerator:
                 "arguments": {},
             }
 
-            if configuration_model := get_annotation_for(connector, "configuration"):
+            if configuration_model := connector.get_configuration_model():
                 manifest["arguments"] = configuration_model.model_json_schema()
 
             with filepath.open("w") as out:

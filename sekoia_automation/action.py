@@ -29,7 +29,7 @@ from sekoia_automation.exceptions import (
     MissingActionArgumentFileError,
     SendEventError,
 )
-from sekoia_automation.module import LogLevelStr, Module, ModuleItem
+from sekoia_automation.module import LogLevelStr, ModuleItem, ModuleT
 from sekoia_automation.storage import UPLOAD_CHUNK_SIZE
 from sekoia_automation.typing import SupportedAuthentications
 from sekoia_automation.utils import chunks, returns
@@ -50,12 +50,10 @@ class ActionLogHandler(logging.StreamHandler):
             pass
 
 
-class Action(ModuleItem):
+class Action(ModuleItem[ModuleT]):
     ARGUMENTS_FILE_NAME = "arguments"
 
-    def __init__(
-        self, module: Module[Any] | None = None, data_path: Path | None = None
-    ):
+    def __init__(self, module: ModuleT | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
 
         self._arguments: dict | None = None
@@ -280,7 +278,7 @@ class Action(ModuleItem):
                 raise ex
 
 
-class GenericAPIAction(Action):
+class GenericAPIAction(Action[ModuleT]):
     # Endpoint Specific Information, should be defined in subclasses
     base_url = ""
     verb: str

@@ -1,6 +1,7 @@
 import datetime
 import time
 from collections.abc import Generator
+from typing import Any
 
 from prometheus_client import Gauge
 
@@ -22,7 +23,7 @@ class TimeStepper:
 
     def __init__(
         self,
-        trigger: Trigger,
+        trigger: Trigger[Any, Any],
         start: datetime.datetime,
         end: datetime.datetime,
         frequency: datetime.timedelta,
@@ -91,7 +92,7 @@ class TimeStepper:
     @classmethod
     def create(
         cls,
-        trigger: Trigger,
+        trigger: Trigger[Any, Any],
         frequency: int = 60,
         timedelta: int = 1,
         start_time: int = 1,
@@ -114,7 +115,7 @@ class TimeStepper:
     @classmethod
     def create_from_time(
         cls,
-        trigger: Trigger,
+        trigger: Trigger[Any, Any],
         start: datetime.datetime,
         frequency: int = 60,
         timedelta: int = 1,

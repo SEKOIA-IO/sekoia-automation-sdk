@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from posixpath import join as urljoin
-from typing import Any
 
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
@@ -16,23 +15,21 @@ from aiolimiter import AsyncLimiter
 from sekoia_automation.aio.helpers import limit_concurrency
 from sekoia_automation.connector import (
     Connector,
-    DefaultConnectorConfiguration,
+    ConnectorConfigurationT,
     EventType,
 )
-from sekoia_automation.module import Module
+from sekoia_automation.module import ModuleT
 
 
-class AsyncConnector(Connector, ABC):
+class AsyncConnector(Connector[ConnectorConfigurationT, ModuleT], ABC):
     """Async version of Connector."""
-
-    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
     _session: ClientSession | None = None
     _rate_limiter: AsyncLimiter | None = None
 
     def __init__(
         self,
-        module: Module[Any] | None = None,
+        module: ModuleT | None = None,
         data_path: Path | None = None,
         *args,
         **kwargs,
@@ -43,7 +40,7 @@ class AsyncConnector(Connector, ABC):
         Optionally accepts event_loop to use, otherwise will use default event loop.
 
         Args:
-            module: Module[Any] | None
+            module: ModuleT | None
             data_path: Path | None
             event_loop: AbstractEventLoop | None
         """

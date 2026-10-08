@@ -4,9 +4,8 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from functools import cached_property
-from inspect import get_annotations
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, Literal, cast, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Generic, Literal, cast
 
 import requests
 import sentry_sdk
@@ -25,7 +24,11 @@ from sekoia_automation.exceptions import (
 )
 from sekoia_automation.settings import Settings
 from sekoia_automation.storage import get_data_path
-from sekoia_automation.utils import get_as_model
+from sekoia_automation.utils import (
+    get_as_model,
+    get_configuration_model,
+    get_type_argument,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from sekoia_automation.account_validator import AccountValidator
@@ -176,22 +179,8 @@ class Module(Generic[ConfigurationT]):
 
         The model is either given as type parameter (`Module[MyModel]`) or,
         for backward compatibility, as a `configuration: MyModel` annotation.
-        The closest definition in the MRO wins.
         """
-        for klass in cls.__mro__:
-            annotation = get_annotations(klass).get("configuration")
-            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                return annotation
-
-            for base in klass.__dict__.get("__orig_bases__", ()):
-                origin = get_origin(base)
-                if not (isinstance(origin, type) and issubclass(origin, Module)):
-                    continue
-                for arg in get_args(base):
-                    if isinstance(arg, type) and issubclass(arg, BaseModel):
-                        return arg
-
-        return None
+        return get_configuration_model(cls, Module)
 
     def manifest_properties(self) -> list[str]:
         """Gets the list of expected properties from the module's manifest
@@ -396,7 +385,19 @@ class Module(Generic[ConfigurationT]):
             return None
 
 
-class ModuleItem(ABC):
+ModuleT = TypeVar("ModuleT", bound=Module[Any], default=Module[Any])
+
+
+class ModuleItem(ABC, Generic[ModuleT]):
+    """Base class for actions, triggers and connectors
+
+    The type of the module can be specified as type parameter. When no module
+    is given to the constructor, an instance of this type is created:
+
+        class MyAction(Action[MyModule]):
+            pass
+    """
+
     TOKEN_FILE_NAME = "token"
     CALLBACK_URL_FILE_NAME = "url_callback"
     SECRETS_URL_FILE_NAME = "url_secrets"
@@ -409,10 +410,8 @@ class ModuleItem(ABC):
 
     _wait_exponent_base: int = 2
 
-    def __init__(
-        self, module: Module[Any] | None = None, data_path: Path | None = None
-    ):
-        self.module: Module[Any] = module or Module()
+    def __init__(self, module: ModuleT | None = None, data_path: Path | None = None):
+        self.module: ModuleT = module or cast(ModuleT, self.get_module_class()())
 
         self._token: str | None = None
 
@@ -423,6 +422,14 @@ class ModuleItem(ABC):
         self._data_path = data_path
 
         self._setup_logging()
+
+    @classmethod
+    def get_module_class(cls) -> type[Module[Any]]:
+        """Returns the class of the module, given as type parameter"""
+        module_class = get_type_argument(cls, ModuleItem)
+        if isinstance(module_class, type) and issubclass(module_class, Module):
+            return module_class
+        return Module
 
     def _setup_logging(self):
         logging.basicConfig(

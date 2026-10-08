@@ -15,23 +15,21 @@ from aiolimiter import AsyncLimiter
 from sekoia_automation.aio.helpers import limit_concurrency
 from sekoia_automation.connector import (
     Connector,
-    DefaultConnectorConfiguration,
+    ConnectorConfigurationT,
     EventType,
 )
-from sekoia_automation.module import Module
+from sekoia_automation.module import ModuleT
 
 
-class AsyncConnector(Connector, ABC):
+class AsyncConnector(Connector[ConnectorConfigurationT, ModuleT], ABC):
     """Async version of Connector."""
-
-    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
     _session: ClientSession | None = None
     _rate_limiter: AsyncLimiter | None = None
 
     def __init__(
         self,
-        module: Module | None = None,
+        module: ModuleT | None = None,
         data_path: Path | None = None,
         *args,
         **kwargs,
@@ -42,7 +40,7 @@ class AsyncConnector(Connector, ABC):
         Optionally accepts event_loop to use, otherwise will use default event loop.
 
         Args:
-            module: Module | None
+            module: ModuleT | None
             data_path: Path | None
             event_loop: AbstractEventLoop | None
         """

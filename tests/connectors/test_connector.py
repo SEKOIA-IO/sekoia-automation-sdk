@@ -5,6 +5,7 @@ from unittest.mock import Mock, PropertyMock, patch
 import pytest
 from tenacity import Retrying, stop_after_attempt, wait_none
 
+from sekoia_automation.aio.connector import AsyncConnector
 from sekoia_automation.connector import Connector, DefaultConnectorConfiguration
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
@@ -53,6 +54,31 @@ def test_connector(storage, mocked_trigger_logs):
         yield test_connector
 
         test_connector.stop()
+
+
+def test_connector_configuration_as_generic_model():
+    class TestConfiguration(DefaultConnectorConfiguration):
+        number: int = 0
+
+    class TestConnector(Connector[TestConfiguration]):
+        def run(self):
+            pass
+
+    class TestAsyncConnector(AsyncConnector[TestConfiguration]):
+        pass
+
+    assert DummyConnector.get_configuration_model() is DefaultConnectorConfiguration
+    assert AsyncConnector.get_configuration_model() is DefaultConnectorConfiguration
+    assert TestConnector.get_configuration_model() is TestConfiguration
+    assert TestAsyncConnector.get_configuration_model() is TestConfiguration
+
+    connector = TestConnector()
+    connector.configuration = {"intake_key": "key", "number": "4"}
+    assert isinstance(connector.configuration, TestConfiguration)
+    assert connector.configuration.number == 4
+
+    with pytest.raises(TriggerConfigurationError):
+        connector.configuration = {"intake_key": "key", "number": "NotANumber"}
 
 
 def test_check_http_default_headers(test_connector):

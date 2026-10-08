@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from datetime import time as datetime_time
 from functools import cached_property
 from os.path import join as urljoin
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 
 import orjson
 import requests
@@ -16,13 +16,15 @@ import sentry_sdk
 from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
+from typing_extensions import TypeVar
 
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.module import ModuleT
 from sekoia_automation.trigger import Trigger
-from sekoia_automation.utils import get_annotation_for, get_as_model
+from sekoia_automation.utils import get_as_model
 
 # Connector are a kind of trigger that fetch events from remote sources.
 # We should add the content of push_events_to_intakes
@@ -36,12 +38,25 @@ class DefaultConnectorConfiguration(BaseModel):
     intake_key: str
 
 
-class Connector(Trigger, MetricsMixin, ABC):
+ConnectorConfigurationT = TypeVar(
+    "ConnectorConfigurationT",
+    bound=DefaultConnectorConfiguration,
+    default=DefaultConnectorConfiguration,
+)
+
+
+class Connector(Trigger[ConnectorConfigurationT, ModuleT], MetricsMixin, ABC):
+    """Base class for connectors
+
+    The type of the connector configuration and the type of the module can be
+    specified as type parameters:
+
+        class MyConnector(Connector[MyConnectorConfiguration, MyModule]):
+            pass
+    """
+
     CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
     seconds_without_events = 3600 * 6
-
-    # Required for Pydantic to correctly type the configuration object
-    configuration: DefaultConnectorConfiguration  # type: ignore[override]
 
     @property
     def connector_name(self) -> str:
@@ -57,18 +72,18 @@ class Connector(Trigger, MetricsMixin, ABC):
         # Node-level secrets are supported for triggers only for now; connectors: no-op.
         return
 
-    @property  # type: ignore[no-redef]
-    def configuration(self) -> DefaultConnectorConfiguration:
+    @property
+    def configuration(self) -> ConnectorConfigurationT:
         if self._configuration is None:
             try:
                 self.configuration = self.module.load_config(
                     self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
                 )
             except MissingConfigurationError:
-                return super().configuration  # type: ignore[return-value]
-        return self._configuration  # type: ignore[return-value]
+                return super().configuration
+        return cast(ConnectorConfigurationT, self._configuration)
 
-    @configuration.setter  # type: ignore[override]
+    @configuration.setter
     def configuration(self, configuration: dict) -> None:
         """
         Set the connector configuration.
@@ -77,8 +92,9 @@ class Connector(Trigger, MetricsMixin, ABC):
             configuration: dict
         """
         try:
-            self._configuration = get_as_model(
-                get_annotation_for(self.__class__, "configuration"), configuration
+            self._configuration = cast(
+                ConnectorConfigurationT,
+                get_as_model(self.get_configuration_model(), configuration),
             )
         except Exception as e:
             raise TriggerConfigurationError(str(e))

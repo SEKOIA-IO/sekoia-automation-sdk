@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Generic, cast
 from uuid import uuid4
 
 import botocore.exceptions
@@ -25,17 +25,31 @@ from sekoia_automation.exceptions import (
     TriggerConfigurationError,
 )
 from sekoia_automation.metrics import PrometheusExporterThread, make_exporter
-from sekoia_automation.module import LogLevelStr, Module, ModuleItem
+from sekoia_automation.module import (
+    ConfigurationT,
+    LogLevelStr,
+    ModuleItem,
+    ModuleT,
+)
 from sekoia_automation.timer import RepeatedTimer
 from sekoia_automation.utils import (
     capture_retry_error,
-    get_annotation_for,
     get_as_model,
+    get_configuration_model,
     validate_with_model,
 )
 
 
-class Trigger(ModuleItem):
+class Trigger(ModuleItem[ModuleT], Generic[ConfigurationT, ModuleT]):
+    """Base class for triggers
+
+    The type of the trigger configuration and the type of the module can be
+    specified as type parameters:
+
+        class MyTrigger(Trigger[MyConfigurationModel, MyModule]):
+            pass
+    """
+
     configuration_model: BaseModel | None = None
 
     TRIGGER_CONFIGURATION_FILE_NAME = "trigger_configuration"
@@ -65,9 +79,9 @@ class Trigger(ModuleItem):
     # Time to wait for stop event to be received
     _STOP_EVENT_WAIT = 120
 
-    def __init__(self, module: Module | None = None, data_path: Path | None = None):
+    def __init__(self, module: ModuleT | None = None, data_path: Path | None = None):
         super().__init__(module, data_path)
-        self._configuration: dict | BaseModel | None = None
+        self._configuration: ConfigurationT | None = None
         self._error_count = 0
         self._last_events_time = datetime.now(UTC).replace(tzinfo=None)
         self._last_heartbeat = datetime.now(UTC).replace(tzinfo=None)
@@ -164,13 +178,13 @@ class Trigger(ModuleItem):
         return not self._stop_event.is_set()
 
     @property
-    def configuration(self) -> dict | BaseModel | None:
+    def configuration(self) -> ConfigurationT:
         if self._configuration is None:
             self.configuration = self.module.load_config(
                 self.TRIGGER_CONFIGURATION_FILE_NAME, "json"
             )
 
-        return self._configuration
+        return cast(ConfigurationT, self._configuration)
 
     @configuration.setter
     def configuration(self, configuration: dict) -> None:
@@ -181,8 +195,9 @@ class Trigger(ModuleItem):
             configuration: dict
         """
         try:
-            self._configuration = get_as_model(
-                get_annotation_for(self.__class__, "configuration"), configuration
+            self._configuration = cast(
+                ConfigurationT,
+                get_as_model(self.get_configuration_model(), configuration),
             )
         except Exception as e:
             raise TriggerConfigurationError(str(e))
@@ -195,6 +210,15 @@ class Trigger(ModuleItem):
             sentry_sdk.set_context("trigger_configuration", dict(self._configuration))
         elif self._configuration:
             sentry_sdk.set_context("trigger_configuration", self._configuration)
+
+    @classmethod
+    def get_configuration_model(cls) -> type[BaseModel] | None:
+        """Returns the Pydantic model of the trigger configuration, if any
+
+        The model is either given as type parameter (`Trigger[MyModel]`) or,
+        for backward compatibility, as a `configuration: MyModel` annotation.
+        """
+        return get_configuration_model(cls, Trigger)
 
     def _execute_once(self) -> None:
         try:
@@ -585,7 +609,7 @@ class Trigger(ModuleItem):
 
 
 class LivenessHandler(BaseHTTPRequestHandler):
-    trigger: Trigger
+    trigger: Trigger[Any, Any]
 
     def do_GET(self):
         if self.path == "/health":

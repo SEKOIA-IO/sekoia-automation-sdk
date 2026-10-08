@@ -2704,6 +2704,7 @@ dependencies = [
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer" },
+    { name = "typing-extensions" },
     { name = "uv" },
 ]
 
@@ -2753,6 +2754,7 @@ requires-dist = [
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer", specifier = ">=0.20" },
+    { name = "typing-extensions", specifier = ">=4.12.2" },
     { name = "uv" },
 ]
 

@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Generic, Literal, cast
 
 import requests
 import sentry_sdk
@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 from flask import request
 from pydantic import BaseModel
 from requests import RequestException, Response
+from typing_extensions import TypeVar
 
 from sekoia_automation.configuration import get_configuration
 from sekoia_automation.configuration.exception import MissingConfigurationError
@@ -24,8 +25,9 @@ from sekoia_automation.exceptions import (
 from sekoia_automation.settings import Settings
 from sekoia_automation.storage import get_data_path
 from sekoia_automation.utils import (
-    get_annotation_for,
     get_as_model,
+    get_configuration_model,
+    get_type_argument,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,8 +36,23 @@ if TYPE_CHECKING:  # pragma: no cover
 
 LogLevelStr = Literal["fatal", "critical", "error", "warning", "info", "debug"]
 
+ConfigurationT = TypeVar(
+    "ConfigurationT", bound=dict[str, Any] | BaseModel, default=dict[str, Any]
+)
 
-class Module:
+
+class Module(Generic[ConfigurationT]):
+    """Base class for modules
+
+    The type of the module configuration can be specified with a Pydantic model
+    as type parameter. The configuration will then be validated against it:
+
+        class MyModule(Module[MyConfigurationModel]):
+            pass
+
+    Without type parameter, the configuration is a plain dict.
+    """
+
     MODULE_CONFIGURATION_FILE_NAME = "module_configuration"
     COMMUNITY_UUID_FILE_NAME = "community_uuid"
     PLAYBOOK_UUID_FILE_NAME = "playbook_uuid"
@@ -57,7 +74,7 @@ class Module:
         self._settings = Settings()
 
         self._command: str | None = None
-        self._configuration: dict | BaseModel | None = None
+        self._configuration: ConfigurationT | None = None
         self._manifest: dict | None = None
         self._community_uuid: str | None = None
         self._items: dict[str, type[ModuleItem]] = {}
@@ -99,13 +116,13 @@ class Module:
         return self._name
 
     @property
-    def configuration(self) -> dict | BaseModel | None:
+    def configuration(self) -> ConfigurationT:
         if self._configuration is None:
             self.configuration = self.load_config(
                 self.MODULE_CONFIGURATION_FILE_NAME, "json"
             )
 
-        return self._configuration
+        return cast(ConfigurationT, self._configuration)
 
     @configuration.setter
     def configuration(self, configuration: dict | BaseModel) -> None:
@@ -137,9 +154,9 @@ class Module:
         ]
         if not missing_required_properties:
             try:
-                self._configuration = get_as_model(
-                    get_annotation_for(self.__class__, "configuration"),
-                    configuration,
+                self._configuration = cast(
+                    ConfigurationT,
+                    get_as_model(self.get_configuration_model(), configuration),
                 )
             except Exception as e:
                 raise ModuleConfigurationError(str(e))
@@ -153,8 +170,17 @@ class Module:
             sentry_sdk.set_context(
                 "module_configuration", self._configuration.model_dump()
             )
-        elif self._configuration:
+        elif isinstance(self._configuration, dict):
             sentry_sdk.set_context("module_configuration", self._configuration)
+
+    @classmethod
+    def get_configuration_model(cls) -> type[BaseModel] | None:
+        """Returns the Pydantic model of the module configuration, if any
+
+        The model is either given as type parameter (`Module[MyModel]`) or,
+        for backward compatibility, as a `configuration: MyModel` annotation.
+        """
+        return get_configuration_model(cls, Module)
 
     def manifest_properties(self) -> list[str]:
         """Gets the list of expected properties from the module's manifest
@@ -359,7 +385,19 @@ class Module:
             return None
 
 
-class ModuleItem(ABC):
+ModuleT = TypeVar("ModuleT", bound=Module[Any], default=Module[Any])
+
+
+class ModuleItem(ABC, Generic[ModuleT]):
+    """Base class for actions, triggers and connectors
+
+    The type of the module can be specified as type parameter. When no module
+    is given to the constructor, an instance of this type is created:
+
+        class MyAction(Action[MyModule]):
+            pass
+    """
+
     TOKEN_FILE_NAME = "token"
     CALLBACK_URL_FILE_NAME = "url_callback"
     SECRETS_URL_FILE_NAME = "url_secrets"
@@ -372,8 +410,8 @@ class ModuleItem(ABC):
 
     _wait_exponent_base: int = 2
 
-    def __init__(self, module: Module | None = None, data_path: Path | None = None):
-        self.module: Module = module or Module()
+    def __init__(self, module: ModuleT | None = None, data_path: Path | None = None):
+        self.module: ModuleT = module or cast(ModuleT, self.get_module_class()())
 
         self._token: str | None = None
 
@@ -384,6 +422,14 @@ class ModuleItem(ABC):
         self._data_path = data_path
 
         self._setup_logging()
+
+    @classmethod
+    def get_module_class(cls) -> type[Module[Any]]:
+        """Returns the class of the module, given as type parameter"""
+        module_class = get_type_argument(cls, ModuleItem)
+        if isinstance(module_class, type) and issubclass(module_class, Module):
+            return module_class
+        return Module
 
     def _setup_logging(self):
         logging.basicConfig(

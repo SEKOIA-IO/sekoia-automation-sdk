@@ -39,7 +39,10 @@ class AssetConnectorAction(Action):
 
     A cycle stopped before its end (time limit, rate limit, SIGTERM) returns
     `has_more: true`: the platform runs the action again, resuming from the
-    connector checkpoint.
+    connector checkpoint. Only connectors committing their checkpoint after
+    each pushed batch can be split across runs: a connector committing once
+    per complete cycle must finish a cycle within `MAX_DURATION`, otherwise
+    every run starts again from the same checkpoint.
 
     Only synchronous `AssetConnector` subclasses are supported.
     """
@@ -50,6 +53,19 @@ class AssetConnectorAction(Action):
     MAX_DURATION = 100 * 60
 
     def run(self, arguments: AssetConnectorActionArguments) -> dict[str, Any]:
+        # The connector registers its own SIGINT/SIGTERM handlers: restore the
+        # previous ones once done, the process may run other actions
+        previous_handlers = {
+            signum: signal.getsignal(signum)
+            for signum in (signal.SIGINT, signal.SIGTERM)
+        }
+        try:
+            return self._run_cycle(arguments)
+        finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
+
+    def _run_cycle(self, arguments: AssetConnectorActionArguments) -> dict[str, Any]:
         asset_connector_uuid = arguments.asset_connector_uuid
         token = arguments.connector_configuration_token
         configuration = arguments.model_dump(
@@ -59,12 +75,6 @@ class AssetConnectorAction(Action):
         # Drives the push endpoint and the User-Agent of the connector
         self.module._connector_configuration_uuid = asset_connector_uuid
 
-        # The connector registers its own SIGINT/SIGTERM handlers: restore the
-        # previous ones once done, the process may run other actions
-        previous_handlers = {
-            signum: signal.getsignal(signum)
-            for signum in (signal.SIGINT, signal.SIGTERM)
-        }
         connector = self.connector_class(module=self.module, data_path=self.data_path)
         connector.configuration = configuration  # type: ignore[assignment]
         connector._token = token
@@ -104,6 +114,11 @@ class AssetConnectorAction(Action):
                 finally:
                     stats.update(connector.cycle_stats)
         except AssetConnectorStoppedError:
+            connector.log(
+                message="Fetch cycle stopped before its end, the next run resumes "
+                "from the last committed checkpoint",
+                level="warning",
+            )
             has_more = True
         except Exception as error:
             connector.log(
@@ -115,8 +130,6 @@ class AssetConnectorAction(Action):
         finally:
             stop_timer.cancel()
             connector.stop()
-            for signum, handler in previous_handlers.items():
-                signal.signal(signum, handler)
             try:
                 connector._send_logs_to_api()
             except Exception as error:

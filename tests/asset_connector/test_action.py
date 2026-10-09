@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from sekoia_automation.asset_connector import AssetConnector, AssetConnectorAction
 from sekoia_automation.asset_connector.models.connector import AssetItem
+from sekoia_automation.exceptions import TriggerConfigurationError
 from sekoia_automation.storage import PersistentJSON
 from tests.asset_connector.test_connector import (  # noqa: F401
     asset_list,
@@ -181,6 +182,25 @@ def test_run_restores_the_signal_handlers(action, api):
     previous = signal.signal(signal.SIGTERM, handler)
     try:
         action.run(ARGUMENTS)
+
+        assert signal.getsignal(signal.SIGTERM) is handler
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def test_run_restores_the_signal_handlers_when_the_configuration_is_invalid(
+    action, api
+):
+    def handler(*_):
+        pass
+
+    arguments = dict(ARGUMENTS)
+    del arguments["sekoia_api_key"]
+
+    previous = signal.signal(signal.SIGTERM, handler)
+    try:
+        with pytest.raises(TriggerConfigurationError):
+            action.run(arguments)
 
         assert signal.getsignal(signal.SIGTERM) is handler
     finally:

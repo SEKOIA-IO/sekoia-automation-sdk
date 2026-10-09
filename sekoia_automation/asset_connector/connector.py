@@ -588,7 +588,7 @@ class AssetConnector(Trigger):
         Its counters are kept in `cycle_stats`.
 
         If the connector is stopped, the cycle raises AssetConnectorStoppedError
-        before pushing the next batch: subclasses committing their checkpoint once
+        at the next asset or batch: subclasses committing their checkpoint once
         the cycle returns never commit an interrupted cycle.
 
         Note:
@@ -612,6 +612,9 @@ class AssetConnector(Trigger):
 
         assets = []
         for asset in self.get_assets():
+            if not self.running:
+                raise AssetConnectorStoppedError()
+
             assets.append(asset)
             self.cycle_stats["fetched"] += 1
 

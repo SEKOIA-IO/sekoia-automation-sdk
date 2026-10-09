@@ -940,3 +940,24 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
+
+
+def test_asset_fetch_cycle_raises_when_stopped_before_a_batch_is_full(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    original_get_assets = test_asset_connector.get_assets
+
+    def get_assets_then_stop():
+        for asset in original_get_assets():
+            yield asset
+            test_asset_connector.stop()
+
+    test_asset_connector.get_assets = get_assets_then_stop
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.cycle_stats["fetched"] == 1
+    test_asset_connector.push_assets_to_sekoia.assert_not_called()

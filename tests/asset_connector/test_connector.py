@@ -1077,6 +1077,35 @@ def test_reset_jitter_uses_random_when_uuid_missing(monkeypatch, test_asset_conn
     assert 0.0 < remaining <= sentinel
 
 
+@pytest.mark.parametrize("new_max, expected", [("600", 600.0), ("0", 0.0)])
+def test_pending_reset_jitter_bounded_by_lowered_max(
+    monkeypatch, test_asset_connector, new_max, expected
+):
+    monkeypatch.setattr("sekoia_automation.asset_connector.mixin.time.time", lambda: 0)
+    with test_asset_connector.schema_store as store:
+        store["reset_resume_at"] = 10_000.0
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", new_max)
+
+    assert test_asset_connector._pending_reset_jitter_seconds() == expected
+
+
+def test_pending_reset_jitter_bounded_after_clock_goes_back(
+    monkeypatch, test_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+    with test_asset_connector.schema_store as store:
+        store["reset_resume_at"] = 1_000_000.0 + 1000
+
+    # Clock moved back by one day
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.mixin.time.time",
+        lambda: 1_000_000.0 - 86_400,
+    )
+
+    assert test_asset_connector._pending_reset_jitter_seconds() == 1800.0
+
+
 CONNECTOR_CONFIGURATION = {
     "sekoia_base_url": "http://example.com",
     "sekoia_api_key": "fake_api_key",

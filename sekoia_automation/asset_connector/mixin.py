@@ -374,7 +374,8 @@ class AssetConnectorBase(Trigger):
         if not resume_at:
             return 0.0
         remaining = float(resume_at) - time.time()
-        return max(remaining, 0.0)
+        # Bound by the current max: the window may have shrunk or the clock gone back
+        return min(max(remaining, 0.0), self.reset_jitter_max_seconds)
 
     def _clear_reset_jitter(self) -> None:
         """Clear any persisted reset-jitter resume timestamp."""

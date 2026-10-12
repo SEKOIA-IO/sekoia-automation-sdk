@@ -14,6 +14,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (up to `RESET_JITTER_DEFAULT_MAX`, 3 hours) to spread the re-fetch burst across
   all configurations of the same connector. Overridable via the
   `ASSET_CONNECTOR_RESET_JITTER_MAX` env variable.
+  
+## 1.27.0 - 2026-10-06
+
+### Added
+
+- Make package PEP 561 compatible to let Mypy use type checks.
+
+### Changed
+
+- Merge `lint` and `dev` dependency groups.
+- Remove the `orjson` dependency contraint.
+
+## 1.26.1 - 2026-10-02
+
+### Fixed
+
+- Fix memory leaks when several actions run in the same process (e.g. in
+  Fission):
+  - Detach the action log handler from the root logger once the action is
+    executed, instead of keeping every past action alive.
+  - Reuse the Sentry client across `Module` instances when the DSN and
+    environment are unchanged, instead of creating (and leaking) a new client
+    on each instantiation.
 
 ## 1.26.0 - 2026-09-11
 

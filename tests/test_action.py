@@ -207,6 +207,29 @@ def test_action_results_invalid(mock_volume):
         }
 
 
+def test_action_execute_detaches_log_handler(mock_volume):
+    class LoggingAction(Action):
+        def run(self, arguments):
+            logging.warning("from run")
+            return {}
+
+    root_handlers = list(logging.getLogger().handlers)
+
+    with requests_mock.Mocker() as rmock:
+        rmock.patch(FAKE_URL)
+
+        actions = []
+        for _ in range(3):
+            action = LoggingAction()
+            action.execute()
+            actions.append(action)
+        logging.warning("after execute")
+
+    assert logging.getLogger().handlers == root_handlers
+    for action in actions:
+        assert [log["message"] for log in action.logs] == ["from run"]
+
+
 def test_action_json_argument(storage):
     action = DummyAction(data_path=storage)
 

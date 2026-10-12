@@ -49,6 +49,10 @@ class Module:
 
     _settings: Settings
 
+    # Sentry client initialized by the last instance, and its options
+    _sentry_client: sentry_sdk.client.BaseClient | None = None
+    _sentry_options: tuple[str, str | None] | None = None
+
     def __init__(self):
         self._settings = Settings()
 
@@ -309,7 +313,21 @@ class Module:
     def init_sentry(self):
         sentry_dsn = self._load_sentry_dsn()
         if sentry_dsn:
-            sentry_sdk.init(sentry_dsn, environment=self._load_environment())
+            environment = self._load_environment()
+            client = sentry_sdk.get_client()
+            # Module may be instantiated several times in the same process
+            # (e.g. in Fission): reuse the client instead of leaking a new one
+            # (and its background workers) every time
+            sentry_options = (sentry_dsn, environment)
+            if not (
+                client is Module._sentry_client
+                and Module._sentry_options == sentry_options
+            ):
+                if client.is_active():
+                    client.close()
+                sentry_sdk.init(sentry_dsn, environment=environment)
+                Module._sentry_client = sentry_sdk.get_client()
+                Module._sentry_options = sentry_options
             sentry_sdk.set_tag("module", self.name)
             if self.community_uuid:
                 sentry_sdk.set_tag("community", self.community_uuid)

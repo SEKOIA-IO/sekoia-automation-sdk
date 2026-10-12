@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add the `NonEmptyStr` type to `sekoia_automation.typing`, to validate
+  required string arguments in Pydantic models.
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

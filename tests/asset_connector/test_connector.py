@@ -1117,9 +1117,7 @@ def test_configuration_loaded_from_connector_configuration_file(
     test_asset_connector,
 ):
     test_asset_connector._configuration = None
-    test_asset_connector.module.load_config = Mock(
-        return_value=CONNECTOR_CONFIGURATION
-    )
+    test_asset_connector.module.load_config = Mock(return_value=CONNECTOR_CONFIGURATION)
 
     configuration = test_asset_connector.configuration
 
@@ -1133,9 +1131,7 @@ def test_configuration_loaded_from_connector_configuration_file(
 
 def test_configuration_is_cached(test_asset_connector):
     test_asset_connector._configuration = None
-    test_asset_connector.module.load_config = Mock(
-        return_value=CONNECTOR_CONFIGURATION
-    )
+    test_asset_connector.module.load_config = Mock(return_value=CONNECTOR_CONFIGURATION)
 
     first = test_asset_connector.configuration
     second = test_asset_connector.configuration

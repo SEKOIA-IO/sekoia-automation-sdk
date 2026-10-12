@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Asset connectors apply a deterministic reset jitter: after a schema-change
+  checkpoint reset, the next full fetch is delayed by a per-configuration jitter
+  (up to `RESET_JITTER_DEFAULT_MAX`, 3 hours) to spread the re-fetch burst across
+  all configurations of the same connector. Overridable via the
+  `ASSET_CONNECTOR_RESET_JITTER_MAX` env variable.
+  
 ## 1.27.0 - 2026-10-06
 
 ### Added

@@ -11,7 +11,11 @@ import requests
 from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
-from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
+from sekoia_automation.asset_connector.models.connector import (
+    AssetItem,
+    AssetList,
+    DefaultAssetConnectorConfiguration,
+)
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
     Device,
@@ -47,7 +51,11 @@ from sekoia_automation.asset_connector.utils import (
     compute_reset_jitter,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.configuration.exception import MissingConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
 
 
 class ContextDict(dict):
@@ -1067,3 +1075,97 @@ def test_reset_jitter_uses_random_when_uuid_missing(monkeypatch, test_asset_conn
     random_mock.assert_called_once_with(0, 1800.0)
     remaining = test_asset_connector._pending_reset_jitter_seconds()
     assert 0.0 < remaining <= sentinel
+
+
+CONNECTOR_CONFIGURATION = {
+    "sekoia_base_url": "http://example.com",
+    "sekoia_api_key": "fake_api_key",
+    "frequency": 60,
+}
+
+
+def test_configuration_loaded_from_connector_configuration_file(
+    test_asset_connector,
+):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        return_value=CONNECTOR_CONFIGURATION
+    )
+
+    configuration = test_asset_connector.configuration
+
+    test_asset_connector.module.load_config.assert_called_once_with(
+        "connector_configuration", "json"
+    )
+    assert isinstance(configuration, DefaultAssetConnectorConfiguration)
+    assert configuration.sekoia_api_key == "fake_api_key"
+    assert configuration.frequency == 60
+
+
+def test_configuration_is_cached(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        return_value=CONNECTOR_CONFIGURATION
+    )
+
+    first = test_asset_connector.configuration
+    second = test_asset_connector.configuration
+
+    assert first is second
+    test_asset_connector.module.load_config.assert_called_once()
+
+
+def test_configuration_falls_back_to_trigger_configuration(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        side_effect=[
+            MissingConfigurationError("connector_configuration does not exist."),
+            CONNECTOR_CONFIGURATION,
+        ]
+    )
+
+    configuration = test_asset_connector.configuration
+
+    assert [c.args for c in test_asset_connector.module.load_config.call_args_list] == [
+        ("connector_configuration", "json"),
+        ("trigger_configuration", "json"),
+    ]
+    assert isinstance(configuration, DefaultAssetConnectorConfiguration)
+    assert configuration.sekoia_api_key == "fake_api_key"
+
+
+def test_configuration_missing_everywhere_raises(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        side_effect=MissingConfigurationError("does not exist.")
+    )
+
+    with pytest.raises(MissingConfigurationError):
+        test_asset_connector.configuration
+
+
+def test_configuration_setter_sets_sentry_context(test_asset_connector):
+    with patch("sekoia_automation.asset_connector.mixin.sentry_sdk") as sentry_mock:
+        test_asset_connector.configuration = CONNECTOR_CONFIGURATION
+
+    sentry_mock.set_context.assert_called_once_with(
+        "connector_configuration",
+        test_asset_connector.configuration.model_dump(),
+    )
+
+
+@pytest.mark.parametrize(
+    "configuration",
+    [
+        {"sekoia_base_url": "http://example.com"},
+        {**CONNECTOR_CONFIGURATION, "frequency": "not-a-number"},
+    ],
+)
+def test_configuration_setter_invalid_raises(test_asset_connector, configuration):
+    previous = test_asset_connector.configuration
+
+    with pytest.raises(TriggerConfigurationError) as exc_info:
+        test_asset_connector.configuration = configuration
+
+    assert exc_info.value.__cause__ is not None
+    assert test_asset_connector.configuration is previous

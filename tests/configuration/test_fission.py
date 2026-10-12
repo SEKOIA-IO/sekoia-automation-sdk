@@ -1,5 +1,6 @@
 import pytest
 
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.configuration.fission import FissionConfiguration
 
 
@@ -39,5 +40,5 @@ def test_load_config_request_no_json(app):
         configuration = FissionConfiguration()
 
         # Test loading a non-existing configuration, should raise KeyError
-        with pytest.raises(KeyError):
+        with pytest.raises(MissingConfigurationError):
             configuration.load("foo")

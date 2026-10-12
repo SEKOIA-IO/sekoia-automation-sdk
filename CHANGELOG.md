@@ -11,6 +11,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sync and async asset connectors accept an optional per-cycle cap, read from the `max_assets_per_cycle` configuration field and overridable by the `ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE` environment variable (`0`, the default, means unlimited). A positive value stops a fetch cycle once that many assets have been processed and resumes from the checkpoint on the next cycle, so a very large initial sync is spread over several cycles instead of one unbounded run.
 
+## 1.27.0 - 2026-10-06
+
+### Added
+
+- Make package PEP 561 compatible to let Mypy use type checks.
+
+### Changed
+
+- Merge `lint` and `dev` dependency groups.
+- Remove the `orjson` dependency contraint.
+
+## 1.26.1 - 2026-10-02
+
+### Fixed
+
+- Fix memory leaks when several actions run in the same process (e.g. in
+  Fission):
+  - Detach the action log handler from the root logger once the action is
+    executed, instead of keeping every past action alive.
+  - Reuse the Sentry client across `Module` instances when the DSN and
+    environment are unchanged, instead of creating (and leaking) a new client
+    on each instantiation.
+
+## 1.26.0 - 2026-09-11
+
+### Fixed
+
+- Correctly define the base directory (where `manifest.json` is located) in
+  Fission environment.
+
+### Added
+
+- Use `pydantic-settings` to manage environment variables and Fission specific
+  configuration.
+
+### Changed
+
+- Raise an explicit `MissingConfigurationError` in case of configuration error
+  where we were previously raising a `FileNotFoundError` or `KeyError` depending
+  on the execution runtime.
+- Update `ruff` and apply latest rules on code.
+
+### Removed
+
+- Remove `Module.set_working_directory()` that was only used in tests.
+
 ## 1.25.0 - 2026-09-03
 
 ### Added

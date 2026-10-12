@@ -1,6 +1,6 @@
 [project]
 name = "sekoia-automation-sdk"
-version = "1.25.0"
+version = "1.27.0"
 description = "SDK to create Sekoia.io playbook modules"
 authors = [{ name = "Sekoia.io" }]
 requires-python = ">=3.11,<4"
@@ -27,7 +27,7 @@ dependencies = [
     "s3path>=0.6.4,<0.7",
     "orjson>=3.8,<4",
     "pydantic>=2.10,<3",
-    "sekoia-automation-models>=1.2.0,<2",
+    "sekoia-automation-models>=1.4.0,<2",
     "typer>=0.20",
     "cookiecutter>=2.1,<3",
     "python-slugify>=5.0.2,<6",
@@ -45,6 +45,7 @@ dependencies = [
     "jsonschema>=4.22.0,<5",
     "flask>=3.1.2,<4",
     "cachetools>=6.2.3",
+    "pydantic-settings>=2.15.0",
 ]
 
 [build-system]
@@ -69,24 +70,13 @@ dev = [
     "pytest-xdist",
     "pytest-env>=1.1.5,<2",
     "requests-mock>=1.9,<2",
-    "faker>=30.0.0,<31",
+    "faker>=40",
     "aioresponses>=0.7.8,<0.8",
     "pre-commit>=3.3.3,<4",
     "requests-oauthlib>=2.0.0,<3",
-]
-lint = [
-    "ruff>=0.14",
-    "mypy",
+    "ruff>=0.16",
+    "mypy>2.0",
     "pip>=25.3",
-]
-
-[tool.uv]
-default-groups = [
-    "dev",
-    "lint",
-]
-constraint-dependencies = [
-    "orjson<3.11.8" # Obfuscaded code issues from socket-security
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -99,7 +89,6 @@ include = ["sekoia_automation"]
 minversion = "6.0"
 addopts = '''
     --asyncio-mode=auto
-    --cache-clear
     --cov=sekoia_automation
     --cov-report=html
     --cov-report=term-missing:skip-covered

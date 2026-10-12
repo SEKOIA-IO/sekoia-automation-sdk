@@ -16,6 +16,7 @@ from tenacity import Retrying, stop_after_delay, wait_exponential
 
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
+    MissingActionArgumentError,
     TriggerConfigurationError,
 )
 from sekoia_automation.storage import PersistentJSON
@@ -83,7 +84,7 @@ class AsyncAssetConnector(Trigger):
                 self.configuration = self.module.load_config(
                     self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
                 )
-            except FileNotFoundError:
+            except MissingActionArgumentError:
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 

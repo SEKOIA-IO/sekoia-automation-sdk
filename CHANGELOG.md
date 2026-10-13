@@ -9,27 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `AssetConnectorAction` to run one fetch cycle of an asset connector as an
-  action, e.g. on an on-premise playbook runner. Assets, checkpoint and logs go
-  to the connector configuration given by `asset_connector_uuid` and
-  `connector_configuration_token`. The action stops before 100 minutes and
-  returns counters with `has_more: true` when the cycle did not complete.
-  Only connectors committing their checkpoint after each pushed batch can be
-  split across runs; a connector committing once per complete cycle must finish
-  a cycle within 100 minutes.
-  `AssetConnectorActionArguments` declares the two extra arguments.
-- Expose the counters of the last fetch cycle in `AssetConnector.cycle_stats`.
+- Add `AssetConnectorAction` to run one asset connector fetch cycle as an
+  action (e.g. on-premise). It stops before 100 minutes and returns
+  `has_more: true` when the cycle did not complete.
+- Add `AssetConnector.cycle_stats` with the counters of the last fetch cycle.
 
 ### Changed
 
-- `AssetConnector.asset_fetch_cycle` no longer sleeps when no asset was
-  fetched: the wait until the next cycle moved to `AssetConnector.run`.
+- `AssetConnector.asset_fetch_cycle` no longer sleeps; `AssetConnector.run` does.
 - `AssetConnector.asset_fetch_cycle` raises `AssetConnectorStoppedError` when
-  the connector is stopped during the cycle, so connectors committing their
-  checkpoint at the end of a cycle never commit an interrupted one.
+  the connector is stopped mid-cycle.
 - `AssetConnector.push_assets_to_sekoia` returns whether the assets were pushed.
-- Asset connectors stop retrying a failed push once stopped. The sync
-  connector then raises `AssetConnectorStoppedError`.
+- Asset connectors stop retrying a failed push once stopped.
 - `AssetConnector.asset_fetch_cycle` and `AsyncAssetConnector.asset_fetch_cycle`
   raise `AssetConnectorPushError` when a batch could not be pushed, instead of
   going on and committing a checkpoint past the assets of that batch.

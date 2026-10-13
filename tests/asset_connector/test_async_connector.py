@@ -43,7 +43,10 @@ from sekoia_automation.asset_connector.utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
+    AssetConnectorRateLimitError,
+)
 
 
 class ContextDict(dict):
@@ -443,6 +446,15 @@ async def test_post_assets_to_api_timeout(test_async_asset_connector, asset_list
     test_async_asset_connector.log_exception.assert_called_once()
 
 
+def test_retry_stops_once_the_connector_is_stopped(test_async_asset_connector):
+    retry = test_async_asset_connector._retry()
+    retry_state = Mock(seconds_since_start=0)
+
+    assert not retry.stop(retry_state)
+    test_async_asset_connector.stop()
+    assert retry.stop(retry_state)
+
+
 @pytest.mark.asyncio
 async def test_push_assets_to_sekoia(test_async_asset_connector, asset_list):
     """Test pushing assets to Sekoia API"""
@@ -518,6 +530,32 @@ async def test_asset_fetch_cycle_batching(
 
     # Should be called twice: once for 100 assets, once for remaining 50
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_raises_on_a_failed_push(
+    test_async_asset_connector, asset_object_1, asset_object_2, asset_object_3
+):
+    assets = [asset_object_1, asset_object_2, asset_object_3] * 50
+    test_async_asset_connector.set_assets(AssetList(version=1, items=assets))
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(return_value=False)
+    test_async_asset_connector.configuration.batch_size = 100
+
+    with pytest.raises(AssetConnectorPushError):
+        await test_async_asset_connector.asset_fetch_cycle()
+
+    test_async_asset_connector.push_assets_to_sekoia.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_push_assets_to_sekoia_returns_whether_assets_were_pushed(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.module._connector_configuration_uuid = "uuid"
+    test_async_asset_connector.post_assets_to_api = AsyncMock(side_effect=[{}, None])
+
+    assert await test_async_asset_connector.push_assets_to_sekoia(asset_list) is True
+    assert await test_async_asset_connector.push_assets_to_sekoia(asset_list) is False
 
 
 @pytest.mark.asyncio
@@ -1041,3 +1079,17 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
+
+
+def test_configuration_api_key_not_sent_to_sentry(test_async_asset_connector):
+    with patch(
+        "sekoia_automation.asset_connector.async_connector.sentry_sdk.set_context"
+    ) as set_context:
+        test_async_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+        }
+
+    context = set_context.call_args[0][1]
+    assert "sekoia_api_key" not in context
+    assert context["sekoia_base_url"] == "http://example.com"

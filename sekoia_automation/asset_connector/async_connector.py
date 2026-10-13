@@ -12,9 +12,10 @@ import aiohttp
 import sentry_sdk
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
     MissingActionArgumentError,
     TriggerConfigurationError,
@@ -105,7 +106,8 @@ class AsyncAssetConnector(Trigger):
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context(
-                self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump()
+                self.CONNECTOR_CONFIGURATION_FILE_NAME,
+                self._configuration.model_dump(exclude={"sekoia_api_key"}),
             )
 
     @property
@@ -193,10 +195,9 @@ class AsyncAssetConnector(Trigger):
             "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
         )
 
-    @staticmethod
-    def _retry():
+    def _retry(self):
         return Retrying(
-            stop=stop_after_delay(3600),
+            stop=stop_any(stop_after_delay(3600), lambda _: not self.running),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
         )
@@ -492,17 +493,17 @@ class AsyncAssetConnector(Trigger):
             level="error",
         )
 
-    async def push_assets_to_sekoia(self, assets: AssetList) -> None:
+    async def push_assets_to_sekoia(self, assets: AssetList) -> bool:
         """
         Push assets to the Sekoia.io asset connector API.
         Args:
             assets (AssetList): List of assets to push.
         Returns:
-            None: If the assets were successfully pushed.
+            bool: False if the assets could not be pushed.
         """
 
         if not assets:
-            return
+            return True
 
         url = self.asset_connector_endpoint
 
@@ -522,13 +523,15 @@ class AsyncAssetConnector(Trigger):
                 f"asset connector API at {url}",
                 level="error",
             )
-            return
+            return False
 
         # The push endpoint returns the task tracking the ingestion of the assets.
         # Older platforms - and pushes the platform could not create a task for -
         # return nothing: there is then nothing to wait for.
         if task_id := response.get("task_id"):
             await self.wait_for_push_task(task_id)
+
+        return True
 
     @abstractmethod
     async def update_checkpoint(self) -> None:
@@ -663,6 +666,9 @@ class AsyncAssetConnector(Trigger):
         If no assets are fetched during a cycle, the method sleeps for a short
         interval to avoid overwhelming the API with repeated requests.
 
+        A batch that could not be pushed raises AssetConnectorPushError: the
+        next cycle resumes from the last committed checkpoint, before it.
+
         Note:
             This implementation assumes the connector provides a checkpointing
             mechanism to prevent re-fetching the same assets.
@@ -690,13 +696,11 @@ class AsyncAssetConnector(Trigger):
             total_number_of_assets += 1
 
             if len(assets) >= self.batch_size:
-                batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
-                await self.push_assets_to_sekoia(batch)
+                await self._push_batch(assets)
                 assets = []
 
         if assets:
-            final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
-            await self.push_assets_to_sekoia(final_batch)
+            await self._push_batch(assets)
 
         # save the end time processing
         processing_end = time.time()
@@ -709,6 +713,12 @@ class AsyncAssetConnector(Trigger):
             self.log(message=f"Next run in the future. Waiting {delta_sleep} seconds")
 
             await asyncio.sleep(delta_sleep)
+
+    async def _push_batch(self, assets: list[AssetItem]) -> None:
+        batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
+        if not await self.push_assets_to_sekoia(batch):
+            # Going on would commit a checkpoint past the assets of this batch
+            raise AssetConnectorPushError()
 
     async def async_run(self) -> None:
         """

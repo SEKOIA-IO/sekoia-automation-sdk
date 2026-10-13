@@ -48,5 +48,19 @@ class AssetConnectorRateLimitError(AutomationSDKError):
         self.retry_after = retry_after
 
 
+class AssetConnectorStoppedError(AutomationSDKError):
+    """Raised when an asset connector is stopped in the middle of a fetch cycle."""
+
+    def __init__(self):
+        super().__init__("Asset connector stopped during a fetch cycle")
+
+
+class AssetConnectorPushError(AutomationSDKError):
+    """Raised when a batch of assets could not be pushed to Sekoia.io."""
+
+    def __init__(self):
+        super().__init__("Unable to push a batch of assets to Sekoia.io")
+
+
 class EnvironmentRuntimeError(AutomationSDKError):
     """Raised when an issue with the runtime engine (e.g., Fission) is raised"""

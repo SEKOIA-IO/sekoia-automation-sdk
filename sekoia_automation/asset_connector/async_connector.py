@@ -151,7 +151,10 @@ class AsyncAssetConnector(Trigger):
 
         0 (the default) means unlimited. A positive value caps a cycle so a very
         large initial sync is spread over several cycles, resuming from the
-        checkpoint each time, instead of one unbounded run. Read from the connector
+        checkpoint each time, instead of one unbounded run. A capped cycle waits
+        for the rest of the frequency before the next one. The connector's
+        checkpoint must advance with each pushed batch, or every cycle restarts
+        from the same point. Read from the connector
         configuration, overridable via the ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE env
         variable. A negative value counts as 0.
 
@@ -704,6 +707,7 @@ class AsyncAssetConnector(Trigger):
 
         assets = []
         total_number_of_assets = 0
+        cap_reached = False
         async for asset in self.get_assets():
             assets.append(asset)
             total_number_of_assets += 1
@@ -723,6 +727,7 @@ class AsyncAssetConnector(Trigger):
                     f"resuming from the checkpoint on the next one",
                     level="info",
                 )
+                cap_reached = True
                 break
 
         if assets:
@@ -734,12 +739,14 @@ class AsyncAssetConnector(Trigger):
         processing_time = processing_end - processing_start
 
         # Compute the remaining sleeping time.
-        # If greater than 0 and no messages where fetched, pause the connector
+        # If greater than 0, pause the connector when no asset was fetched or when
+        # the per-cycle cap stopped the cycle, so a capped backlog is not drained
+        # back-to-back. The wait ends as soon as the connector is stopped.
         delta_sleep = self.frequency - processing_time
-        if total_number_of_assets == 0 and delta_sleep > 0:
+        if (total_number_of_assets == 0 or cap_reached) and delta_sleep > 0:
             self.log(message=f"Next run in the future. Waiting {delta_sleep} seconds")
 
-            await asyncio.sleep(delta_sleep)
+            await asyncio.to_thread(self._stop_event.wait, delta_sleep)
 
     async def async_run(self) -> None:
         """

@@ -115,6 +115,39 @@ def test_asset_connector(tmp_path):
     yield test_connector
 
 
+class CheckpointedAssetConnector(FakeAssetConnector):
+    """Resumes after the last pushed asset, like a connector reading its checkpoint."""
+
+    def get_assets(self) -> Generator[AssetItem, None, None]:
+        if self.assets is None:
+            raise ValueError("Assets not set")
+
+        start = self.context.get("position", 0)
+        for position, item in enumerate(self.assets.items[start:], start=start + 1):
+            self._position = position
+            yield item
+
+    def update_checkpoint(self):
+        with self.context as cache:
+            cache["position"] = self._position
+
+
+@pytest.fixture
+def checkpointed_asset_connector(tmp_path):
+    test_connector = CheckpointedAssetConnector(data_path=tmp_path)
+
+    test_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+    }
+
+    test_connector.log = Mock()
+    test_connector.log_exception = Mock()
+
+    yield test_connector
+
+
 @pytest.fixture
 def asset_object_1():
     product = Product(name="Harfanglab EDR", version="24.12")
@@ -495,31 +528,77 @@ def test_max_assets_per_cycle_treats_a_negative_value_as_unlimited(
     assert test_asset_connector.max_assets_per_cycle == 0
 
 
-def test_asset_fetch_cycle_stops_at_max_assets_per_cycle(
-    monkeypatch, test_asset_connector, asset_object_1, asset_object_2, asset_object_3
+def test_capped_cycles_resume_from_the_checkpoint(
+    monkeypatch,
+    checkpointed_asset_connector,
+    asset_object_1,
+    asset_object_2,
+    asset_object_3,
 ):
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
     monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "2")
+    monkeypatch.setattr(checkpointed_asset_connector._stop_event, "wait", Mock())
+    items = [asset_object_1, asset_object_2, asset_object_3]
+    checkpointed_asset_connector.set_assets(AssetList(version=1, items=items))
+    post = Mock(return_value=Mock(status_code=200, json=lambda: {}))
+    checkpointed_asset_connector._http_session.post = post
+
+    def pushed_items():
+        sent = [i for call in post.call_args_list for i in call.kwargs["json"]["items"]]
+        post.reset_mock()
+        return sent
+
+    def dumped(assets):
+        return AssetList(version=1, items=assets).model_dump(exclude_none=True)["items"]
+
+    checkpointed_asset_connector.asset_fetch_cycle()
+    assert pushed_items() == dumped(items[:2])
+
+    checkpointed_asset_connector.asset_fetch_cycle()
+    assert pushed_items() == dumped(items[2:])
+
+
+def test_asset_fetch_cycle_waits_after_reaching_max_assets_per_cycle(
+    monkeypatch, test_asset_connector, asset_object_1, asset_object_2
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "1")
     test_asset_connector.set_assets(
-        AssetList(version=1, items=[asset_object_1, asset_object_2, asset_object_3])
+        AssetList(version=1, items=[asset_object_1, asset_object_2])
     )
     test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
     test_asset_connector.asset_fetch_cycle()
 
-    # The cycle stops after 2 assets even though 3 were available; the third
-    # resumes from the checkpoint on the next cycle.
-    assert test_asset_connector.push_assets_to_sekoia.call_count == 2
+    wait.assert_called_once()
+    assert 0 < wait.call_args.args[0] <= 60
+
+
+def test_asset_fetch_cycle_does_not_wait_below_max_assets_per_cycle(
+    monkeypatch, test_asset_connector, asset_object_1, asset_object_2
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "5")
+    test_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2])
+    )
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    wait.assert_not_called()
 
 
 def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
     test_asset_connector.set_assets(AssetList(version=1, items=[]))
-    sleep = Mock()
-    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
     test_asset_connector.asset_fetch_cycle()
 
-    sleep.assert_called_once()
+    wait.assert_called_once()
 
 
 def test_update_checkpoint(

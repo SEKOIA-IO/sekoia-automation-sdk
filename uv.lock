@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11, <4"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -2664,14 +2664,14 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-models"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/37/ae/e64af4971e0b19741427c1c2363b8bf105292ecacdae3c2c4cb5197f0773/sekoia_automation_models-1.3.0.tar.gz", hash = "sha256:d524dfc93e312a4f505271d71f9d36dd90e15a5015decbf64b3ab416cb19d752", size = 8425, upload-time = "2026-09-03T09:21:20.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/bb/ac1fdb951091927098d60a3aa579e507988672021782af1ff983a7cdf6dc/sekoia_automation_models-1.4.0.tar.gz", hash = "sha256:0002a527458b60de70ddd7a10a1f59d131abc839fb1bb8cfead1fb91799c4274", size = 8581, upload-time = "2026-10-12T09:11:10.44Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b9/61/e901ac37510cc3108cf4b239eef2e55a48013e02195c79357343deb0e7d4/sekoia_automation_models-1.3.0-py3-none-any.whl", hash = "sha256:69e0860061bc8c5d72a01bf59bc649e919249beb0cc2d172ea9ffaa0f59d0cff", size = 12718, upload-time = "2026-09-03T09:21:19.236Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/b8/d974698d12ff49db3f3d68d0fb21939c244853f8c29706231dc59106e632/sekoia_automation_models-1.4.0-py3-none-any.whl", hash = "sha256:a3079231fb88d8ea110538a1d270b47328f91d13e60e102dcdc1577115a45b8c", size = 12867, upload-time = "2026-10-12T09:11:09.235Z" },
 ]
 
 [[package]]
@@ -2749,7 +2749,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.25,<3" },
     { name = "requests-ratelimiter", specifier = ">=0.7.0,<0.8" },
     { name = "s3path", specifier = ">=0.6.4,<0.7" },
-    { name = "sekoia-automation-models", specifier = ">=1.2.0,<2" },
+    { name = "sekoia-automation-models", specifier = ">=1.4.0,<2" },
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer", specifier = ">=0.20" },

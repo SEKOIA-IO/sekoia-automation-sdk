@@ -145,6 +145,28 @@ class AsyncAssetConnector(Trigger):
         return self.configuration.frequency
 
     @property
+    def max_assets_per_cycle(self) -> int:
+        """
+        Maximum number of assets processed in a single fetch cycle.
+
+        0 (the default) means unlimited. A positive value caps a cycle so a very
+        large initial sync is spread over several cycles, resuming from the
+        checkpoint each time, instead of one unbounded run. A capped cycle waits
+        for the rest of the frequency before the next one. The connector's
+        checkpoint must advance with each pushed batch, or every cycle restarts
+        from the same point. Read from the connector
+        configuration, overridable via the ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE env
+        variable. A negative value counts as 0.
+
+        Returns:
+            int: Maximum assets per cycle, 0 for unlimited
+        """
+        if value := os.getenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE"):
+            return max(int(value), 0)
+        # Falls back to 0 while the installed sekoia-automation-models has no such field
+        return max(getattr(self.configuration, "max_assets_per_cycle", 0), 0)
+
+    @property
     def rate_limit_wait(self) -> float:
         """
         Default wait (in seconds) after a 429, used when the response carries no
@@ -685,6 +707,7 @@ class AsyncAssetConnector(Trigger):
 
         assets = []
         total_number_of_assets = 0
+        cap_reached = False
         async for asset in self.get_assets():
             assets.append(asset)
             total_number_of_assets += 1
@@ -693,6 +716,19 @@ class AsyncAssetConnector(Trigger):
                 batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
                 await self.push_assets_to_sekoia(batch)
                 assets = []
+
+            if (
+                self.max_assets_per_cycle
+                and total_number_of_assets >= self.max_assets_per_cycle
+            ):
+                self.log(
+                    message=f"Reached the per-cycle cap of "
+                    f"{self.max_assets_per_cycle} assets; stopping this cycle and "
+                    f"resuming from the checkpoint on the next one",
+                    level="info",
+                )
+                cap_reached = True
+                break
 
         if assets:
             final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
@@ -703,12 +739,14 @@ class AsyncAssetConnector(Trigger):
         processing_time = processing_end - processing_start
 
         # Compute the remaining sleeping time.
-        # If greater than 0 and no messages where fetched, pause the connector
+        # If greater than 0, pause the connector when no asset was fetched or when
+        # the per-cycle cap stopped the cycle, so a capped backlog is not drained
+        # back-to-back. The wait ends as soon as the connector is stopped.
         delta_sleep = self.frequency - processing_time
-        if total_number_of_assets == 0 and delta_sleep > 0:
+        if (total_number_of_assets == 0 or cap_reached) and delta_sleep > 0:
             self.log(message=f"Next run in the future. Waiting {delta_sleep} seconds")
 
-            await asyncio.sleep(delta_sleep)
+            await asyncio.to_thread(self._stop_event.wait, delta_sleep)
 
     async def async_run(self) -> None:
         """

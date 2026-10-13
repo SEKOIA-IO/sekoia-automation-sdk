@@ -3,6 +3,7 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
@@ -101,6 +102,39 @@ class FakeAsyncAssetConnector(AsyncAssetConnector):
 @pytest.fixture
 def test_async_asset_connector(tmp_path):
     test_connector = FakeAsyncAssetConnector(data_path=tmp_path)
+
+    test_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+    }
+
+    test_connector.log = Mock()
+    test_connector.log_exception = Mock()
+
+    yield test_connector
+
+
+class CheckpointedAsyncAssetConnector(FakeAsyncAssetConnector):
+    """Resumes after the last pushed asset, like a connector reading its checkpoint."""
+
+    async def get_assets(self) -> AsyncGenerator[AssetItem, None]:
+        if self.assets is None:
+            raise ValueError("Assets not set")
+
+        start = self.context.get("position", 0)
+        for position, item in enumerate(self.assets.items[start:], start=start + 1):
+            self._position = position
+            yield item
+
+    async def update_checkpoint(self):
+        with self.context as cache:
+            cache["position"] = self._position
+
+
+@pytest.fixture
+def checkpointed_async_asset_connector(tmp_path):
+    test_connector = CheckpointedAsyncAssetConnector(data_path=tmp_path)
 
     test_connector.configuration = {
         "sekoia_base_url": "http://example.com",
@@ -518,6 +552,75 @@ async def test_asset_fetch_cycle_batching(
 
     # Should be called twice: once for 100 assets, once for remaining 50
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+def test_async_max_assets_per_cycle_reads_env_then_configuration(
+    monkeypatch, test_async_asset_connector
+):
+    monkeypatch.delenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", raising=False)
+    assert test_async_asset_connector.max_assets_per_cycle == 0
+    test_async_asset_connector._configuration = SimpleNamespace(max_assets_per_cycle=7)
+    assert test_async_asset_connector.max_assets_per_cycle == 7
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "-1")
+    assert test_async_asset_connector.max_assets_per_cycle == 0
+
+
+@pytest.mark.asyncio
+async def test_capped_cycles_resume_from_the_checkpoint(
+    monkeypatch,
+    checkpointed_async_asset_connector,
+    asset_object_1,
+    asset_object_2,
+    asset_object_3,
+):
+    connector = checkpointed_async_asset_connector
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "2")
+    monkeypatch.setattr(connector._stop_event, "wait", Mock())
+    items = [asset_object_1, asset_object_2, asset_object_3]
+    connector.set_assets(AssetList(version=1, items=items))
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text = AsyncMock(return_value="{}")
+    mock_response.headers = {}
+
+    def dumped(assets):
+        return AssetList(version=1, items=assets).model_dump(exclude_none=True)["items"]
+
+    with patch("aiohttp.ClientSession.post") as post:
+        post.return_value.__aenter__.return_value = mock_response
+        post.return_value.__aexit__.return_value = None
+
+        def pushed_items():
+            sent = [i for c in post.call_args_list for i in c.kwargs["json"]["items"]]
+            post.reset_mock()
+            return sent
+
+        await connector.asset_fetch_cycle()
+        assert pushed_items() == dumped(items[:2])
+
+        await connector.asset_fetch_cycle()
+        assert pushed_items() == dumped(items[2:])
+
+    await connector._session.close()
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_waits_after_reaching_max_assets_per_cycle(
+    monkeypatch, test_async_asset_connector, asset_object_1, asset_object_2
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_MAX_ASSETS_PER_CYCLE", "1")
+    test_async_asset_connector.set_assets(
+        AssetList(version=1, items=[asset_object_1, asset_object_2])
+    )
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    wait = Mock()
+    monkeypatch.setattr(test_async_asset_connector._stop_event, "wait", wait)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    wait.assert_called_once()
+    assert 0 < wait.call_args.args[0] <= 60
 
 
 @pytest.mark.asyncio

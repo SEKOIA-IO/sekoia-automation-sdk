@@ -14,6 +14,7 @@ from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
     AssetConnectorStoppedError,
     TriggerConfigurationError,
@@ -594,6 +595,9 @@ class AssetConnector(Trigger):
         at the next asset or batch: subclasses committing their checkpoint once
         the cycle returns never commit an interrupted cycle.
 
+        A batch that could not be pushed raises AssetConnectorPushError: the
+        next cycle resumes from the last committed checkpoint, before it.
+
         Note:
             This implementation assumes the connector provides a checkpointing
             mechanism to prevent re-fetching the same assets.
@@ -637,6 +641,8 @@ class AssetConnector(Trigger):
             self.cycle_stats["pushed_batches"] += 1
         else:
             self.cycle_stats["failed_batches"] += 1
+            # Going on would commit a checkpoint past the assets of this batch
+            raise AssetConnectorPushError()
 
     def run(self) -> None:
         while self.running:

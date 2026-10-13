@@ -45,6 +45,7 @@ from sekoia_automation.asset_connector.utils import (
     parse_retry_after,
 )
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
     AssetConnectorStoppedError,
 )
@@ -546,15 +547,45 @@ def test_asset_fetch_cycle_counts_batches(
 ):
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
     test_asset_connector.set_assets(asset_list)
-    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=[True, False, True])
+    test_asset_connector.push_assets_to_sekoia = Mock(return_value=True)
 
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector.cycle_stats == {
         "fetched": 3,
-        "pushed_batches": 2,
+        "pushed_batches": 3,
+        "failed_batches": 0,
+    }
+
+
+def test_asset_fetch_cycle_raises_on_a_failed_push(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=[True, False, True])
+
+    with pytest.raises(AssetConnectorPushError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 2
+    assert test_asset_connector.cycle_stats == {
+        "fetched": 2,
+        "pushed_batches": 1,
         "failed_batches": 1,
     }
+
+
+def test_run_goes_on_after_a_failed_push(test_asset_connector):
+    def fail_then_stop():
+        test_asset_connector.stop()
+        raise AssetConnectorPushError()
+
+    test_asset_connector.asset_fetch_cycle = Mock(side_effect=fail_then_stop)
+
+    test_asset_connector.run()
+
+    test_asset_connector.log_exception.assert_called_once()
 
 
 def test_asset_fetch_cycle_raises_when_stopped_between_batches(

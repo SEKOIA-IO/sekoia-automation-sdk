@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 from sekoia_automation.asset_connector import AssetConnector, AssetConnectorAction
 from sekoia_automation.asset_connector.models.connector import AssetItem
-from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
+    TriggerConfigurationError,
+)
 from sekoia_automation.storage import PersistentJSON
 from tests.asset_connector.test_connector import (  # noqa: F401
     asset_list,
@@ -164,6 +167,17 @@ def test_run_returns_has_more_when_the_time_limit_stops_a_retried_push(action, a
         "failed_batches": 0,
         "has_more": True,
     }
+
+
+def test_run_fails_on_a_failed_push(action, api, tmp_path):
+    api.post(PUSH_URL, [{"status_code": 200, "json": {}}, {"status_code": 500}])
+
+    with pytest.raises(AssetConnectorPushError):
+        action.run(ARGUMENTS)
+
+    assert len(requests_to(api, PUSH_URL)) == 2
+    with PersistentJSON("context.json", tmp_path) as cache:
+        assert cache["pushes"] == 1
 
 
 def test_run_logs_errors_to_the_connector_configuration(action, api, fake_connector):

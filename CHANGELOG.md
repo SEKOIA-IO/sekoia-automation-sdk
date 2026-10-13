@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AssetConnector.push_assets_to_sekoia` returns whether the assets were pushed.
 - Asset connectors stop retrying a failed push once stopped. The sync
   connector then raises `AssetConnectorStoppedError`.
+- `AssetConnector.asset_fetch_cycle` and `AsyncAssetConnector.asset_fetch_cycle`
+  raise `AssetConnectorPushError` when a batch could not be pushed, instead of
+  going on and committing a checkpoint past the assets of that batch.
+- `AsyncAssetConnector.push_assets_to_sekoia` returns whether the assets were
+  pushed.
 
 ### Fixed
 

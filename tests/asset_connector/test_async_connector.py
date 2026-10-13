@@ -43,7 +43,10 @@ from sekoia_automation.asset_connector.utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
+    AssetConnectorRateLimitError,
+)
 
 
 class ContextDict(dict):
@@ -527,6 +530,32 @@ async def test_asset_fetch_cycle_batching(
 
     # Should be called twice: once for 100 assets, once for remaining 50
     assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_raises_on_a_failed_push(
+    test_async_asset_connector, asset_object_1, asset_object_2, asset_object_3
+):
+    assets = [asset_object_1, asset_object_2, asset_object_3] * 50
+    test_async_asset_connector.set_assets(AssetList(version=1, items=assets))
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(return_value=False)
+    test_async_asset_connector.configuration.batch_size = 100
+
+    with pytest.raises(AssetConnectorPushError):
+        await test_async_asset_connector.asset_fetch_cycle()
+
+    test_async_asset_connector.push_assets_to_sekoia.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_push_assets_to_sekoia_returns_whether_assets_were_pushed(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.module._connector_configuration_uuid = "uuid"
+    test_async_asset_connector.post_assets_to_api = AsyncMock(side_effect=[{}, None])
+
+    assert await test_async_asset_connector.push_assets_to_sekoia(asset_list) is True
+    assert await test_async_asset_connector.push_assets_to_sekoia(asset_list) is False
 
 
 @pytest.mark.asyncio

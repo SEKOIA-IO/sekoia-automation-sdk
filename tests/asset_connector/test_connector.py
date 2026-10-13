@@ -380,6 +380,44 @@ def test_post_assets_to_api_timeout(test_asset_connector, asset_list):
     test_asset_connector.log_exception.assert_called_once()
 
 
+def test_retry_stops_once_the_connector_is_stopped(test_asset_connector):
+    retry = test_asset_connector._retry()
+    retry_state = Mock(seconds_since_start=0)
+
+    assert not retry.stop(retry_state)
+    test_asset_connector.stop()
+    assert retry.stop(retry_state)
+
+
+def test_post_assets_to_api_raises_stopped_when_stopped_while_retrying(
+    test_asset_connector, asset_list
+):
+    def fail_and_stop(*_, **__):
+        test_asset_connector.stop()
+        raise requests.ConnectionError("platform is down")
+
+    test_asset_connector._http_session.post = Mock(side_effect=fail_and_stop)
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+    test_asset_connector._http_session.post.assert_called_once()
+
+
+def test_post_assets_to_api_raises_request_errors_while_running(
+    test_asset_connector, asset_list
+):
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(1), reraise=True
+    )
+    test_asset_connector._http_session.post = Mock(
+        side_effect=requests.ConnectionError("platform is down")
+    )
+
+    with pytest.raises(requests.ConnectionError):
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+
 def test_post_assets_to_api_failure_with_empty_body(test_asset_connector, asset_list):
     # A falsy response (e.g. 4xx) falls back to its text body.
     res = MagicMock(status_code=400, text="boom")

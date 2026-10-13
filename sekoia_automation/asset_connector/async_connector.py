@@ -12,7 +12,7 @@ import aiohttp
 import sentry_sdk
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
@@ -194,10 +194,9 @@ class AsyncAssetConnector(Trigger):
             "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
         )
 
-    @staticmethod
-    def _retry():
+    def _retry(self):
         return Retrying(
-            stop=stop_after_delay(3600),
+            stop=stop_any(stop_after_delay(3600), lambda _: not self.running),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
         )

@@ -44,6 +44,9 @@ class AssetConnectorAction(Action):
     per complete cycle must finish a cycle within `MAX_DURATION`, otherwise
     every run starts again from the same checkpoint.
 
+    Stopping interrupts the pushes to Sekoia.io, not a `get_assets` blocked in
+    its own HTTP call: the connector owns the timeouts of its requests.
+
     Only synchronous `AssetConnector` subclasses are supported.
     """
 

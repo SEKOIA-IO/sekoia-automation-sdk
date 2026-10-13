@@ -10,7 +10,7 @@ import requests
 import sentry_sdk
 from pydantic import BaseModel
 from requests import Response
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
@@ -189,10 +189,9 @@ class AssetConnector(Trigger):
             "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
         )
 
-    @staticmethod
-    def _retry():
+    def _retry(self):
         return Retrying(
-            stop=stop_after_delay(3600),
+            stop=stop_any(stop_after_delay(3600), lambda _: not self.running),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
         )
@@ -269,7 +268,11 @@ class AssetConnector(Trigger):
                         json=request_body,
                         timeout=30,
                     )
-        except requests.Timeout as ex:
+        except requests.RequestException as ex:
+            if not self.running:
+                raise AssetConnectorStoppedError() from ex
+            if not isinstance(ex, requests.Timeout):
+                raise
             self.log_exception(
                 ex,
                 message="Timeout while pushing assets to Sekoia.io asset connector API",

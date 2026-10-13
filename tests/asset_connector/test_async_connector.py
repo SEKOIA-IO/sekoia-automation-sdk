@@ -443,6 +443,15 @@ async def test_post_assets_to_api_timeout(test_async_asset_connector, asset_list
     test_async_asset_connector.log_exception.assert_called_once()
 
 
+def test_retry_stops_once_the_connector_is_stopped(test_async_asset_connector):
+    retry = test_async_asset_connector._retry()
+    retry_state = Mock(seconds_since_start=0)
+
+    assert not retry.stop(retry_state)
+    test_async_asset_connector.stop()
+    assert retry.stop(retry_state)
+
+
 @pytest.mark.asyncio
 async def test_push_assets_to_sekoia(test_async_asset_connector, asset_list):
     """Test pushing assets to Sekoia API"""

@@ -3,6 +3,7 @@ from collections.abc import Generator
 from typing import ClassVar
 
 import pytest
+import requests
 import requests_mock
 from pydantic import ValidationError
 
@@ -149,6 +150,20 @@ def test_run_returns_has_more_when_the_rate_limit_exceeds_the_time_budget(action
         "has_more": True,
     }
     assert len(requests_to(api, PUSH_URL)) == 1
+
+
+def test_run_returns_has_more_when_the_time_limit_stops_a_retried_push(action, api):
+    action.MAX_DURATION = 0.5
+    api.post(PUSH_URL, exc=requests.ConnectionError("platform is down"))
+
+    results = action.run(ARGUMENTS)
+
+    assert results == {
+        "fetched": 1,
+        "pushed_batches": 0,
+        "failed_batches": 0,
+        "has_more": True,
+    }
 
 
 def test_run_logs_errors_to_the_connector_configuration(action, api, fake_connector):

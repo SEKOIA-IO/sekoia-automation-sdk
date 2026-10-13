@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the connector is stopped during the cycle, so connectors committing their
   checkpoint at the end of a cycle never commit an interrupted one.
 - `AssetConnector.push_assets_to_sekoia` returns whether the assets were pushed.
+- Asset connectors stop retrying a failed push once stopped. The sync
+  connector then raises `AssetConnectorStoppedError`.
 
 ### Fixed
 

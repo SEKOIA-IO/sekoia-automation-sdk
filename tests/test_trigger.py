@@ -1,4 +1,5 @@
 import datetime
+import json
 import time
 from datetime import UTC, timedelta
 from pathlib import Path
@@ -14,6 +15,7 @@ from tenacity import wait_none
 
 from sekoia_automation import SekoiaAutomationBaseModel
 from sekoia_automation.exceptions import (
+    EnvironmentRuntimeError,
     InvalidDirectoryError,
     SendEventError,
     TriggerConfigurationError,
@@ -830,3 +832,152 @@ def test_is_error_critical_time_since_last_event():
         tzinfo=None
     ) - timedelta(hours=5)
     assert trigger._is_error_critical() is True
+
+
+def _write_descriptor(directory: Path, name: str, content: object) -> None:
+    (directory / name).write_text(json.dumps(content))
+
+
+@pytest.fixture
+def descriptors_directory(tmp_path: Path, monkeypatch) -> Path:
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _trigger_with_command(command: str | None) -> DummyTrigger:
+    trigger = DummyTrigger()
+    trigger.module._command = command
+    return trigger
+
+
+def test_scalability_labels_from_connector_descriptor(descriptors_directory: Path):
+    _write_descriptor(
+        descriptors_directory,
+        "connector_foo.json",
+        {
+            "docker_parameters": "foo",
+            "labels": {"scalable_horizontally": True, "scalable_vertically": False},
+        },
+    )
+    _write_descriptor(
+        descriptors_directory,
+        "trigger_foo.json",
+        {
+            "docker_parameters": "foo",
+            "labels": {"scalable_horizontally": False, "scalable_vertically": True},
+        },
+    )
+
+    trigger = _trigger_with_command("foo")
+
+    assert trigger.descriptor_labels == {
+        "scalable_horizontally": True,
+        "scalable_vertically": False,
+    }
+    assert trigger.scalability_labels == {
+        "scalable_horizontally": "true",
+        "scalable_vertically": "false",
+    }
+
+
+@pytest.mark.parametrize("connector_labels", [None, {}, "invalid"])
+def test_scalability_labels_fallback_to_trigger_descriptor(
+    descriptors_directory: Path, connector_labels
+):
+    connector: dict = {"docker_parameters": "foo"}
+    if connector_labels is not None:
+        connector["labels"] = connector_labels
+    _write_descriptor(descriptors_directory, "connector_foo.json", connector)
+    _write_descriptor(
+        descriptors_directory,
+        "trigger_foo.json",
+        {
+            "docker_parameters": "foo",
+            "labels": {"scalable_horizontally": False, "scalable_vertically": True},
+        },
+    )
+
+    assert _trigger_with_command("foo").scalability_labels == {
+        "scalable_horizontally": "false",
+        "scalable_vertically": "true",
+    }
+
+
+def test_scalability_labels_select_descriptor_matching_command(
+    descriptors_directory: Path,
+):
+    _write_descriptor(
+        descriptors_directory,
+        "connector_bar.json",
+        {
+            "docker_parameters": "bar",
+            "labels": {"scalable_horizontally": False, "scalable_vertically": False},
+        },
+    )
+    _write_descriptor(
+        descriptors_directory,
+        "connector_foo.json",
+        {
+            "docker_parameters": "foo",
+            "labels": {"scalable_horizontally": True, "scalable_vertically": True},
+        },
+    )
+
+    assert _trigger_with_command("foo").scalability_labels == {
+        "scalable_horizontally": "true",
+        "scalable_vertically": "true",
+    }
+
+
+def test_scalability_labels_ignore_invalid_descriptors(descriptors_directory: Path):
+    (descriptors_directory / "connector_broken.json").write_text("{not json")
+    _write_descriptor(descriptors_directory, "connector_list.json", ["foo"])
+    _write_descriptor(
+        descriptors_directory,
+        "trigger_foo.json",
+        {"docker_parameters": "foo", "labels": {"scalable_horizontally": "True"}},
+    )
+
+    assert _trigger_with_command("foo").scalability_labels == {
+        "scalable_horizontally": "true",
+        "scalable_vertically": "false",
+    }
+
+
+@pytest.mark.parametrize("command", [None, "unknown"])
+def test_scalability_labels_default_to_non_scalable(
+    descriptors_directory: Path, command
+):
+    _write_descriptor(
+        descriptors_directory,
+        "connector_foo.json",
+        {
+            "docker_parameters": "foo",
+            "labels": {"scalable_horizontally": True, "scalable_vertically": True},
+        },
+    )
+
+    trigger = _trigger_with_command(command)
+
+    assert trigger.descriptor_labels == {}
+    assert trigger.scalability_labels == {
+        "scalable_horizontally": "false",
+        "scalable_vertically": "false",
+    }
+
+
+class _SettingsWithoutBaseDirectory:
+    @property
+    def base_directory(self) -> Path:
+        raise EnvironmentRuntimeError("no base directory")
+
+
+def test_scalability_labels_unknown_base_directory():
+    trigger = _trigger_with_command("foo")
+    # Only break the settings of this module, not the Settings class globally
+    trigger.module._settings = _SettingsWithoutBaseDirectory()  # type: ignore[assignment]
+
+    assert trigger.scalability_labels == {
+        "scalable_horizontally": "false",
+        "scalable_vertically": "false",
+    }

@@ -207,7 +207,7 @@ class Trigger(ModuleItem):
     @cached_property
     def scalability_labels(self) -> dict[str, str]:
         """
-        Get the scalability labels of the running trigger/connector,
+        Get the scalability labels of the running trigger/connector
         """
         return {
             name: str(

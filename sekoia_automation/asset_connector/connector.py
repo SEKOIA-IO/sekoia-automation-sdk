@@ -266,12 +266,17 @@ class AssetConnector(Trigger):
                         json=request_body,
                         timeout=30,
                     )
+                    if res.status_code >= 500:
+                        res.raise_for_status()
         except requests.Timeout as ex:
             self.log_exception(
                 ex,
                 message="Timeout while pushing assets to Sekoia.io asset connector API",
             )
             return None
+        except requests.HTTPError:
+            # Retries exhausted: the last response is reported below
+            pass
 
         if res.status_code == 429:
             retry_after = parse_retry_after(

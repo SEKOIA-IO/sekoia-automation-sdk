@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
+from tenacity import AsyncRetrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
@@ -421,15 +422,9 @@ async def test_post_assets_to_api_timeout(test_async_asset_connector, asset_list
     """Test timeout handling"""
     # Patch the tenacity retry to not retry and the post to raise TimeoutError
     with patch.object(test_async_asset_connector, "_retry") as mock_retry:
-        # Create a simple context manager that doesn't retry
-        class FakeAttempt:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                return False
-
-        mock_retry.return_value = [FakeAttempt()]
+        mock_retry.return_value = AsyncRetrying(
+            stop=stop_after_attempt(1), reraise=True
+        )
 
         with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.return_value.__aenter__.side_effect = TimeoutError()
@@ -636,6 +631,81 @@ async def test_post_assets_to_api_invalid_json_response(
     assert response is None
     test_async_asset_connector.log_exception.assert_called_once()
     test_async_asset_connector.update_checkpoint.assert_not_called()
+
+
+def _async_server_error_response(status: int) -> AsyncMock:
+    response = AsyncMock()
+    response.status = status
+    response.text = AsyncMock(return_value="Bad Gateway")
+    response.headers = {}
+    response.raise_for_status = Mock(
+        side_effect=aiohttp.ClientResponseError(Mock(), (), status=status)
+    )
+    return response
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_retries_server_error(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+    test_async_asset_connector._retry = lambda: AsyncRetrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+
+    success = AsyncMock()
+    success.status = 200
+    success.text = AsyncMock(return_value='{"task_id": "abc"}')
+    success.headers = {}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.side_effect = [
+            _async_server_error_response(502),
+            success,
+        ]
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    await test_async_asset_connector._session.close()
+
+    assert response == {"task_id": "abc"}
+    assert mock_post.call_count == 2
+    test_async_asset_connector.update_checkpoint.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_server_error_after_retries(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+    test_async_asset_connector._retry = lambda: AsyncRetrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.side_effect = [
+            _async_server_error_response(502),
+            _async_server_error_response(502),
+        ]
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    await test_async_asset_connector._session.close()
+
+    assert response is None
+    assert mock_post.call_count == 2
+    test_async_asset_connector.update_checkpoint.assert_not_called()
+    test_async_asset_connector.log.assert_called_once_with(
+        message="Error while pushing assets to Sekoia.io "
+        "- Server error - HTTP (502) - Bad Gateway",
+        level="error",
+    )
 
 
 @pytest.mark.asyncio

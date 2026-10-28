@@ -12,7 +12,7 @@ import aiohttp
 import sentry_sdk
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from tenacity import AsyncRetrying, stop_after_delay, wait_exponential
 
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
@@ -195,7 +195,7 @@ class AsyncAssetConnector(Trigger):
 
     @staticmethod
     def _retry():
-        return Retrying(
+        return AsyncRetrying(
             stop=stop_after_delay(3600),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
@@ -279,7 +279,7 @@ class AsyncAssetConnector(Trigger):
         retry_after_header: str | None = None
 
         try:
-            for attempt in self._retry():
+            async for attempt in self._retry():
                 with attempt:
                     async with self.session() as session:
                         async with session.post(
@@ -290,6 +290,9 @@ class AsyncAssetConnector(Trigger):
                             status_code = response.status
                             response_text = await response.text()
                             retry_after_header = response.headers.get("Retry-After")
+
+                            if status_code >= 500:
+                                response.raise_for_status()
 
                             if status_code == 200:
                                 try:
@@ -307,6 +310,9 @@ class AsyncAssetConnector(Trigger):
                 message="Timeout while pushing assets to Sekoia.io asset connector API",
             )
             return None
+        except aiohttp.ClientResponseError:
+            # Retries exhausted: the last response is reported below
+            pass
 
         # Check if response was successfully obtained
         if status_code is None:

@@ -377,6 +377,57 @@ def test_post_assets_to_api_timeout(test_asset_connector, asset_list):
     test_asset_connector.log_exception.assert_called_once()
 
 
+def _server_error_response(status_code: int) -> MagicMock:
+    res = MagicMock(status_code=status_code, text="Bad Gateway")
+    res.__bool__.return_value = False
+    res.raise_for_status.side_effect = requests.HTTPError(response=res)
+    return res
+
+
+def test_post_assets_to_api_retries_server_error(test_asset_connector, asset_list):
+    test_asset_connector.update_checkpoint = Mock()
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+    success = Mock(status_code=200, json=lambda: {"task_id": "abc"})
+    test_asset_connector._http_session.post = Mock(
+        side_effect=[_server_error_response(502), success]
+    )
+
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
+
+    assert response == {"task_id": "abc"}
+    assert test_asset_connector._http_session.post.call_count == 2
+    test_asset_connector.update_checkpoint.assert_called_once()
+
+
+def test_post_assets_to_api_server_error_after_retries(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.update_checkpoint = Mock()
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+    test_asset_connector._http_session.post = Mock(
+        side_effect=[_server_error_response(502), _server_error_response(502)]
+    )
+
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
+
+    assert response is None
+    assert test_asset_connector._http_session.post.call_count == 2
+    test_asset_connector.update_checkpoint.assert_not_called()
+    test_asset_connector.log.assert_called_once_with(
+        message="Error while pushing assets to Sekoia.io "
+        "- Server error - HTTP (502) : Bad Gateway",
+        level="error",
+    )
+
+
 def test_post_assets_to_api_failure_with_empty_body(test_asset_connector, asset_list):
     # A falsy response (e.g. 4xx) falls back to its text body.
     res = MagicMock(status_code=400, text="boom")

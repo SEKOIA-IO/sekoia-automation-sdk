@@ -9,6 +9,7 @@ from cookiecutter.main import cookiecutter
 from sekoia_automation.scripts.action_runner import ModuleItemRunner
 from sekoia_automation.scripts.documentation.generate import (
     DocumentationGenerator,
+    OutputFormat,
 )
 from sekoia_automation.scripts.files_generator import FilesGenerator
 from sekoia_automation.scripts.openapi import OpenApiToModule
@@ -109,6 +110,13 @@ def generate_documentation(
         ..., help="Path to the documentation repository"
     ),
     module: OptionalStr = typer.Option(None, help="Module to deploy"),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.mkdocs, "--format", help="Documentation format"
+    ),
+    redirect_prefix: str = typer.Option(
+        "operation_center/integration_catalog/uuid",
+        help="GitBook only: path prefix of the module uuid redirects",
+    ),
 ):
     """
     Generate modules documentation.
@@ -122,6 +130,8 @@ def generate_documentation(
         modules_path=modules_path,
         documentation_path=documentation_path,
         module=module,
+        output_format=output_format,
+        redirect_prefix=redirect_prefix,
     ).generate()
 
 

@@ -1,14 +1,28 @@
 
 {#- -*- mode: jinja2 -*- -#}
+{%- macro cell(text) -%}
+{{ text | replace('\n','<br/>') | replace('|', '\\|') if gitbook else text | replace('\n','<br/>') }}
+{%- endmacro -%}
+{%- if gitbook -%}
+---
+uuid: {{manifest.uuid | tojson}}
+name: {{manifest.name | tojson}}
+description: {{manifest.description | default('') | tojson}}
+---
+{%- else -%}
 uuid: {{manifest.uuid}}
 name: {{manifest.name}}
 type: playbook
+{%- endif %}
 
 # {{manifest.name}}
 
-{%- if logo_filename %}
+{%- if logo_url and gitbook %}
 
-![{{manifest.name}}](/assets/playbooks/library/{{logo_filename}}){ align=right width=150 }
+<img src="{{logo_url}}" alt="{{manifest.name}}" width="150" align="right">
+{%- elif logo_url %}
+
+![{{manifest.name}}]({{logo_url}}){ align=right width=150 }
 {%- endif %}
 
 {{manifest.description}}
@@ -20,7 +34,7 @@ type: playbook
 | Name      |  Type   |  Description  |
 | --------- | ------- | --------------------------- |
 {% for property in manifest.configuration.properties -%}
-| `{{property}}` | `{{manifest.configuration.properties[property]['type']}}` | {{manifest.configuration.properties[property]['description'] | replace('\n','<br/>')}} |
+| `{{property}}` | `{{manifest.configuration.properties[property]['type']}}` | {{ cell(manifest.configuration.properties[property]['description']) }} |
 {% endfor -%}
 
 {%- else %}
@@ -44,7 +58,7 @@ This module accepts no configuration.
 | Name      |  Type   |  Description  |
 | --------- | ------- | --------------------------- |
 {% for property in trigger.arguments.properties -%}
-| `{{property}}` | `{{trigger.arguments.properties[property]['type']}}` | {{trigger.arguments.properties[property]['description'] | replace('\n','<br/>')}} |
+| `{{property}}` | `{{trigger.arguments.properties[property]['type']}}` | {{ cell(trigger.arguments.properties[property]['description']) }} |
 {% endfor %}
 {%- endif %}
 
@@ -55,7 +69,7 @@ This module accepts no configuration.
 | Name      |  Type   |  Description  |
 | --------- | ------- | --------------------------- |
 {% for property in trigger.results.properties -%}
-| `{{property}}` | `{{trigger.results.properties[property]['type']}}` | {{trigger.results.properties[property]['description'] | replace('\n','<br/>')}} |
+| `{{property}}` | `{{trigger.results.properties[property]['type']}}` | {{ cell(trigger.results.properties[property]['description']) }} |
 {% endfor -%}
 
 {%- endif -%}{# /trigger.arguments.properties #}
@@ -69,7 +83,7 @@ This module accepts no configuration.
 
 {{action.description}}
 
-{%- if action.arguments.properties and action.arguments.properties.description %}
+{%- if not gitbook and action.arguments.properties and action.arguments.properties.description %}
 
 **Configuration**
 
@@ -84,7 +98,7 @@ This module accepts no configuration.
 | Name      |  Type   |  Description  |
 | --------- | ------- | --------------------------- |
 {% for property in action.arguments.properties -%}
-| `{{property}}` | `{{action.arguments.properties[property]['type']}}` | {{action.arguments.properties[property]['description'] | replace('\n','<br/>')}} |
+| `{{property}}` | `{{action.arguments.properties[property]['type']}}` | {{ cell(action.arguments.properties[property]['description']) }} |
 {% endfor %}
 {%- endif -%}
 
@@ -95,7 +109,7 @@ This module accepts no configuration.
 | Name      |  Type   |  Description  |
 | --------- | ------- | --------------------------- |
 {% for property in action.results.properties -%}
-| `{{property}}` | `{{action.results.properties[property]['type']}}` | {{action.results.properties[property]['description'] | replace('\n','<br/>')}} |
+| `{{property}}` | `{{action.results.properties[property]['type']}}` | {{ cell(action.results.properties[property]['description']) }} |
 {% endfor %}
 {%- endif -%}{# /action.arguments.properties #}
 {%- endfor -%}{# /actions #}

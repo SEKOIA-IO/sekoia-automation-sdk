@@ -1,6 +1,6 @@
 [project]
 name = "sekoia-automation-sdk"
-version = "1.27.1"
+version = "1.27.2"
 description = "SDK to create Sekoia.io playbook modules"
 authors = [{ name = "Sekoia.io" }]
 requires-python = ">=3.11,<4"
@@ -33,8 +33,8 @@ dependencies = [
     "python-slugify>=5.0.2,<6",
     "PyYAML>=6.0,<7",
     "Jinja2>=3.0.3,<4",
-    "black>=25.11.0", # To format files in cli tools
-    "uv",             # To lock requirements when creating new module
+    "black>=26.10.1", # To format files in cli tools
+    "uv>0.13.4",      # To lock requirements when creating new module
     "prometheus-client",
     "aiocsv>=1.2.4,<2",
     "aiofiles>=23.1.0,<24",

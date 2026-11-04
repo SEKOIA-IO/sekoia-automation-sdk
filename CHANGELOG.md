@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.27.2 - 2026-11-04
+
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
 ## 1.27.1 - 2026-10-30
 
 ### Added

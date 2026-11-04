@@ -2,6 +2,8 @@ name: Publish Python 🐍 distributions 📦 to PyPI
 on:
   release:
     types: [published]
+  # Triggered by the `release.yml` workflow on the newly created tag
+  workflow_dispatch:
 
 permissions: {}
 

@@ -114,7 +114,7 @@ def generate_documentation(
         OutputFormat.mkdocs, "--format", help="Documentation format"
     ),
     redirect_prefix: str = typer.Option(
-        "operation_center/integration_catalog/uuid",
+        "integration/action_library/uuid",
         help="GitBook only: path prefix of the module uuid redirects",
     ),
 ):

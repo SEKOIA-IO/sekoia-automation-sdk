@@ -10,7 +10,7 @@ from sekoia_automation.scripts.documentation.generate import (
 )
 
 MODULE_UUID = "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154"
-PREFIX = "operation_center/integration_catalog/uuid"
+PREFIX = "integration/action_library/uuid"
 
 CONFIGURE = """# Setup
 

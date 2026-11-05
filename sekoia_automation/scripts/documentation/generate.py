@@ -55,7 +55,7 @@ class DocumentationGenerator:
         documentation_path: Path,
         module: str | None = None,
         output_format: OutputFormat = OutputFormat.mkdocs,
-        redirect_prefix: str = "operation_center/integration_catalog/uuid",
+        redirect_prefix: str = "integration/action_library/uuid",
     ):
         self.modules_path = modules_path
         self.documentation_path = documentation_path

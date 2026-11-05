@@ -5,8 +5,9 @@
 {%- endmacro -%}
 {%- if gitbook -%}
 ---
-uuid: {{manifest.uuid | tojson}}
+uuid: {{manifest.uuid}}
 name: {{manifest.name | tojson}}
+type: playbook
 description: {{manifest.description | default('') | tojson}}
 ---
 {%- else -%}

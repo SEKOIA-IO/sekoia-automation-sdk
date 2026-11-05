@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from sekoia_automation.scripts.documentation.generate import (
     DocumentationGenerator,
@@ -10,7 +9,7 @@ from sekoia_automation.scripts.documentation.generate import (
 )
 
 MODULE_UUID = "7cf9ccf6-e20a-4e53-bd77-3c19cdc94154"
-PREFIX = "integration/action_library/uuid"
+SPACE = "docs/integration"
 
 CONFIGURE = """# Setup
 
@@ -58,12 +57,11 @@ def modules_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def gitbook_path(tmp_path: Path) -> Path:
     path = tmp_path / "gitbook"
-    path.mkdir()
-    (path / ".gitbook.yaml").write_text("root: ./\nredirects:\n  other: foo.md\n")
-    (path / "SUMMARY.md").write_text(
+    (path / SPACE).mkdir(parents=True)
+    (path / SPACE / "SUMMARY.md").write_text(
         "# Summary\n\n* [Home](README.md)\n"
-        "* [Actions Library](library/README.md)\n"
-        "  * [Stale](library/stale.md)\n\n## Other\n\n* [Foo](foo.md)\n"
+        "* [Library](action_library/overview.md)\n"
+        "  * [Stale](action_library/stale.md)\n\n## Other\n\n* [Foo](foo.md)\n"
     )
     return path
 
@@ -76,67 +74,56 @@ def generate(modules_path: Path, doc_path: Path, **kwargs) -> None:
 
 def test_gitbook_page(modules_path, gitbook_path):
     generate(modules_path, gitbook_path)
-
-    page = (gitbook_path / "library/test-module.md").read_text()
-    assert page.startswith(f'---\nuuid: "{MODULE_UUID}"\nname: "Test Module"\n')
+    space = gitbook_path / SPACE
+    page = (space / "action_library/test-module.md").read_text()
+    # uuid and type are read by the redirects sync script of the docs repo
+    assert page.startswith(
+        f'---\nuuid: {MODULE_UUID}\nname: "Test Module"\ntype: playbook\n'
+    )
     assert '<img src="../.gitbook/assets/library/test-module.svg"' in page
-    assert "{ align" not in page and "type: playbook" not in page
-    # pipes are escaped, newlines kept as <br/>
+    assert "{ align" not in page
     assert "a\\|b<br/>c" in page
-    # CONFIGURE.md: relative assets, no mkdocs syntax, admonition as a hint
     assert "(../.gitbook/assets/library/setup/test-module/step.png)" in page
     assert "{:" not in page and "!!!" not in page
     assert '{% hint style="warning" %}\n    Keep it **secret**.' in page
-    assert (gitbook_path / ".gitbook/assets/library/test-module.svg").exists()
-    assert (
-        gitbook_path / ".gitbook/assets/library/setup/test-module/step.png"
-    ).exists()
+    assert (space / ".gitbook/assets/library/test-module.svg").exists()
+    assert (space / ".gitbook/assets/library/setup/test-module/step.png").exists()
 
 
-def test_gitbook_summary_and_redirects(modules_path, gitbook_path):
+def test_gitbook_summary(modules_path, gitbook_path):
     generate(modules_path, gitbook_path)
-    summary = (gitbook_path / "SUMMARY.md").read_text()
-    conf = yaml.safe_load((gitbook_path / ".gitbook.yaml").read_text())
+    path = gitbook_path / SPACE / "SUMMARY.md"
+    summary = path.read_text()
     assert summary == (
         "# Summary\n\n* [Home](README.md)\n"
-        "* [Actions Library](library/README.md)\n"
-        "  * [Test Module](library/test-module.md)\n\n## Other\n\n* [Foo](foo.md)\n"
+        "* [Library](action_library/overview.md)\n"
+        "  * [Test Module](action_library/test-module.md)\n\n## Other\n\n"
+        "* [Foo](foo.md)\n"
     )
-    assert conf == {
-        "root": "./",
-        "redirects": {
-            "other": "foo.md",
-            f"{PREFIX}/{MODULE_UUID}": "library/test-module.md",
-        },
-    }
-
-    # idempotent
     generate(modules_path, gitbook_path)
-    assert (gitbook_path / "SUMMARY.md").read_text() == summary
-    assert yaml.safe_load((gitbook_path / ".gitbook.yaml").read_text()) == conf
+    assert path.read_text() == summary
 
 
 def test_gitbook_single_module_keeps_others(modules_path, gitbook_path):
     generate(modules_path, gitbook_path, module="Test")
-    summary = (gitbook_path / "SUMMARY.md").read_text()
-    assert "[Stale](library/stale.md)" in summary
-    assert "[Test Module](library/test-module.md)" in summary
+    summary = (gitbook_path / SPACE / "SUMMARY.md").read_text()
+    assert "[Stale](action_library/stale.md)" in summary
+    assert "[Test Module](action_library/test-module.md)" in summary
 
 
 def test_gitbook_creates_summary_entry(modules_path, tmp_path):
     path = tmp_path / "empty"
-    path.mkdir()
-    (path / "SUMMARY.md").write_text("# Summary\n")
+    (path / SPACE).mkdir(parents=True)
+    (path / SPACE / "SUMMARY.md").write_text("# Summary\n")
     generate(modules_path, path)
     assert (
-        (path / "SUMMARY.md")
+        (path / SPACE / "SUMMARY.md")
         .read_text()
         .endswith(
-            "* [Actions Library](library/README.md)\n"
-            "  * [Test Module](library/test-module.md)\n"
+            "* [Actions Library](action_library/overview.md)\n"
+            "  * [Test Module](action_library/test-module.md)\n"
         )
     )
-    assert (path / ".gitbook.yaml").exists()
 
 
 def test_mkdocs_page_unchanged(modules_path, tmp_path):

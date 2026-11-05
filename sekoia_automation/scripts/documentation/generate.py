@@ -14,7 +14,9 @@ from jinja2 import Environment, FileSystemLoader
 from rich import print
 from slugify import slugify
 
-LIBRARY_ENTRY = "* [Actions Library](library/README.md)"
+SPACE_DIR = "docs/integration"  # GitBook space holding the library
+LIBRARY_DIR = "action_library"
+LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
 ADMONITION = re.compile(
     r'^([ \t]*)!!! (\w+)(?: "[^"]*")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
 )
@@ -32,7 +34,6 @@ class DocumentationModule:
     name: str
     file_name: str
     categories: list[str]
-    uuid: str = ""
 
 
 class DocumentationGenerator:
@@ -55,18 +56,16 @@ class DocumentationGenerator:
         documentation_path: Path,
         module: str | None = None,
         output_format: OutputFormat = OutputFormat.mkdocs,
-        redirect_prefix: str = "integration/action_library/uuid",
     ):
         self.modules_path = modules_path
         self.documentation_path = documentation_path
         self.module = module
         self.gitbook = output_format == OutputFormat.gitbook
-        self.redirect_prefix = redirect_prefix
         # pages dir, assets dir (both relative to documentation_path),
         # and the assets url as seen from a page
         if self.gitbook:
-            self.pages_dir = "library"
-            self.assets_dir = ".gitbook/assets/library"
+            self.pages_dir = f"{SPACE_DIR}/{LIBRARY_DIR}"
+            self.assets_dir = f"{SPACE_DIR}/.gitbook/assets/library"
             self.assets_url = "../.gitbook/assets/library"
         else:
             self.pages_dir = "_shared_content/automate/library"
@@ -152,7 +151,6 @@ class DocumentationGenerator:
             name=module_manifest["name"],
             file_name=module_doc_filename,
             categories=module_manifest.get("categories", []),
-            uuid=module_manifest["uuid"],
         )
 
     def _copy_logo(self, module_path: Path, module_manifest: dict) -> str | None:
@@ -272,7 +270,6 @@ class DocumentationGenerator:
 
         if self.gitbook:
             self._update_summary(generated_modules)
-            self._update_redirects(generated_modules)
         else:
             self._update_documentation_menu(generated_modules)
 
@@ -280,9 +277,7 @@ class DocumentationGenerator:
         if not self.modules_path.is_dir():
             print("[bold red][!] Module path doesn't exist.[/bold red]")
             raise typer.Exit(code=1)
-        marker_files = (
-            (".gitbook.yaml", "SUMMARY.md") if self.gitbook else ("mkdocs.yml",)
-        )
+        marker_files = (f"{SPACE_DIR}/SUMMARY.md",) if self.gitbook else ("mkdocs.yml",)
         if not self.documentation_path.is_dir() or not any(
             (self.documentation_path / name).exists() for name in marker_files
         ):
@@ -345,11 +340,21 @@ class DocumentationGenerator:
         categories), deeper nested lines are dropped, upgrade if needed.
         """
         print("Updating SUMMARY.md:")
-        path = self.documentation_path / "SUMMARY.md"
+        path = self.documentation_path / SPACE_DIR / "SUMMARY.md"
         lines = path.read_text().splitlines() if path.exists() else ["# Summary", ""]
-        if LIBRARY_ENTRY not in lines:
-            lines.append(LIBRARY_ENTRY)
-        start = lines.index(LIBRARY_ENTRY) + 1
+        # anchor on the link, GitBook may rewrite the title
+        entry = next(
+            (
+                i
+                for i, line in enumerate(lines)
+                if line.startswith("* [") and line.endswith(f"]({LIBRARY_OVERVIEW})")
+            ),
+            None,
+        )
+        if entry is None:
+            lines.append(f"* [Actions Library]({LIBRARY_OVERVIEW})")
+            entry = len(lines) - 1
+        start = entry + 1
         end = start
         while end < len(lines) and lines[end].startswith(" "):
             end += 1
@@ -359,7 +364,7 @@ class DocumentationGenerator:
             for line in lines[start:end]:
                 if match := SUMMARY_CHILD.match(line):
                     entries[match[2]] = match[1]
-        entries |= {f"{self.pages_dir}/{m.file_name}": m.name for m in modules}
+        entries |= {f"{LIBRARY_DIR}/{m.file_name}": m.name for m in modules}
 
         lines[start:end] = [
             f"  * [{title}]({link})"
@@ -367,24 +372,3 @@ class DocumentationGenerator:
         ]
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")
-
-    def _update_redirects(self, modules: list[DocumentationModule]):
-        """
-        Redirect `<redirect_prefix>/<module uuid>` to the module page, in the
-        redirects of .gitbook.yaml. Other keys and redirects are kept.
-
-        shortcut: the file is re-dumped, so its comments are lost.
-        """
-        path = self.documentation_path / ".gitbook.yaml"
-        conf = yaml.safe_load(path.read_text()) if path.exists() else None
-        conf = conf or {}
-        redirects = conf.setdefault("redirects", {})
-        if not self.module:  # full run: drop redirects of removed modules
-            for source in [s for s in redirects if s.startswith(self.redirect_prefix)]:
-                del redirects[source]
-        for module in modules:
-            redirects[f"{self.redirect_prefix}/{module.uuid}"] = (
-                f"{self.pages_dir}/{module.file_name}"
-            )
-        path.write_text(yaml.dump(conf, sort_keys=False))
-        print("[green][+][/green] .gitbook.yaml redirects updated")

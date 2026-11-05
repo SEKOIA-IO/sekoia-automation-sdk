@@ -113,10 +113,6 @@ def generate_documentation(
     output_format: OutputFormat = typer.Option(
         OutputFormat.mkdocs, "--format", help="Documentation format"
     ),
-    redirect_prefix: str = typer.Option(
-        "integration/action_library/uuid",
-        help="GitBook only: path prefix of the module uuid redirects",
-    ),
 ):
     """
     Generate modules documentation.
@@ -131,7 +127,6 @@ def generate_documentation(
         documentation_path=documentation_path,
         module=module,
         output_format=output_format,
-        redirect_prefix=redirect_prefix,
     ).generate()
 
 

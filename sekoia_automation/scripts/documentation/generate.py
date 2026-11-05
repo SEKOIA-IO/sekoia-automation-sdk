@@ -17,6 +17,8 @@ from slugify import slugify
 SPACE_DIR = "docs/integration"  # GitBook space holding the library
 LIBRARY_DIR = "action_library"
 LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
+DEFAULT_CATEGORY = "Other"
+DEFAULT_CATEGORY = "Other"
 ADMONITION = re.compile(
     r'^([ \t]*)!!! (\w+)(?: "[^"]*")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
 )
@@ -34,6 +36,15 @@ class DocumentationModule:
     name: str
     file_name: str
     categories: list[str]
+
+    @property
+    def category(self) -> str:
+        # GitBook pages have a single place: the first category
+        return self.categories[0] if self.categories else DEFAULT_CATEGORY
+
+    @property
+    def category_dir(self) -> str:
+        return slugify(self.category, separator="_")
 
 
 class DocumentationGenerator:
@@ -66,7 +77,7 @@ class DocumentationGenerator:
         if self.gitbook:
             self.pages_dir = f"{SPACE_DIR}/{LIBRARY_DIR}"
             self.assets_dir = f"{SPACE_DIR}/.gitbook/assets/library"
-            self.assets_url = "../.gitbook/assets/library"
+            self.assets_url = "../../.gitbook/assets/library"
         else:
             self.pages_dir = "_shared_content/automate/library"
             self.assets_dir = "docs/assets/playbooks/library"
@@ -138,20 +149,22 @@ class DocumentationGenerator:
             gitbook=self.gitbook,
         )
 
-        module_doc_filename = f"{slugify(module_manifest['name'])}.md"
-
-        module_doc_path = self.documentation_path / self.pages_dir / module_doc_filename
-        module_doc_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # write the module documentation file
-        with module_doc_path.open("wb") as fd:
-            fd.write(output.encode("utf-8"))
-
-        return DocumentationModule(
+        doc = DocumentationModule(
             name=module_manifest["name"],
-            file_name=module_doc_filename,
+            file_name=f"{slugify(module_manifest['name'])}.md",
             categories=module_manifest.get("categories", []),
         )
+        pages_dir = self.documentation_path / self.pages_dir
+        if self.gitbook:
+            pages_dir /= doc.category_dir
+        pages_dir.mkdir(parents=True, exist_ok=True)
+        (pages_dir / doc.file_name).write_bytes(output.encode("utf-8"))
+
+        category_page = pages_dir / "README.md"
+        if self.gitbook and not category_page.exists():  # keep manual edits
+            category_page.write_text(f"# {doc.category}\n")
+
+        return doc
 
     def _copy_logo(self, module_path: Path, module_manifest: dict) -> str | None:
         for ext in ["png", "svg"]:
@@ -335,9 +348,8 @@ class DocumentationGenerator:
         """
         Replace the children of the library entry in SUMMARY.md, leaving the rest
         of the file (edited by hand or by GitBook) untouched.
-
-        shortcut: flat alphabetical list (SUMMARY entries must be pages, so no
-        categories), deeper nested lines are dropped, upgrade if needed.
+        shortcut: modules are listed under their first category, deeper nested
+        lines are dropped, upgrade if needed.
         """
         print("Updating SUMMARY.md:")
         path = self.documentation_path / SPACE_DIR / "SUMMARY.md"
@@ -359,16 +371,27 @@ class DocumentationGenerator:
         while end < len(lines) and lines[end].startswith(" "):
             end += 1
 
-        entries: dict[str, str] = {}
+        categories: dict[str, str] = {}  # category page -> title
+        pages: dict[str, str] = {}  # module page -> title
         if self.module:  # single module: keep the others
             for line in lines[start:end]:
                 if match := SUMMARY_CHILD.match(line):
-                    entries[match[2]] = match[1]
-        entries |= {f"{LIBRARY_DIR}/{m.file_name}": m.name for m in modules}
+                    title, link = match[1], match[2]
+                    (categories if link.endswith("/README.md") else pages)[link] = title
+        for module in modules:
+            folder = f"{LIBRARY_DIR}/{module.category_dir}"
+            categories[f"{folder}/README.md"] = module.category
+            pages[f"{folder}/{module.file_name}"] = module.name
 
-        lines[start:end] = [
-            f"  * [{title}]({link})"
-            for link, title in sorted(entries.items(), key=lambda e: e[1])
-        ]
+        block = []
+        for link, title in sorted(categories.items(), key=lambda e: e[1]):
+            block.append(f"  * [{title}]({link})")
+            folder = link.removesuffix("README.md")
+            block += [
+                f"    * [{name}]({page})"
+                for page, name in sorted(pages.items(), key=lambda e: e[1])
+                if page.startswith(folder)
+            ]
+        lines[start:end] = block
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")

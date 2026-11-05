@@ -35,6 +35,7 @@ def modules_path(tmp_path: Path) -> Path:
                 "uuid": MODULE_UUID,
                 "name": "Test Module",
                 "description": "d",
+                "categories": ["Network", "Endpoint"],
                 "configuration": {},
             }
         )
@@ -61,7 +62,8 @@ def gitbook_path(tmp_path: Path) -> Path:
     (path / SPACE / "SUMMARY.md").write_text(
         "# Summary\n\n* [Home](README.md)\n"
         "* [Library](action_library/overview.md)\n"
-        "  * [Stale](action_library/stale.md)\n\n## Other\n\n* [Foo](foo.md)\n"
+        "  * [Other](action_library/other/README.md)\n"
+        "    * [Stale](action_library/other/stale.md)\n\n## Other\n\n* [Foo](foo.md)\n"
     )
     return path
 
@@ -75,17 +77,18 @@ def generate(modules_path: Path, doc_path: Path, **kwargs) -> None:
 def test_gitbook_page(modules_path, gitbook_path):
     generate(modules_path, gitbook_path)
     space = gitbook_path / SPACE
-    page = (space / "action_library/test-module.md").read_text()
+    page = (space / "action_library/network/test-module.md").read_text()
     # uuid and type are read by the redirects sync script of the docs repo
     assert page.startswith(
         f'---\nuuid: {MODULE_UUID}\nname: "Test Module"\ntype: playbook\n'
     )
-    assert '<img src="../.gitbook/assets/library/test-module.svg"' in page
+    assert '<img src="../../.gitbook/assets/library/test-module.svg"' in page
     assert "{ align" not in page
     assert "a\\|b<br/>c" in page
-    assert "(../.gitbook/assets/library/setup/test-module/step.png)" in page
+    assert "(../../.gitbook/assets/library/setup/test-module/step.png)" in page
     assert "{:" not in page and "!!!" not in page
     assert '{% hint style="warning" %}\n    Keep it **secret**.' in page
+    assert (space / "action_library/network/README.md").read_text() == "# Network\n"
     assert (space / ".gitbook/assets/library/test-module.svg").exists()
     assert (space / ".gitbook/assets/library/setup/test-module/step.png").exists()
 
@@ -97,7 +100,8 @@ def test_gitbook_summary(modules_path, gitbook_path):
     assert summary == (
         "# Summary\n\n* [Home](README.md)\n"
         "* [Library](action_library/overview.md)\n"
-        "  * [Test Module](action_library/test-module.md)\n\n## Other\n\n"
+        "  * [Network](action_library/network/README.md)\n"
+        "    * [Test Module](action_library/network/test-module.md)\n\n## Other\n\n"
         "* [Foo](foo.md)\n"
     )
     generate(modules_path, gitbook_path)
@@ -107,8 +111,8 @@ def test_gitbook_summary(modules_path, gitbook_path):
 def test_gitbook_single_module_keeps_others(modules_path, gitbook_path):
     generate(modules_path, gitbook_path, module="Test")
     summary = (gitbook_path / SPACE / "SUMMARY.md").read_text()
-    assert "[Stale](action_library/stale.md)" in summary
-    assert "[Test Module](action_library/test-module.md)" in summary
+    assert "[Stale](action_library/other/stale.md)" in summary
+    assert "[Test Module](action_library/network/test-module.md)" in summary
 
 
 def test_gitbook_creates_summary_entry(modules_path, tmp_path):
@@ -121,7 +125,8 @@ def test_gitbook_creates_summary_entry(modules_path, tmp_path):
         .read_text()
         .endswith(
             "* [Actions Library](action_library/overview.md)\n"
-            "  * [Test Module](action_library/test-module.md)\n"
+            "  * [Network](action_library/network/README.md)\n"
+            "    * [Test Module](action_library/network/test-module.md)\n"
         )
     )
 

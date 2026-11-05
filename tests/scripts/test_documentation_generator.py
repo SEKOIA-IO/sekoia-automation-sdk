@@ -163,3 +163,9 @@ def test_gitbook_redirects(modules_path, gitbook_path):
     }
     generate(modules_path, gitbook_path)
     assert yaml.safe_load(path.read_text()) == conf
+
+
+def test_deprecated_module_ignored(modules_path, gitbook_path):
+    (modules_path / "Test").rename(modules_path / "Nybble")
+    generate(modules_path, gitbook_path)
+    assert not (gitbook_path / SPACE / "action_library/network").exists()

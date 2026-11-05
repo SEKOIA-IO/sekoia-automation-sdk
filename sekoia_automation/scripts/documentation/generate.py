@@ -18,6 +18,8 @@ SPACE_DIR = "docs/integration"  # GitBook space holding the library
 LIBRARY_DIR = "action_library"
 LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
 DEFAULT_CATEGORY = "Other"
+# shortcut: hardcoded, the manifests have no deprecation flag, upgrade if they get one
+DEPRECATED_MODULES = {"BinaryEdges", "Nybble", "RiskIQ"}
 DEFAULT_CATEGORY = "Other"
 ADMONITION = re.compile(
     r'^([ \t]*)!!! (\w+)(?: "[^"]*")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
@@ -87,6 +89,10 @@ class DocumentationGenerator:
         """
         Generate documentation for the given module
         """
+        if module_path.name in DEPRECATED_MODULES:
+            print(f"[white][!] {module_path.name}: Deprecated, ignored[/white]")
+            return None
+
         if not (module_path / "manifest.json").exists():
             print(f"[orange3][!] {module_path.name}: No manifest found[/orange3]")
             return None

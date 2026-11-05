@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from sekoia_automation.scripts.documentation.generate import (
     DocumentationGenerator,
@@ -59,6 +60,10 @@ def modules_path(tmp_path: Path) -> Path:
 def gitbook_path(tmp_path: Path) -> Path:
     path = tmp_path / "gitbook"
     (path / SPACE).mkdir(parents=True)
+    (path / SPACE / ".gitbook.yaml").write_text(
+        "root: ./\nredirects:\n  other: foo.md\n"
+        "  action_library/stale: action_library/other/stale.md\n"
+    )
     (path / SPACE / "SUMMARY.md").write_text(
         "# Summary\n\n* [Home](README.md)\n"
         "* [Library](action_library/overview.md)\n"
@@ -143,3 +148,18 @@ def test_mkdocs_page_unchanged(modules_path, tmp_path):
         "![Test Module](/assets/playbooks/library/test-module.svg){ align=right" in page
     )
     assert "a|b<br/>c" in page
+
+
+def test_gitbook_redirects(modules_path, gitbook_path):
+    path = gitbook_path / SPACE / ".gitbook.yaml"
+    generate(modules_path, gitbook_path)
+    conf = yaml.safe_load(path.read_text())
+    assert conf == {
+        "root": "./",
+        "redirects": {
+            "other": "foo.md",
+            "action_library/test-module": "action_library/network/test-module.md",
+        },
+    }
+    generate(modules_path, gitbook_path)
+    assert yaml.safe_load(path.read_text()) == conf

@@ -283,6 +283,7 @@ class DocumentationGenerator:
 
         if self.gitbook:
             self._update_summary(generated_modules)
+            self._update_redirects(generated_modules)
         else:
             self._update_documentation_menu(generated_modules)
 
@@ -395,3 +396,29 @@ class DocumentationGenerator:
         lines[start:end] = block
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")
+
+    def _update_redirects(self, modules: list[DocumentationModule]):
+        """
+        Redirect the former flat url of each page to its category page, in the
+        redirects of the space .gitbook.yaml. Other keys and redirects are kept.
+        shortcut: the file is re-dumped, so its comments are lost.
+        """
+        path = self.documentation_path / SPACE_DIR / ".gitbook.yaml"
+        conf = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
+        redirects = conf.setdefault("redirects", {})
+
+        def flat_source(target: str) -> str | None:
+            parts = Path(target).parts
+            if len(parts) == 3 and parts[0] == LIBRARY_DIR:
+                return f"{LIBRARY_DIR}/{Path(parts[2]).stem}"
+
+        if not self.module:  # full run: drop the redirects of removed modules
+            for source, target in list(redirects.items()):
+                if source == flat_source(target):
+                    del redirects[source]
+        for module in modules:
+            target = f"{LIBRARY_DIR}/{module.category_dir}/{module.file_name}"
+            redirects[flat_source(target)] = target
+
+        path.write_text(yaml.dump(conf, sort_keys=False))
+        print("[green][+][/green] .gitbook.yaml redirects updated")

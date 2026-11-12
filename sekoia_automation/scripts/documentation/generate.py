@@ -20,12 +20,16 @@ LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
 DEFAULT_CATEGORY = "Other"
 # shortcut: hardcoded, the manifests have no deprecation flag, upgrade if they get one
 DEPRECATED_MODULES = {"BinaryEdges", "Nybble", "RiskIQ"}
-DEFAULT_CATEGORY = "Other"
 ADMONITION = re.compile(
-    r'^([ \t]*)!!! (\w+)(?: "[^"]*")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
+    r'^([ \t]*)!!! (\w+)(?: "([^"]*)")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
 )
 HINT_STYLES = {"warning": "warning", "danger": "danger", "success": "success"}
 SUMMARY_CHILD = re.compile(r"^\s+\* \[(.+)\]\((.+)\)\s*$")
+
+
+def escape_title(title: str) -> str:
+    """Escape the markdown link delimiters of a title coming from a manifest."""
+    return title.replace("[", r"\[").replace("]", r"\]")
 
 
 class OutputFormat(StrEnum):
@@ -166,9 +170,14 @@ class DocumentationGenerator:
         pages_dir.mkdir(parents=True, exist_ok=True)
         (pages_dir / doc.file_name).write_bytes(output.encode("utf-8"))
 
-        category_page = pages_dir / "README.md"
-        if self.gitbook and not category_page.exists():  # keep manual edits
-            category_page.write_text(f"# {doc.category}\n")
+        if self.gitbook:
+            category_page = pages_dir / "README.md"
+            if not category_page.exists():  # keep manual edits
+                category_page.write_text(f"# {escape_title(doc.category)}\n")
+            # the module changed category: drop its page from the former one
+            for stale in pages_dir.parent.glob(f"*/{doc.file_name}"):
+                if stale.parent != pages_dir:
+                    stale.unlink()
 
         return doc
 
@@ -227,15 +236,19 @@ class DocumentationGenerator:
         if self.gitbook:
             # mkdocs-only syntax: attribute lists and admonitions
             content = re.sub(r"\{:[^}]*\}", "", content)
+            if not content.endswith("\n"):  # ADMONITION needs ended lines
+                content += "\n"
             content = ADMONITION.sub(self._admonition_to_hint, content)
 
         return content
 
     @staticmethod
     def _admonition_to_hint(match: re.Match) -> str:
-        indent, kind, body = match.groups()
+        indent, kind, title, body = match.groups()
         style = HINT_STYLES.get(kind, "info")
-        lines = (line[len(indent) + 4 :] for line in body.rstrip().splitlines())
+        lines = [line[len(indent) + 4 :] for line in body.rstrip().splitlines()]
+        if title:
+            lines = [f"**{title}**", "", *lines]
         inner = "\n".join(f"{indent}{line}" for line in lines)
         return (
             f'{indent}{{% hint style="{style}" %}}\n{inner}\n'
@@ -355,8 +368,9 @@ class DocumentationGenerator:
         """
         Replace the children of the library entry in SUMMARY.md, leaving the rest
         of the file (edited by hand or by GitBook) untouched.
-        shortcut: modules are listed under their first category, deeper nested
-        lines are dropped, upgrade if needed.
+        shortcut: modules are listed under their first category, other nested
+        lines than categories, modules and direct children are dropped,
+        upgrade if needed.
         """
         print("Updating SUMMARY.md:")
         path = self.documentation_path / SPACE_DIR / "SUMMARY.md"
@@ -380,15 +394,23 @@ class DocumentationGenerator:
 
         categories: dict[str, str] = {}  # category page -> title
         pages: dict[str, str] = {}  # module page -> title
-        if self.module:  # single module: keep the others
-            for line in lines[start:end]:
-                if match := SUMMARY_CHILD.match(line):
-                    title, link = match[1], match[2]
-                    (categories if link.endswith("/README.md") else pages)[link] = title
+        flat: dict[str, str] = {}  # manual pages directly under the library
+        for line in lines[start:end]:
+            if not (match := SUMMARY_CHILD.match(line)):
+                continue
+            title, link = match[1], match[2]
+            parts = Path(link).parts
+            if len(parts) == 2:
+                flat[link] = title
+            elif self.module:  # single module: keep the others
+                (categories if parts[-1] == "README.md" else pages)[link] = title
         for module in modules:
             folder = f"{LIBRARY_DIR}/{module.category_dir}"
-            categories[f"{folder}/README.md"] = module.category
-            pages[f"{folder}/{module.file_name}"] = module.name
+            categories[f"{folder}/README.md"] = escape_title(module.category)
+            # the module may have changed category
+            for link in [p for p in pages if Path(p).name == module.file_name]:
+                del pages[link]
+            pages[f"{folder}/{module.file_name}"] = escape_title(module.name)
 
         block = []
         for link, title in sorted(categories.items(), key=lambda e: e[1]):
@@ -399,6 +421,7 @@ class DocumentationGenerator:
                 for page, name in sorted(pages.items(), key=lambda e: e[1])
                 if page.startswith(folder)
             ]
+        block += [f"  * [{title}]({link})" for link, title in flat.items()]
         lines[start:end] = block
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")
@@ -411,7 +434,7 @@ class DocumentationGenerator:
         """
         path = self.documentation_path / SPACE_DIR / ".gitbook.yaml"
         conf = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
-        redirects = conf.setdefault("redirects", {})
+        redirects = conf["redirects"] = conf.get("redirects") or {}
 
         def flat_source(target: str) -> str | None:
             parts = Path(target).parts

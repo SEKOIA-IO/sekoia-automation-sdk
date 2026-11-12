@@ -169,3 +169,64 @@ def test_deprecated_module_ignored(modules_path, gitbook_path):
     (modules_path / "Test").rename(modules_path / "Nybble")
     generate(modules_path, gitbook_path)
     assert not (gitbook_path / SPACE / "action_library/network").exists()
+
+
+def test_gitbook_empty_redirects(modules_path, gitbook_path):
+    path = gitbook_path / SPACE / ".gitbook.yaml"
+    path.write_text("root: ./\nredirects:\n")
+    generate(modules_path, gitbook_path)
+    assert "action_library/test-module" in yaml.safe_load(path.read_text())["redirects"]
+
+
+def test_gitbook_keeps_manual_children(modules_path, gitbook_path):
+    path = gitbook_path / SPACE / "SUMMARY.md"
+    path.write_text(
+        path.read_text().replace(
+            "* [Library](action_library/overview.md)\n",
+            "* [Library](action_library/overview.md)\n"
+            "  * [Guide](action_library/guide.md)\n",
+        )
+    )
+    generate(modules_path, gitbook_path)
+    generate(modules_path, gitbook_path, module="Test")
+    assert "  * [Guide](action_library/guide.md)\n" in path.read_text()
+
+
+def test_gitbook_module_changes_category(modules_path, gitbook_path):
+    generate(modules_path, gitbook_path)
+    manifest = modules_path / "Test" / "manifest.json"
+    manifest.write_text(manifest.read_text().replace("Network", "Cloud"))
+    generate(modules_path, gitbook_path, module="Test")
+    library = gitbook_path / SPACE / "action_library"
+    summary = (gitbook_path / SPACE / "SUMMARY.md").read_text()
+    assert summary.count("[Test Module]") == 1
+    assert "(action_library/cloud/test-module.md)" in summary
+    assert not (library / "network/test-module.md").exists()
+    conf = yaml.safe_load((gitbook_path / SPACE / ".gitbook.yaml").read_text())
+    assert conf["redirects"]["action_library/test-module"].endswith(
+        "cloud/test-module.md"
+    )
+
+
+def test_gitbook_title_is_escaped(modules_path, gitbook_path):
+    manifest = modules_path / "Test" / "manifest.json"
+    manifest.write_text(
+        manifest.read_text().replace("Test Module", "Test [x](http://e)")
+    )
+    generate(modules_path, gitbook_path)
+    summary = (gitbook_path / SPACE / "SUMMARY.md").read_text()
+    assert r"* [Test \[x\](http://e)](action_library/network/" in summary
+
+
+def test_gitbook_admonition_title_and_end_of_file(modules_path, tmp_path):
+    (modules_path / "Test" / "CONFIGURE.md").write_text(
+        '!!! warning "Required"\n    Keep it secret.\n    Really.'
+    )
+    generator = DocumentationGenerator(
+        modules_path, tmp_path, output_format=OutputFormat.gitbook
+    )
+    setup = generator._copy_configure_md(modules_path / "Test", None)
+    assert setup == (
+        '{% hint style="warning" %}\n**Required**\n\nKeep it secret.\nReally.\n'
+        "{% endhint %}\n\n"
+    )

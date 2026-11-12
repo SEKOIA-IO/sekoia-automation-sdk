@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+
+"""
+Load module library into database via the API
+"""
+
+import json
+from pathlib import Path
+from posixpath import join as urljoin
+from typing import Any
+
+import requests
+import typer
+from rich import print
+
+from . import constants, display, module_files, registry
+
+
+class SyncLibrary:
+    DOCKER_REGISTRY = constants.DOCKER_REGISTRY
+    DOCKER_NAMESPACE = constants.DOCKER_NAMESPACE
+    DOCKER_PREFIX = constants.DOCKER_PREFIX
+
+    def __init__(
+        self,
+        playbook_url: str,
+        api_key: str,
+        modules_path: Path,
+        module: str = "",
+        registry_check: bool = False,
+        registry: str | None = None,
+        namespace: str | None = None,
+        registry_pat: str | None = None,
+    ):
+        self.playbook_url = playbook_url
+        self.api_key = api_key
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "application/json",
+        }
+        self.modules_path = modules_path
+        self.module = module
+
+        self.registry_check = registry_check
+        self.registry = registry or self.DOCKER_REGISTRY
+        self.namespace = namespace or self.DOCKER_NAMESPACE
+        # In case of a public image any base64 encoded token works
+        self.registry_pat = registry_pat or "none"
+
+    def pprint(
+        self, created: list, updated: list, up_to_date: list, errors: list, nb_tabs: int
+    ):
+        """Pretty print information on the current sync"""
+        display.pprint(created, updated, up_to_date, errors, nb_tabs)
+
+    def sync_list(
+        self, module_name: str, module_uuid: str, list_objects: list, name: str
+    ):
+        """Performs the syncing of objects linked to a module
+
+        Args:
+            module_name (str): Name of parent module
+            module_uuid (str): UUID of parent module
+            list_objects (list): List of objects to sync
+            name (str): Type of objects to sync
+        """
+        created: list[str] = []
+        updated: list[str] = []
+        up_to_date: list[str] = []
+        errors: list[str] = []
+
+        for obj in list_objects:
+            response = requests.get(
+                urljoin(self.playbook_url, f"{name}s", obj["uuid"]),
+                headers=self.headers,
+            )
+            obj_name = obj["name"]
+            obj_uuid = obj["uuid"]
+
+            if response.status_code not in (200, 404):
+                errors.append(f"{{{obj_name}: {response.status_code}}}")
+
+            elif response.status_code == 404:
+                data: dict = obj.copy()
+                data.update({"module_uuid": module_uuid})
+                res = requests.post(
+                    urljoin(self.playbook_url, f"{name}s"),
+                    json=data,
+                    headers=self.headers,
+                )
+                if not res.ok:
+                    errors.append(
+                        f"{{Cannot create '{obj_name}': {response.status_code} "
+                        "- {response.text}}}"
+                    )
+                else:
+                    created.append(f"{obj_name}")
+
+            else:
+                content: dict = response.json()
+
+                if "outputs" not in content:
+                    content["outputs"] = {}
+
+                if "outputs" not in obj:
+                    obj["outputs"] = {}
+
+                for k in content.keys():
+                    if k in obj and content[k] == obj[k]:
+                        del obj[k]
+
+                if not obj:
+                    up_to_date.append(f"{obj_name}")
+
+                else:
+                    res = requests.patch(
+                        urljoin(self.playbook_url, f"{name}s", obj_uuid),
+                        json=obj,
+                        headers=self.headers,
+                    )
+                    if not res.ok:
+                        errors.append(
+                            f"{{Cannot update '{obj_name}': {response.status_code} "
+                            "- {response.text}}}"
+                        )
+                    else:
+                        updated.append(f"{obj_name}")
+
+        print(f"\t{module_name}/{name}")
+        self.pprint(
+            created=created,
+            updated=updated,
+            up_to_date=up_to_date,
+            errors=errors,
+            nb_tabs=2,
+        )
+
+    def sync_module(self, module_info: dict[str, Any]):
+        """Sync of a module
+
+        Args:
+            module_info (dict[str, Any]): Module data that can be found in its
+                manifest.json
+        """
+        print(f"Module {module_info['name']}:", end=" ")
+        response = requests.get(
+            urljoin(f"{self.playbook_url}", "modules", module_info["uuid"]),
+            headers=self.headers,
+        )
+        module_uuid: str = module_info["uuid"]
+
+        if response.status_code not in (200, 404):
+            print(f"[red]Error {response.status_code}[/red]")
+
+        elif response.status_code == 404:
+            res = requests.post(
+                urljoin(self.playbook_url, "modules"),
+                json=module_info,
+                headers=self.headers,
+            )
+            if not res.ok:
+                print(f"[red]Error creating the module: {res.status_code}[/red]")
+                print(res.json())
+                raise typer.Exit(code=1)
+            print("Created")
+
+        else:
+            content: dict = response.json()
+            for k, value in content.items():
+                if k in module_info and value == module_info[k]:
+                    del module_info[k]
+
+            print(f"[yellow]Updating module fields {module_info}[/yellow]")
+
+            if not module_info:
+                print("Already-Up-To-Date")
+            else:
+                res = requests.patch(
+                    urljoin(self.playbook_url, "modules", module_uuid),
+                    json=module_info,
+                    headers=self.headers,
+                )
+                if not res.ok:
+                    print(f"[red]Error updating the module: {res.status_code}[/red]")
+                    print(res.json())
+                    raise typer.Exit(code=1)
+                print("Updated")
+
+    def load_actions(self, module_path: Path) -> list:
+        """Load JSON files representing the actions linked to a module"""
+        return module_files.load_actions(module_path)
+
+    def load_triggers(self, module_path: Path) -> list:
+        """Load JSON files representing the triggers linked to a module"""
+        return module_files.load_triggers(module_path)
+
+    def load_connectors(self, module_path: Path) -> list:
+        """Load JSON files representing the connectors linked to a module"""
+        return module_files.load_connectors(module_path)
+
+    def set_docker(self, manifests: list, module_docker_image: str) -> list:
+        """Adds the Docker image to the objects linked to a module if missing"""
+        return module_files.set_docker(manifests, module_docker_image)
+
+    def get_module_logo(self, module_path: Path) -> str | None:
+        """Returns the logo of a module as a data URI, None if it has none"""
+        return module_files.get_module_logo(module_path)
+
+    def get_module_changelog(self, module_path: Path) -> str | None:
+        """Returns the changelog of a module, None if it has none"""
+        return module_files.get_module_changelog(module_path)
+
+    def check_image_on_registry(self, docker_image: str, version: str) -> bool:
+        """Checks if a Docker image exists on a registry
+
+        Args:
+            docker_image (str): Docker image name as specified in the manifest
+            version (str): Docker image version
+
+        Returns:
+            bool: True if the image exists on the registry, False otherwise
+        """
+        return registry.check_image_on_registry(
+            docker_image, version, self.registry, self.namespace, self.registry_pat
+        )
+
+    def load_module(self, module_path: Path):
+        """Sync a module and its components (triggers, actions) using Playbook API
+
+        Args:
+            module_path (Path): Path to module to be synced
+
+        Raises:
+            typer.Exit: If the docker image of the module is not available
+                on the registry, or we don't have access to the registry
+        """
+        manifest_path = module_path / "manifest.json"
+
+        with manifest_path.open() as fd:
+            module_info = json.load(fd)
+
+        docker_name = self._get_module_docker_name(module_info)
+        if self.registry_check and not self.check_image_on_registry(
+            docker_name, module_info["version"]
+        ):
+            print(
+                f"[bold red][!] Image {docker_name}:{module_info['version']} "
+                f"not available on registry"
+            )
+            raise typer.Exit(code=1)
+
+        module_docker_image = f"{docker_name}:{module_info['version']}"
+        module_info["docker"] = module_docker_image
+        triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
+        connectors = self.set_docker(
+            self.load_connectors(module_path), module_docker_image
+        )
+        actions = self.set_docker(self.load_actions(module_path), module_docker_image)
+
+        module_uuid: str = module_info["uuid"]
+        module_name: str = module_info["name"]
+        module_image: str | None = self.get_module_logo(module_path)
+        module_changelog: str | None = self.get_module_changelog(module_path)
+
+        if module_image:
+            module_info["image"] = module_image
+
+        if module_changelog:
+            module_info["changelog"] = module_changelog
+
+        self.sync_module(module_info)
+        if triggers:
+            self.sync_list(
+                module_name=module_name,
+                module_uuid=module_uuid,
+                list_objects=triggers,
+                name="trigger",
+            )
+            print()
+        if actions:
+            self.sync_list(
+                module_name=module_name,
+                module_uuid=module_uuid,
+                list_objects=actions,
+                name="action",
+            )
+            print()
+        if connectors:
+            self.sync_list(
+                module_name=module_name,
+                module_uuid=module_uuid,
+                list_objects=connectors,
+                name="connector",
+            )
+            print()
+
+    def load(self, library_path: Path):
+        """Lods all modules that can be found in a given library
+
+        Args:
+            library_path (Path): Path to the library of modules
+        """
+        modules = [
+            p
+            for p in library_path.iterdir()
+            if p.is_dir() and p.joinpath("manifest.json").exists()
+        ]
+        print(f"Loading {len(modules)} modules from library in database\n")
+
+        for module in modules:
+            self.load_module(library_path / module.name)
+
+        print()
+
+    def execute(self):
+        """Entrypoint of the tool
+
+        If the class was instanciated with the path to a given module, this method will
+        attempt to load this module
+
+        Otherwise, it will attempt to load all modules present in the library path
+        specified
+        """
+        if not self.module:
+            library_path = self.modules_path.absolute()
+            print("Library path: ", library_path)
+            self.load(
+                library_path=library_path,
+            )
+        else:
+            self.load_module(
+                module_path=self.modules_path.joinpath(self.module).absolute(),
+            )
+
+    def _get_module_docker_name(self, manifest: dict) -> str:
+        if slug := manifest.get("slug"):
+            return f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
+        raise ValueError("Impossible to generate image name")

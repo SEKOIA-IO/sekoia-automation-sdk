@@ -417,6 +417,7 @@ class DocumentationGenerator:
             parts = Path(target).parts
             if len(parts) == 3 and parts[0] == LIBRARY_DIR:
                 return f"{LIBRARY_DIR}/{Path(parts[2]).stem}"
+            return None
 
         if not self.module:  # full run: drop the redirects of removed modules
             for source, target in list(redirects.items()):

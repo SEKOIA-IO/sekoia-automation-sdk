@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## Changed
+
+- Add Gitbook support in the documentation generator for automation modules
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

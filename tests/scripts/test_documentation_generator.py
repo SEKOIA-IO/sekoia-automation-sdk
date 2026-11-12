@@ -230,3 +230,35 @@ def test_gitbook_admonition_title_and_end_of_file(modules_path, tmp_path):
         '{% hint style="warning" %}\n**Required**\n\nKeep it secret.\nReally.\n'
         "{% endhint %}\n\n"
     )
+
+
+def test_gitbook_legacy_flat_entry_replaced(modules_path, gitbook_path):
+    path = gitbook_path / SPACE / "SUMMARY.md"
+    path.write_text(
+        path.read_text().replace(
+            "* [Library](action_library/overview.md)\n",
+            "* [Library](action_library/overview.md)\n"
+            "  * [Test Module](action_library/test-module.md)\n"
+            "  * [Guide](action_library/guide.md)\n",
+        )
+    )
+    generate(modules_path, gitbook_path)
+    summary = path.read_text()
+    assert "(action_library/test-module.md)" not in summary
+    assert "(action_library/network/test-module.md)" in summary
+    assert "[Guide](action_library/guide.md)" in summary
+
+
+def test_gitbook_manual_redirects_kept(modules_path, gitbook_path):
+    space = gitbook_path / SPACE
+    (space / "action_library/manual").mkdir(parents=True)
+    (space / "action_library/manual/guide.md").write_text("# Guide\n")
+    (space / ".gitbook.yaml").write_text(
+        "redirects:\n"
+        "  action_library/guide: action_library/manual/guide.md\n"
+        "  action_library/gone: action_library/network/gone.md\n"
+    )
+    generate(modules_path, gitbook_path)
+    redirects = yaml.safe_load((space / ".gitbook.yaml").read_text())["redirects"]
+    assert redirects["action_library/guide"] == "action_library/manual/guide.md"
+    assert "action_library/gone" not in redirects

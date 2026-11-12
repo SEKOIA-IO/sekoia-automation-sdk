@@ -407,9 +407,10 @@ class DocumentationGenerator:
         for module in modules:
             folder = f"{LIBRARY_DIR}/{module.category_dir}"
             categories[f"{folder}/README.md"] = escape_title(module.category)
-            # the module may have changed category
+            # the module may have changed category, or sit at its former flat path
             for link in [p for p in pages if Path(p).name == module.file_name]:
                 del pages[link]
+            flat.pop(f"{LIBRARY_DIR}/{module.file_name}", None)
             pages[f"{folder}/{module.file_name}"] = escape_title(module.name)
 
         block = []
@@ -429,7 +430,8 @@ class DocumentationGenerator:
     def _update_redirects(self, modules: list[DocumentationModule]):
         """
         Redirect the former flat url of each page to its category page, in the
-        redirects of the space .gitbook.yaml. Other keys and redirects are kept.
+        redirects of the space .gitbook.yaml. Other keys and redirects are kept,
+        only the ones of that shape pointing to a missing page are dropped.
         shortcut: the file is re-dumped, so its comments are lost.
         """
         path = self.documentation_path / SPACE_DIR / ".gitbook.yaml"
@@ -442,9 +444,10 @@ class DocumentationGenerator:
                 return f"{LIBRARY_DIR}/{Path(parts[2]).stem}"
             return None
 
-        if not self.module:  # full run: drop the redirects of removed modules
+        if not self.module:  # full run: drop the dead redirects of removed modules
+            space = self.documentation_path / SPACE_DIR
             for source, target in list(redirects.items()):
-                if source == flat_source(target):
+                if source == flat_source(target) and not (space / target).exists():
                     del redirects[source]
         for module in modules:
             target = f"{LIBRARY_DIR}/{module.category_dir}/{module.file_name}"

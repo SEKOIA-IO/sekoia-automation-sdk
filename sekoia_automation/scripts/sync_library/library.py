@@ -4,10 +4,7 @@
 Load module library into database via the API
 """
 
-import base64
 import json
-import re
-from base64 import b64encode
 from pathlib import Path
 from posixpath import join as urljoin
 from typing import Any
@@ -16,11 +13,13 @@ import requests
 import typer
 from rich import print
 
+from . import constants, display, module_files, registry
+
 
 class SyncLibrary:
-    DOCKER_REGISTRY = "ghcr.io"
-    DOCKER_NAMESPACE = "sekoia-io"
-    DOCKER_PREFIX = "automation-module"
+    DOCKER_REGISTRY = constants.DOCKER_REGISTRY
+    DOCKER_NAMESPACE = constants.DOCKER_NAMESPACE
+    DOCKER_PREFIX = constants.DOCKER_PREFIX
 
     def __init__(
         self,
@@ -51,28 +50,8 @@ class SyncLibrary:
     def pprint(
         self, created: list, updated: list, up_to_date: list, errors: list, nb_tabs: int
     ):
-        """Pretty print information on the current sync
-
-        Args:
-            created (list): Objects created through Playbook API
-            updated (list): Objects updated
-            up_to_date (list): Objects that were already up-to-date
-            errors (list): Errors encountered during sync
-            nb_tabs (int): Cue for vertical alignment
-        """
-        tab = "\t"
-        if created:
-            print(f"[green]{tab * nb_tabs}Created: {', '.join(created)}[/green]")
-        if updated:
-            print(f"[green]{tab * nb_tabs}Updated: {', '.join(updated)}[/green]")
-        if up_to_date:
-            print(
-                f"[green]{tab * nb_tabs}Already Up-To-Date: \
-{', '.join(up_to_date)}[/green]"
-            )
-        if errors:
-            err: str = "Error" if len(errors) == 1 else "Errors"
-            print(f"[red]{tab * nb_tabs}{err}: {', '.join(errors)}[/red]")
+        """Pretty print information on the current sync"""
+        display.pprint(created, updated, up_to_date, errors, nb_tabs)
 
     def sync_list(
         self, module_name: str, module_uuid: str, list_objects: list, name: str
@@ -111,8 +90,8 @@ class SyncLibrary:
                 )
                 if not res.ok:
                     errors.append(
-                        f"{{Cannot create '{obj_name}': {response.status_code} "
-                        "- {response.text}}}"
+                        f"{{Cannot create '{obj_name}': {res.status_code} "
+                        f"- {res.text}}}"
                     )
                 else:
                     created.append(f"{obj_name}")
@@ -141,8 +120,8 @@ class SyncLibrary:
                     )
                     if not res.ok:
                         errors.append(
-                            f"{{Cannot update '{obj_name}': {response.status_code} "
-                            "- {response.text}}}"
+                            f"{{Cannot update '{obj_name}': {res.status_code} "
+                            f"- {res.text}}}"
                         )
                     else:
                         updated.append(f"{obj_name}")
@@ -208,161 +187,42 @@ class SyncLibrary:
                 print("Updated")
 
     def load_actions(self, module_path: Path) -> list:
-        """Load JSON files representing the actions linked to a module
-
-        Args:
-            module_path (Path): Path of the parent module
-
-        Returns:
-            list: List of actions related to the parent module
-        """
-        actions = []
-
-        for filename in module_path.iterdir():
-            if filename.name.endswith(".json") and filename.name.startswith("action_"):
-                action_path = module_path / filename
-                with action_path.open() as fd:
-                    actions.append(json.load(fd))
-
-        return actions
+        """Load JSON files representing the actions linked to a module"""
+        return module_files.load_actions(module_path)
 
     def load_triggers(self, module_path: Path) -> list:
-        """Load JSON files representing the triggers linked to a module
-
-        Args:
-            module_path (Path): Path of the parent module
-
-        Returns:
-            list: List of triggers related to the parent module
-        """
-        triggers = []
-
-        for filename in module_path.iterdir():
-            if filename.name.endswith(".json") and filename.name.startswith("trigger_"):
-                trigger_path = module_path / filename
-                with trigger_path.open() as fd:
-                    triggers.append(json.load(fd))
-
-        return triggers
+        """Load JSON files representing the triggers linked to a module"""
+        return module_files.load_triggers(module_path)
 
     def load_connectors(self, module_path: Path) -> list:
-        """Load JSON files representing the connectors linked to a module
-
-        Args:
-            module_path (Path): Path of the parent module
-
-        Returns:
-            list: List of connectors related to the parent module
-        """
-        connectors = []
-
-        for filename in module_path.iterdir():
-            if filename.name.endswith(".json") and filename.name.startswith(
-                "connector_"
-            ):
-                connector_path = module_path / filename
-                with connector_path.open() as fd:
-                    connectors.append(json.load(fd))
-
-        return connectors
+        """Load JSON files representing the connectors linked to a module"""
+        return module_files.load_connectors(module_path)
 
     def set_docker(self, manifests: list, module_docker_image: str) -> list:
-        """Loops over the Docker name of objets linked to a module and adds the Docker
-        version if missing
-
-        Args:
-            manifests (list): List of dict representing the objects to be checked
-            module_docker_image (str): The docker image as defined in the module
-
-        Returns:
-            list: Modified version of the manifests received as parameter
-        """
-
-        for manifest in manifests:
-            if "docker" not in manifest or manifest["docker"] != module_docker_image:
-                manifest["docker"] = module_docker_image
-
-        return manifests
+        """Adds the Docker image to the objects linked to a module if missing"""
+        return module_files.set_docker(manifests, module_docker_image)
 
     def get_module_logo(self, module_path: Path) -> str | None:
-        """Checks if a logo exists for a given module and returns its path
-
-        Args:
-            module_path (Path): Path to the module to be checked
-
-        Returns:
-            str | None: Path to the logo if it exists; None otherwise
-        """
-        svglogo_path = module_path / "logo.svg"
-        pnglogo_path = module_path / "logo.png"
-
-        if svglogo_path.is_file():
-            prefix = "data:image/svg+xml;base64,"
-            path_to_use = svglogo_path
-        elif pnglogo_path.is_file():
-            prefix = "data:image/png;base64,"
-            path_to_use = pnglogo_path
-        else:
-            return None
-
-        with path_to_use.open("rb") as f:
-            return f"{prefix}{b64encode(f.read()).decode('utf-8')}"
+        """Returns the logo of a module as a data URI, None if it has none"""
+        return module_files.get_module_logo(module_path)
 
     def get_module_changelog(self, module_path: Path) -> str | None:
-        """Checks if a changelog exists for a given module and returns its path
-
-        Args:
-            module_path (Path): Path to the module to be checked
-
-        Returns:
-            str | None: Path to the logo if it exists; None otherwise
-        """
-        changelog_path = module_path / "CHANGELOG.md"
-
-        if not changelog_path.is_file():
-            return None
-
-        with changelog_path.open() as f:
-            return f.read()
+        """Returns the changelog of a module, None if it has none"""
+        return module_files.get_module_changelog(module_path)
 
     def check_image_on_registry(self, docker_image: str, version: str) -> bool:
         """Checks if a Docker image exists on a registry
-
-        If no registry is specified in the Module's manifest, we use a default value
-        If the docker image name in the Module's manifest begins with a registry,
-        this custom registry is used for the verification instead
-        An image is considered to contain the registry path if it contains at least 2 /
-        They delimit the path and the pathinfo fields
-        e.g. my_registry.com/sekoia-io/my_docker_image
 
         Args:
             docker_image (str): Docker image name as specified in the manifest
             version (str): Docker image version
 
         Returns:
-            bool: True if the image exists on the registry or if we don't have access
-                to a registry
-                  False otherwise
+            bool: True if the image exists on the registry, False otherwise
         """
-        if match := re.match(r"(.*?)/(.*)/(.*)", docker_image):
-            registry = match[1]
-            namespace = match[2]
-            image_name = match[3]
-        else:
-            registry = self.registry
-            namespace = self.namespace
-            image_name = docker_image
-
-        token = base64.b64encode(self.registry_pat.encode()).decode()
-        response = requests.get(
-            f"https://{registry}/v2/{namespace}/{image_name}/manifests/{version}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.oci.image.index.v1+json",
-            },
+        return registry.check_image_on_registry(
+            docker_image, version, self.registry, self.namespace, self.registry_pat
         )
-
-        return response.status_code == 200
 
     def load_module(self, module_path: Path):
         """Sync a module and its components (triggers, actions) using Playbook API

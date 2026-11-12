@@ -90,8 +90,8 @@ class SyncLibrary:
                 )
                 if not res.ok:
                     errors.append(
-                        f"{{Cannot create '{obj_name}': {response.status_code} "
-                        "- {response.text}}}"
+                        f"{{Cannot create '{obj_name}': {res.status_code} "
+                        f"- {res.text}}}"
                     )
                 else:
                     created.append(f"{obj_name}")
@@ -120,8 +120,8 @@ class SyncLibrary:
                     )
                     if not res.ok:
                         errors.append(
-                            f"{{Cannot update '{obj_name}': {response.status_code} "
-                            "- {response.text}}}"
+                            f"{{Cannot update '{obj_name}': {res.status_code} "
+                            f"- {res.text}}}"
                         )
                     else:
                         updated.append(f"{obj_name}")

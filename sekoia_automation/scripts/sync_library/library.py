@@ -7,7 +7,7 @@ Load module library into database via the API
 import json
 from pathlib import Path
 from posixpath import join as urljoin
-from typing import Any
+from typing import Any, NoReturn
 
 import requests
 import typer
@@ -225,14 +225,15 @@ class SyncLibrary:
         )
 
     def load_module(self, module_path: Path):
-        """Sync a module and its components (triggers, actions) using Playbook API
+        """Sync a module and its components (triggers, actions, HWL actions,
+        connectors) using Playbook API
 
         Args:
             module_path (Path): Path to module to be synced
 
         Raises:
-            typer.Exit: If the docker image of the module is not available
-                on the registry, or we don't have access to the registry
+            typer.Exit: If a docker image is not available on the registry, or an
+                HWL action is invalid
         """
         manifest_path = module_path / "manifest.json"
 
@@ -240,22 +241,30 @@ class SyncLibrary:
             module_info = json.load(fd)
 
         docker_name = self._get_module_docker_name(module_info)
-        if self.registry_check and not self.check_image_on_registry(
-            docker_name, module_info["version"]
-        ):
-            print(
-                f"[bold red][!] Image {docker_name}:{module_info['version']} "
-                f"not available on registry"
-            )
-            raise typer.Exit(code=1)
-
         module_docker_image = f"{docker_name}:{module_info['version']}"
-        module_info["docker"] = module_docker_image
+        hwl_docker_name = self._get_module_docker_name(module_info, hwl=True)
+        hwl_docker_image = f"{hwl_docker_name}:{module_info['version']}"
+
         triggers = self.set_docker(self.load_triggers(module_path), module_docker_image)
         connectors = self.set_docker(
             self.load_connectors(module_path), module_docker_image
         )
         actions = self.set_docker(self.load_actions(module_path), module_docker_image)
+        hwl_actions = module_files.load_hwl_actions(module_path, hwl_docker_image)
+
+        if self.registry_check:
+            # The image of the module is not built if it only has HWL actions
+            if (triggers or connectors or actions or not hwl_actions) and (
+                not self.check_image_on_registry(docker_name, module_info["version"])
+            ):
+                self._exit_image_not_available(module_docker_image)
+            if hwl_actions and not self.check_image_on_registry(
+                hwl_docker_name, module_info["version"]
+            ):
+                self._exit_image_not_available(hwl_docker_image)
+
+        module_info["docker"] = module_docker_image
+        actions += hwl_actions
 
         module_uuid: str = module_info["uuid"]
         module_name: str = module_info["name"]
@@ -332,7 +341,15 @@ class SyncLibrary:
                 module_path=self.modules_path.joinpath(self.module).absolute(),
             )
 
-    def _get_module_docker_name(self, manifest: dict) -> str:
+    def _get_module_docker_name(self, manifest: dict, hwl: bool = False) -> str:
         if slug := manifest.get("slug"):
-            return f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}"
+            suffix = constants.HWL_IMAGE_SUFFIX if hwl else ""
+            return (
+                f"{self.registry}/{self.namespace}/{self.DOCKER_PREFIX}-{slug}{suffix}"
+            )
         raise ValueError("Impossible to generate image name")
+
+    @staticmethod
+    def _exit_image_not_available(docker_image: str) -> NoReturn:
+        print(f"[bold red][!] Image {docker_image} not available on registry")
+        raise typer.Exit(code=1)

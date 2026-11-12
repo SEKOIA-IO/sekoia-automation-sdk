@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Refactor the publication script for the automation modules
+
+### Fixes
+
+- Fix f-strings in the publication script
+
 ## 1.27.2 - 2026-11-04
 
 ### Changed

@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add Gitbook support in the documentation generator for automation modules
 
+## 1.27.2 - 2026-11-04
+
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
+## 1.27.1 - 2026-10-30
+
+### Added
+
+- Revert PEP 561 until the exposed types are improved.
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

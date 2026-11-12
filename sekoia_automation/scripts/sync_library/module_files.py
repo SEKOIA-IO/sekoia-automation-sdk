@@ -2,6 +2,10 @@ import json
 from base64 import b64encode
 from pathlib import Path
 
+import typer
+import yaml
+from rich import print
+
 
 def load_json_objects(module_path: Path, prefix: str) -> list:
     """Load the JSON files of a module whose name starts with a given prefix
@@ -57,6 +61,85 @@ def load_connectors(module_path: Path) -> list:
         list: List of connectors related to the parent module
     """
     return load_json_objects(module_path, "connector_")
+
+
+def hwl_action_to_payload(workflow: dict, filename: str, docker_image: str) -> dict:
+    """Build the action object expected by the Playbook API from an HWL workflow
+
+    The inputs and outputs of the workflow become the arguments and the results
+    of the action, and its file name the Docker parameters
+
+    Args:
+        workflow (dict): Content of the HWL action file
+        filename (str): Name of the HWL action file
+        docker_image (str): The docker image running the HWL actions of the module
+
+    Returns:
+        dict: The action object
+
+    Raises:
+        typer.Exit: If the workflow has no name or no uuid, or an invalid input
+    """
+    for field in ("name", "uuid"):
+        if not isinstance(workflow, dict) or not workflow.get(field):
+            print(f"[bold red][!] HWL action {filename} has no {field}")
+            raise typer.Exit(code=1)
+
+    raw_inputs = workflow.get("inputs") or {}
+    for name, schema in raw_inputs.items():
+        if not isinstance(schema, dict):
+            print(f"[bold red][!] HWL action {filename}: input {name} is invalid")
+            raise typer.Exit(code=1)
+    # Secret inputs are listed in the arguments instead of being flagged
+    inputs = {
+        name: {k: v for k, v in schema.items() if k != "secret"}
+        for name, schema in raw_inputs.items()
+    }
+    secrets = [name for name, schema in raw_inputs.items() if schema.get("secret")]
+    # Inputs having a default value or a constant do not need to be provided
+    required = [k for k, v in inputs.items() if "default" not in v and "const" not in v]
+    arguments: dict = {"type": "object", "properties": inputs}
+    if required:
+        arguments["required"] = required
+    if secrets:
+        arguments["secrets"] = secrets
+
+    action = {
+        "uuid": str(workflow["uuid"]),
+        "name": workflow["name"],
+        "docker": docker_image,
+        "docker_parameters": filename,
+        "arguments": arguments,
+        "results": {"type": "object", "properties": workflow.get("outputs") or {}},
+    }
+    if workflow.get("description"):
+        action["description"] = workflow["description"]
+
+    return action
+
+
+def load_hwl_actions(module_path: Path, docker_image: str) -> list:
+    """Load YAML files representing the HWL actions linked to a module
+
+    Args:
+        module_path (Path): Path of the parent module
+        docker_image (str): The docker image running the HWL actions of the module
+
+    Returns:
+        list: List of HWL actions related to the parent module
+    """
+    actions = []
+
+    for filename in sorted(module_path.glob("action_*.yml")):
+        try:
+            with filename.open() as fd:
+                workflow = yaml.safe_load(fd)
+        except yaml.YAMLError as e:
+            print(f"[bold red][!] HWL action {filename.name} is not valid YAML: {e}")
+            raise typer.Exit(code=1)
+        actions.append(hwl_action_to_payload(workflow, filename.name, docker_image))
+
+    return actions
 
 
 def set_docker(manifests: list, module_docker_image: str) -> list:

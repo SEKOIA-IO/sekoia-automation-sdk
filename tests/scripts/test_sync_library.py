@@ -473,6 +473,7 @@ def test_hwl_action_to_payload():
         "description": "Get a track",
         "docker": "image:1.0",
         "docker_parameters": "action_get_track.yml",
+        "slug": "get-track",
         "arguments": {
             "type": "object",
             "properties": {

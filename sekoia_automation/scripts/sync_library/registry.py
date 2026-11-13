@@ -9,12 +9,8 @@ def check_image_on_registry(
 ) -> bool:
     """Checks if a Docker image exists on a registry
 
-    If no registry is specified in the Module's manifest, we use a default value
-    If the docker image name in the Module's manifest begins with a registry,
-    this custom registry is used for the verification instead
-    An image is considered to contain the registry path if it contains at least 2 /
-    They delimit the path and the pathinfo fields
-    e.g. my_registry.com/sekoia-io/my_docker_image
+    An image name with at least 2 `/` (e.g. my_registry.com/sekoia-io/image) carries
+    its own registry and namespace; otherwise the defaults are used.
 
     Args:
         docker_image (str): Docker image name as specified in the manifest

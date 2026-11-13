@@ -250,7 +250,10 @@ class SyncLibrary:
             self.load_connectors(module_path), module_docker_image
         )
         actions = self.set_docker(self.load_actions(module_path), module_docker_image)
-        hwl_actions = module_files.load_hwl_actions(module_path, hwl_docker_image)
+        module_properties = module_info.get("configuration", {}).get("properties", {})
+        hwl_actions = module_files.load_hwl_actions(
+            module_path, hwl_docker_image, module_properties
+        )
 
         if self.registry_check:
             # The image of the module is not built if it only has HWL actions

@@ -2,6 +2,7 @@ import json
 from base64 import b64encode
 from collections.abc import Collection
 from pathlib import Path
+from slugify import slugify
 
 import typer
 import yaml
@@ -120,6 +121,7 @@ def hwl_action_to_payload(
     action = {
         "uuid": str(workflow["uuid"]),
         "name": workflow["name"],
+        "slug": slugify(workflow["name"]),
         "docker": docker_image,
         "docker_parameters": filename,
         "arguments": arguments,

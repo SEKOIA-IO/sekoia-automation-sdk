@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
+from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
@@ -1041,3 +1042,84 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
+
+
+def _async_response(status, body):
+    response = AsyncMock()
+    response.status = status
+    response.text = AsyncMock(return_value=body)
+    response.headers = {}
+    return response
+
+
+def _async_refusal(item_index, item_bytes=None):
+    detail = {"item_index": item_index, "limit_bytes": 900000}
+    if item_bytes is not None:
+        detail["item_bytes"] = item_bytes
+    return _async_response(413, json.dumps({"detail": detail}))
+
+
+async def _async_push(connector, asset_list, *responses):
+    connector.update_checkpoint = AsyncMock()
+    connector._retry = lambda: Retrying(stop=stop_after_attempt(1), reraise=True)
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.side_effect = responses
+        mock_post.return_value.__aexit__.return_value = None
+        result = await connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+    return result, mock_post
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_resends_without_the_refused_item(
+    test_async_asset_connector, asset_list
+):
+    refused = asset_list.items[1]
+    size = len(refused.model_dump_json().encode())
+
+    result, mock_post = await _async_push(
+        test_async_asset_connector,
+        asset_list,
+        _async_refusal(1, size),
+        _async_response(200, '{"task_id": "1"}'),
+    )
+
+    assert result == {"task_id": "1"}
+    assert mock_post.call_count == 2
+    items = mock_post.call_args.kwargs["json"]["items"]
+    assert refused.model_dump(exclude_none=True) not in items
+    assert len(items) == len(asset_list.items) - 1
+    test_async_asset_connector.update_checkpoint.assert_called_once()
+    logged = [c.kwargs for c in test_async_asset_connector.log.call_args_list]
+    assert any(c["level"] == "error" and "HTTP 413" in c["message"] for c in logged)
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_every_item_refused_moves_the_checkpoint(
+    test_async_asset_connector, asset_list
+):
+    result, mock_post = await _async_push(
+        test_async_asset_connector,
+        asset_list,
+        *[_async_refusal(0) for _ in asset_list.items],
+    )
+
+    assert result == {}
+    assert mock_post.call_count == len(asset_list.items)
+    test_async_asset_connector.update_checkpoint.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_413_without_item_is_a_failure(
+    test_async_asset_connector, asset_list
+):
+    result, mock_post = await _async_push(
+        test_async_asset_connector,
+        asset_list,
+        _async_response(413, '{"detail": {"messages": 2}}'),
+    )
+
+    assert result is None
+    assert mock_post.call_count == 1
+    test_async_asset_connector.update_checkpoint.assert_not_called()

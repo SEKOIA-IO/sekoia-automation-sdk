@@ -31,6 +31,7 @@ from .utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     get_env_float,
     parse_retry_after,
+    pop_refused_item,
 )
 
 
@@ -270,7 +271,8 @@ class AsyncAssetConnector(Trigger):
             dict[str, str] | None: Response from the API or None if an error occurred.
         """
         request_body = assets.model_dump(exclude_none=True)
-        asset_count = len(request_body.get("items", []))
+        asset_items = request_body.get("items", [])
+        models: list[BaseModel] = list(assets.items)
 
         # Perform the API request with retry logic
         status_code: int | None = None
@@ -278,43 +280,57 @@ class AsyncAssetConnector(Trigger):
         response_json: dict | None = None
         retry_after_header: str | None = None
 
-        try:
-            for attempt in self._retry():
-                with attempt:
-                    async with self.session() as session:
-                        async with session.post(
-                            asset_connector_api_url,
-                            json=request_body,
-                            timeout=aiohttp.ClientTimeout(total=30),
-                        ) as response:
-                            status_code = response.status
-                            response_text = await response.text()
-                            retry_after_header = response.headers.get("Retry-After")
+        while True:
+            try:
+                for attempt in self._retry():
+                    with attempt:
+                        async with self.session() as session:
+                            async with session.post(
+                                asset_connector_api_url,
+                                json=request_body,
+                                timeout=aiohttp.ClientTimeout(total=30),
+                            ) as response:
+                                status_code = response.status
+                                response_text = await response.text()
+                                retry_after_header = response.headers.get("Retry-After")
 
-                            if status_code == 200:
-                                try:
-                                    response_json = json.loads(response_text)
-                                except json.JSONDecodeError as e:
-                                    self.log_exception(
-                                        e,
-                                        message="Failed to parse JSON response from "
-                                        "Sekoia.io asset connector API",
-                                    )
-                                    return None
-        except TimeoutError as ex:
-            self.log_exception(
-                ex,
-                message="Timeout while pushing assets to Sekoia.io asset connector API",
-            )
-            return None
+                                if status_code == 200:
+                                    try:
+                                        response_json = json.loads(response_text)
+                                    except json.JSONDecodeError as e:
+                                        self.log_exception(
+                                            e,
+                                            message="Failed to parse JSON response "
+                                            "from Sekoia.io asset connector API",
+                                        )
+                                        return None
+            except TimeoutError as ex:
+                self.log_exception(
+                    ex,
+                    message="Timeout while pushing assets "
+                    "to Sekoia.io asset connector API",
+                )
+                return None
 
-        # Check if response was successfully obtained
-        if status_code is None:
-            self.log(
-                message="Failed to get response from Sekoia.io asset connector API",
-                level="error",
-            )
-            return None
+            # Check if response was successfully obtained
+            if status_code is None:
+                self.log(
+                    message="Failed to get response from Sekoia.io asset connector API",
+                    level="error",
+                )
+                return None
+
+            if status_code != 413:
+                break
+
+            refused_item = pop_refused_item(response_text, models, asset_items)
+            if refused_item is None:
+                break
+
+            self.log(message=refused_item, level="error")
+            if not asset_items:
+                await self.update_checkpoint()
+                return {}
 
         # Handle rate limiting (HTTP 429)
         if status_code == 429:
@@ -337,7 +353,7 @@ class AsyncAssetConnector(Trigger):
         await self.update_checkpoint()
 
         self.log(
-            message=f"Successfully posted {asset_count} assets "
+            message=f"Successfully posted {len(asset_items)} assets "
             f"to Sekoia.io asset connector API",
             level="info",
         )

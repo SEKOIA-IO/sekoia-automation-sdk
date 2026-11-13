@@ -43,6 +43,7 @@ from sekoia_automation.asset_connector.utils import (
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
     parse_retry_after,
+    pop_refused_item,
 )
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
@@ -839,3 +840,160 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
+
+
+def _uid(item):
+    return next(v["uid"] for v in item.values() if isinstance(v, dict) and "uid" in v)
+
+
+def _refusal(item_index, item_bytes=None):
+    detail = {"item_index": item_index, "limit_bytes": 900000}
+    if item_bytes is not None:
+        detail["item_bytes"] = item_bytes
+    return Mock(status_code=413, text=json.dumps({"detail": detail}))
+
+
+def _push(connector, asset_list, *responses):
+    """Answer each POST with the next response; return the item uids of each POST."""
+    sent = []
+    pending = iter(responses)
+
+    def post(*_, json, **__):
+        sent.append([_uid(item) for item in json["items"]])
+        return next(pending)
+
+    connector._retry = lambda: Retrying(stop=stop_after_attempt(1), reraise=True)
+    connector._http_session.post = Mock(side_effect=post)
+    connector.update_checkpoint = Mock()
+    return connector.post_assets_to_api(asset_list, "http://example.com/api"), sent
+
+
+def _accepted():
+    return Mock(status_code=200, json=lambda: {"task_id": "1"})
+
+
+def _size(item):
+    return len(item.model_dump_json().encode())
+
+
+def _model_uid(item):
+    return _uid(item.model_dump(exclude_none=True))
+
+
+def test_post_assets_to_api_resends_without_the_refused_item(
+    test_asset_connector, asset_list
+):
+    uids = [_model_uid(item) for item in asset_list.items]
+
+    response, sent = _push(
+        test_asset_connector,
+        asset_list,
+        _refusal(1, _size(asset_list.items[1])),
+        _accepted(),
+    )
+
+    assert response == {"task_id": "1"}
+    assert sent[1] == [uids[0], uids[2]]
+    test_asset_connector.update_checkpoint.assert_called_once()
+    assert len(asset_list.items) == 3
+    message = test_asset_connector.log.call_args_list[0].kwargs
+    assert message["level"] == "error"
+    assert uids[1] in message["message"]
+
+
+def test_post_assets_to_api_finds_the_item_behind_a_shifted_index(
+    test_asset_connector, asset_list
+):
+    # The API dropped an item with an unusable hostname: its index is too low by one
+    uids = [_model_uid(item) for item in asset_list.items]
+
+    response, sent = _push(
+        test_asset_connector,
+        asset_list,
+        _refusal(1, _size(asset_list.items[2])),
+        _accepted(),
+    )
+
+    assert response == {"task_id": "1"}
+    assert sent[1] == uids[:2]
+
+
+def test_post_assets_to_api_without_item_bytes_trusts_the_index(
+    test_asset_connector, asset_list
+):
+    uids = [_model_uid(item) for item in asset_list.items]
+
+    _, sent = _push(test_asset_connector, asset_list, _refusal(1), _accepted())
+
+    assert sent[1] == [uids[0], uids[2]]
+
+
+def test_post_assets_to_api_several_refused_items(test_asset_connector, asset_list):
+    uids = [_model_uid(item) for item in asset_list.items]
+
+    response, sent = _push(
+        test_asset_connector, asset_list, _refusal(0), _refusal(0), _accepted()
+    )
+
+    assert response == {"task_id": "1"}
+    assert sent[2] == [uids[2]]
+
+
+def test_post_assets_to_api_every_item_refused_moves_the_checkpoint(
+    test_asset_connector, asset_list
+):
+    response, sent = _push(
+        test_asset_connector, asset_list, _refusal(0), _refusal(0), _refusal(0)
+    )
+
+    assert response == {}
+    assert len(sent) == 3
+    test_asset_connector.update_checkpoint.assert_called_once()
+
+
+def test_post_assets_to_api_413_without_item_is_a_failure(
+    test_asset_connector, asset_list
+):
+    res = MagicMock(status_code=413, text='{"detail": {"messages": 2}}')
+    res.__bool__.return_value = False
+
+    response, sent = _push(test_asset_connector, asset_list, res)
+
+    assert response is None
+    assert len(sent) == 1
+    test_asset_connector.update_checkpoint.assert_not_called()
+
+
+def test_post_assets_to_api_rate_limited_on_resend(test_asset_connector, asset_list):
+    with pytest.raises(AssetConnectorRateLimitError):
+        _push(
+            test_asset_connector,
+            asset_list,
+            _refusal(0),
+            Mock(status_code=429, headers={"Retry-After": "30"}),
+        )
+
+    test_asset_connector.update_checkpoint.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        None,
+        "",
+        "<html>Request Entity Too Large</html>",
+        "[]",
+        '{"detail": "too large"}',
+        '{"detail": {"item_bytes": 1}}',
+        '{"detail": {"item_index": -1}}',
+        '{"detail": {"item_index": 3}}',
+        '{"detail": {"item_index": "0"}}',
+        '{"detail": {"item_index": true}}',
+    ],
+)
+def test_pop_refused_item_without_a_usable_index(asset_list, body):
+    models = list(asset_list.items)
+    items = asset_list.model_dump(exclude_none=True)["items"]
+
+    assert pop_refused_item(body, models, items) is None
+    assert len(models) == len(items) == 3

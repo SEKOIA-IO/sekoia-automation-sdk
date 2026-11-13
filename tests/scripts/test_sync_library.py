@@ -568,3 +568,33 @@ def test_load_hwl_actions_invalid(tmp_path):
     workflow["inputs"]["slug"] = None
     with pytest.raises(typer.Exit):
         module_files.hwl_action_to_payload(workflow, "action_bad.yml", "image")
+
+
+def test_hwl_action_to_payload_skips_module_properties():
+    payload = module_files.hwl_action_to_payload(
+        yaml.safe_load(HWL_ACTION),
+        "action_get_track.yml",
+        "image:1.0",
+        module_properties={"token", "base_url"},
+    )
+
+    arguments = payload["arguments"]
+    assert set(arguments["properties"]) == {"slug", "kind"}
+    assert arguments["required"] == ["slug"]
+    assert "secrets" not in arguments
+
+
+def test_load_hwl_module_skips_manifest_properties(hwl_module, module, requests_mock):
+    manifest = {**module, "configuration": {"properties": {"token": {}}}}
+    (hwl_module / "manifest.json").write_text(json.dumps(manifest))
+    requests_mock.get(f"{SYMPOHNY_URL}/modules/{module['uuid']}", status_code=404)
+    requests_mock.post(f"{SYMPOHNY_URL}/modules")
+    action_uuid = "4c5b9d1e-9a3c-4d0e-8f43-3c1b2a7e9f10"
+    requests_mock.get(f"{SYMPOHNY_URL}/actions/{action_uuid}", status_code=404)
+    post_action = requests_mock.post(f"{SYMPOHNY_URL}/actions")
+
+    SyncLibrary(SYMPOHNY_URL, API_KEY, hwl_module.parent).load_module(hwl_module)
+
+    arguments = post_action.last_request.json()["arguments"]
+    assert "token" not in arguments["properties"]
+    assert "secrets" not in arguments

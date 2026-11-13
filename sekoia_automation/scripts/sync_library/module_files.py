@@ -1,5 +1,6 @@
 import json
 from base64 import b64encode
+from collections.abc import Collection
 from pathlib import Path
 
 import typer
@@ -63,7 +64,12 @@ def load_connectors(module_path: Path) -> list:
     return load_json_objects(module_path, "connector_")
 
 
-def hwl_action_to_payload(workflow: dict, filename: str, docker_image: str) -> dict:
+def hwl_action_to_payload(
+    workflow: dict,
+    filename: str,
+    docker_image: str,
+    module_properties: Collection[str] = (),
+) -> dict:
     """Build the action object expected by the Playbook API from an HWL workflow
 
     The inputs and outputs of the workflow become the arguments and the results
@@ -73,6 +79,9 @@ def hwl_action_to_payload(workflow: dict, filename: str, docker_image: str) -> d
         workflow (dict): Content of the HWL action file
         filename (str): Name of the HWL action file
         docker_image (str): The docker image running the HWL actions of the module
+        module_properties (Collection[str]): Names of the module configuration
+            properties; the matching inputs are not arguments, the HWL runtime
+            fills them from the module configuration
 
     Returns:
         dict: The action object
@@ -85,7 +94,11 @@ def hwl_action_to_payload(workflow: dict, filename: str, docker_image: str) -> d
             print(f"[bold red][!] HWL action {filename} has no {field}")
             raise typer.Exit(code=1)
 
-    raw_inputs = workflow.get("inputs") or {}
+    raw_inputs = {
+        name: schema
+        for name, schema in (workflow.get("inputs") or {}).items()
+        if name not in module_properties
+    }
     for name, schema in raw_inputs.items():
         if not isinstance(schema, dict):
             print(f"[bold red][!] HWL action {filename}: input {name} is invalid")
@@ -118,12 +131,16 @@ def hwl_action_to_payload(workflow: dict, filename: str, docker_image: str) -> d
     return action
 
 
-def load_hwl_actions(module_path: Path, docker_image: str) -> list:
+def load_hwl_actions(
+    module_path: Path, docker_image: str, module_properties: Collection[str] = ()
+) -> list:
     """Load YAML files representing the HWL actions linked to a module
 
     Args:
         module_path (Path): Path of the parent module
         docker_image (str): The docker image running the HWL actions of the module
+        module_properties (Collection[str]): Names of the module configuration
+            properties
 
     Returns:
         list: List of HWL actions related to the parent module
@@ -137,7 +154,11 @@ def load_hwl_actions(module_path: Path, docker_image: str) -> list:
         except yaml.YAMLError as e:
             print(f"[bold red][!] HWL action {filename.name} is not valid YAML: {e}")
             raise typer.Exit(code=1)
-        actions.append(hwl_action_to_payload(workflow, filename.name, docker_image))
+        actions.append(
+            hwl_action_to_payload(
+                workflow, filename.name, docker_image, module_properties
+            )
+        )
 
     return actions
 

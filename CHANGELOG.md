@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.27.3 - 2026-11-12
+
+### Fixed
+
+- Asset connectors: when the API refuses one item of a push with an HTTP 413, log
+  it and send the batch again without it, then move the checkpoint on. The refused
+  item no longer costs the whole batch.
+
 ## 1.27.2 - 2026-11-04
 
 ### Changed

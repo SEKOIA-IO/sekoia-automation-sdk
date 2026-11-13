@@ -1,7 +1,10 @@
 import email.utils
+import json
 import math
 import os
 from datetime import datetime
+
+from pydantic import BaseModel
 
 RATE_LIMIT_DEFAULT_WAIT = 3600  # 1 hour
 
@@ -43,6 +46,50 @@ def parse_retry_after(header_value: str | None, default: float) -> float:
     if seconds is None or not math.isfinite(seconds):
         return default
     return min(max(seconds, 0.0), RATE_LIMIT_DEFAULT_WAIT)
+
+
+def pop_refused_item(
+    response_text: str | None, models: list[BaseModel], items: list[dict]
+) -> str | None:
+    """
+    Remove from a push the item an HTTP 413 refused, when the response names one.
+
+    ``item_index`` only counts the items left after the API dropped those with an
+    unusable hostname, and a 413 does not list them: the refused item can sit further
+    in the push. It is the one, from that index on, whose size is closest to
+    ``item_bytes``, which the API measures on the JSON form with its null fields.
+
+    Args:
+        response_text: Body of the 413 response.
+        models: The items of the push, as models.
+        items: The same items, as sent. Both lists are updated.
+    Returns:
+        str | None: Message describing the removed item, or None when the response
+        names no item (for instance when Kafka refused a whole message).
+    """
+    try:
+        detail = json.loads(response_text or "")["detail"]
+        index = detail["item_index"]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+    if type(index) is not int or not 0 <= index < len(models):
+        return None
+
+    item_bytes = detail.get("item_bytes")
+    if isinstance(item_bytes, int):
+        index = min(
+            range(index, len(models)),
+            key=lambda i: abs(len(models[i].model_dump_json().encode()) - item_bytes),
+        )
+
+    del models[index]
+    item = items.pop(index)
+    uids = {k: v["uid"] for k, v in item.items() if isinstance(v, dict) and "uid" in v}
+    return (
+        f"Asset item refused by Sekoia.io (HTTP 413, {item_bytes} bytes, "
+        f"limit {detail.get('limit_bytes')}), dropped from the push: {uids}"
+    )
 
 
 def get_env_float(name: str, default: float) -> float:

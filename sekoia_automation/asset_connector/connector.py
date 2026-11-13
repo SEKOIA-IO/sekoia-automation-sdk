@@ -29,6 +29,7 @@ from .utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     get_env_float,
     parse_retry_after,
+    pop_refused_item,
 )
 
 
@@ -257,21 +258,36 @@ class AssetConnector(Trigger):
         asset_items = assets_object_to_dict.get("items", [])
 
         request_body = assets_object_to_dict
+        models: list[BaseModel] = list(assets.items)
 
-        try:
-            for attempt in self._retry():
-                with attempt:
-                    res: Response = self._http_session.post(
-                        asset_connector_api_url,
-                        json=request_body,
-                        timeout=30,
-                    )
-        except requests.Timeout as ex:
-            self.log_exception(
-                ex,
-                message="Timeout while pushing assets to Sekoia.io asset connector API",
-            )
-            return None
+        while True:
+            try:
+                for attempt in self._retry():
+                    with attempt:
+                        res: Response = self._http_session.post(
+                            asset_connector_api_url,
+                            json=request_body,
+                            timeout=30,
+                        )
+            except requests.Timeout as ex:
+                self.log_exception(
+                    ex,
+                    message="Timeout while pushing assets "
+                    "to Sekoia.io asset connector API",
+                )
+                return None
+
+            if res.status_code != 413:
+                break
+
+            refused_item = pop_refused_item(res.text, models, asset_items)
+            if refused_item is None:
+                break
+
+            self.log(message=refused_item, level="error")
+            if not asset_items:
+                self.update_checkpoint()
+                return {}
 
         if res.status_code == 429:
             retry_after = parse_retry_after(

@@ -9,12 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Asset connectors apply a deterministic reset jitter: after a schema-change
-  checkpoint reset, the next full fetch is delayed by a per-configuration jitter
-  (up to `RESET_JITTER_DEFAULT_MAX`, 3 hours) to spread the re-fetch burst across
-  all configurations of the same connector. Overridable via the
-  `ASSET_CONNECTOR_RESET_JITTER_MAX` env variable.
-  
+- Asset connectors apply a reset jitter: after a schema-change checkpoint
+  reset, the next full fetch is delayed by a per-configuration jitter (up to
+  `RESET_JITTER_DEFAULT_MAX`, 3 hours by default) to spread the re-fetch burst
+  across all configurations of the same connector. The delay is derived from
+  the connector configuration UUID (random when no UUID is available) and can
+  be bounded or disabled (`0`) with the `ASSET_CONNECTOR_RESET_JITTER_MAX` env
+  variable.
+- Asset connectors can pace their pushes: the `batch_push_interval`
+  configuration field (overridable with the
+  `ASSET_CONNECTOR_BATCH_PUSH_INTERVAL` env variable) sets the delay, in
+  seconds, between two consecutive batch pushes of a fetch cycle. Defaults to
+  `0` (no delay).
+- Export `AssetConnectorBase`, the base class shared by `AssetConnector` and
+  `AsyncAssetConnector`.
+
+### Changed
+
+- Require `sekoia-automation-models>=1.4.0`, which declares the
+  `batch_push_interval` configuration field.
+
+### Fixed
+
+- `AsyncAssetConnector` now falls back to the trigger configuration when the
+  `connector_configuration` file is missing: it was catching
+  `MissingActionArgumentError`, which is never raised there, instead of
+  `MissingConfigurationError`.
+
+## 1.27.2 - 2026-11-04
+
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
+## 1.27.1 - 2026-10-30
+
+### Added
+
+- Revert PEP 561 until the exposed types are improved.
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

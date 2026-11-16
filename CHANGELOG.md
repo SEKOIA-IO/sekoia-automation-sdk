@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Expose the `scalable_horizontally` and `scalable_vertically` labels of the
+  running trigger/connector, read from its descriptor (default to `false`).
+
 ## 1.27.0 - 2026-10-06
 
 ### Added

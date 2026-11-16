@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
@@ -10,7 +11,11 @@ import requests
 from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
-from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
+from sekoia_automation.asset_connector.models.connector import (
+    AssetItem,
+    AssetList,
+    DefaultAssetConnectorConfiguration,
+)
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
     Device,
@@ -40,11 +45,17 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
 )
 from sekoia_automation.asset_connector.utils import (
     RATE_LIMIT_DEFAULT_WAIT,
+    RESET_JITTER_DEFAULT_MAX,
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
+    compute_reset_jitter,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.configuration.exception import MissingConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
 
 
 class ContextDict(dict):
@@ -310,6 +321,67 @@ def test_frequency_env_var_not_exist(test_asset_connector):
     assert connector_frequency == 60
 
 
+def test_batch_push_interval_default(test_asset_connector):
+    assert test_asset_connector.batch_push_interval == 0.0
+
+
+def test_batch_push_interval_from_configuration(test_asset_connector):
+    test_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
+    assert test_asset_connector.batch_push_interval == 3.0
+
+
+def test_batch_push_interval_negative_configuration_is_rejected(test_asset_connector):
+    with pytest.raises(TriggerConfigurationError):
+        test_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+            "frequency": 60,
+            "batch_push_interval": -1,
+        }
+
+
+def test_batch_push_interval_env_var_overrides_configuration(
+    monkeypatch, test_asset_connector
+):
+    test_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_env_var(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
+    assert test_asset_connector.batch_push_interval == 2.5
+
+
+def test_batch_push_interval_negative_is_clamped(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "-5")
+    assert test_asset_connector.batch_push_interval == 0.0
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "nan", "inf"])
+def test_batch_push_interval_invalid_falls_back_to_configuration(
+    monkeypatch, test_asset_connector, value
+):
+    test_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", value)
+    assert test_asset_connector.batch_push_interval == 3.0
+
+
 def test_http_header(test_asset_connector):
     test_asset_connector.module._connector_configuration_uuid = (
         "04716e25-c97f-4a22-925e-8b636ad9c8a4"
@@ -459,6 +531,89 @@ def test_asset_fetch_cycle_pushes_a_batch_when_batch_size_reached(
     assert test_asset_connector.push_assets_to_sekoia.call_count == len(
         asset_list.items
     )
+
+
+def test_asset_fetch_cycle_waits_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # One push per asset, and a pause between each consecutive push (N - 1).
+    assert test_asset_connector.push_assets_to_sekoia.call_count == len(
+        asset_list.items
+    )
+    assert wait.call_count == len(asset_list.items) - 1
+    wait.assert_called_with(0.5)
+
+
+def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    wait.assert_not_called()
+
+
+def test_asset_fetch_cycle_drains_when_stopped_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    # A pause long enough to fail the test if it was not cut short by the stop
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "3600")
+    test_asset_connector.set_assets(asset_list)
+    assert len(asset_list.items) > 1
+
+    pushed = []
+
+    def push_then_stop(batch):
+        pushed.extend(batch.items)
+        test_asset_connector._stop_event.set()
+
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    # The connector was stopped after the first push: the pauses are skipped
+    # but every fetched asset is still pushed, none is dropped.
+    assert pushed == asset_list.items
+
+
+def test_run_stops_the_cycle_on_rate_limit(
+    monkeypatch, test_asset_connector, asset_list
+):
+    """A 429 in the middle of a cycle aborts it and pauses the connector."""
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    assert len(asset_list.items) > 2
+    test_asset_connector.push_assets_to_sekoia = Mock(
+        side_effect=[None, AssetConnectorRateLimitError(retry_after=5)]
+    )
+
+    def stop_during_wait(timeout=None):
+        test_asset_connector._stop_event.set()
+        return True
+
+    with patch.object(
+        test_asset_connector._stop_event, "wait", side_effect=stop_during_wait
+    ) as mock_wait:
+        test_asset_connector.run()
+
+    # The batches following the rate-limited one are not pushed
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 2
+    mock_wait.assert_called_once_with(5)
 
 
 def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
@@ -654,16 +809,20 @@ def test_schema_fingerprint_change_triggers_reset(test_asset_connector, tmp_path
     assert data["fields"] == test_asset_connector.get_mapped_fields()
     # The log should mention the newly detected mapping
     test_asset_connector.log.assert_called()
-    log_message = test_asset_connector.log.call_args_list[-1][1]["message"]
-    assert "os_name" in log_message
+    log_messages = [
+        call.kwargs.get("message", "")
+        for call in test_asset_connector.log.call_args_list
+    ]
+    assert any("os_name" in msg for msg in log_messages)
 
 
 def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
-    test_asset_connector, asset_list, tmp_path
+    monkeypatch, test_asset_connector, asset_list, tmp_path
 ):
     """asset_fetch_cycle resets checkpoint when the field mappings change."""
     import json as _json
 
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
     schema_file = tmp_path / "asset_schema_fields.json"
     schema_file.write_text(
         _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
@@ -839,3 +998,343 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
+
+
+def test_compute_reset_jitter_is_deterministic_and_bounded():
+    """Same seed -> same value; different seeds -> different values; bounded."""
+    seed_a = "config-uuid-a"
+    seed_b = "config-uuid-b"
+    max_window = 3600.0
+
+    a1 = compute_reset_jitter(seed_a, max_window)
+    a2 = compute_reset_jitter(seed_a, max_window)
+    b = compute_reset_jitter(seed_b, max_window)
+
+    assert a1 == a2
+    assert a1 != b
+    assert 0.0 <= a1 <= max_window
+    assert 0.0 <= b <= max_window
+    assert compute_reset_jitter(seed_a, 0) == 0.0
+    assert compute_reset_jitter(None, 0) == 0.0
+
+
+@pytest.mark.parametrize("seed", [None, ""])
+def test_compute_reset_jitter_is_random_without_seed(seed):
+    """Without a seed the delay is random, so that the configurations of a
+    connector don't all get the same one."""
+    delays = {compute_reset_jitter(seed, 3600.0) for _ in range(5)}
+
+    assert len(delays) > 1
+    assert all(0.0 <= delay <= 3600.0 for delay in delays)
+
+
+def test_reset_checkpoint_schedules_jitter_and_persists(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """After a schema change the jitter resume timestamp is persisted."""
+    import json as _json
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    test_asset_connector._check_schema_and_reset_if_needed()
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" in data
+    remaining = test_asset_connector._pending_reset_jitter_seconds()
+    assert 0.0 <= remaining <= 1800.0
+
+
+def test_asset_fetch_cycle_waits_for_reset_jitter(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """asset_fetch_cycle waits on _stop_event until the persisted resume time."""
+    import json as _json
+    import time as _time
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps(
+            {
+                "fingerprint": test_asset_connector._compute_schema_fingerprint(),
+                "fields": test_asset_connector.get_mapped_fields(),
+                "reset_resume_at": _time.time() + 5,
+            }
+        )
+    )
+
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    wait_calls = []
+    monkeypatch.setattr(
+        test_asset_connector._stop_event,
+        "wait",
+        lambda timeout: wait_calls.append(timeout),
+    )
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.connector.time.sleep", Mock()
+    )
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert wait_calls, "expected _stop_event.wait to be called for jitter"
+    assert 0 < wait_calls[0] <= 5
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" not in data
+
+
+def test_reset_jitter_disabled_when_max_is_zero(
+    monkeypatch, test_asset_connector, tmp_path
+):
+    """Setting the env var to 0 disables the jitter (nothing persisted)."""
+    import json as _json
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "0")
+    schema_file = tmp_path / "asset_schema_fields.json"
+    schema_file.write_text(
+        _json.dumps({"fingerprint": "stale_fingerprint", "fields": {}})
+    )
+
+    test_asset_connector._check_schema_and_reset_if_needed()
+
+    data = _json.loads(schema_file.read_text())
+    assert "reset_resume_at" not in data
+    assert test_asset_connector._pending_reset_jitter_seconds() == 0.0
+
+
+def test_reset_jitter_default_matches_documented_window(test_asset_connector):
+    """Default jitter window is the documented 3-hour value."""
+    assert test_asset_connector.reset_jitter_max_seconds == float(
+        RESET_JITTER_DEFAULT_MAX
+    )
+    assert RESET_JITTER_DEFAULT_MAX == 10800
+
+
+def test_reset_jitter_uses_random_when_uuid_missing(monkeypatch, test_asset_connector):
+    """Without a configuration UUID the delay is randomised, not class-name
+    based, so multiple configurations of the same connector don't restart
+    together."""
+    test_asset_connector.module._connector_configuration_uuid = None
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+
+    sentinel = 123.0
+    unseeded = Mock()
+    unseeded.uniform.return_value = sentinel
+    random_class = Mock(return_value=unseeded)
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.utils.random.Random", random_class
+    )
+
+    test_asset_connector._schedule_reset_jitter()
+
+    # Not seeded: neither with the UUID nor with the class name
+    random_class.assert_called_once_with()
+    unseeded.uniform.assert_called_once_with(0, 1800.0)
+    remaining = test_asset_connector._pending_reset_jitter_seconds()
+    assert 0.0 < remaining <= sentinel
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "nan", "inf", "-inf"])
+def test_reset_jitter_max_invalid_falls_back_to_default(
+    monkeypatch, test_asset_connector, value
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", value)
+
+    assert test_asset_connector.reset_jitter_max_seconds == RESET_JITTER_DEFAULT_MAX
+    test_asset_connector.log.assert_called_once()
+
+
+def test_reset_jitter_max_negative_is_clamped(monkeypatch, test_asset_connector):
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "-5")
+
+    assert test_asset_connector.reset_jitter_max_seconds == 0.0
+
+
+def test_wait_reset_jitter_sends_heartbeats(monkeypatch, test_asset_connector):
+    """The wait is split in slices, with a heartbeat before each of them, so
+    the liveness probe doesn't restart a connector waiting for hours."""
+    wait = Mock(return_value=False)
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+    test_asset_connector.heartbeat = Mock()
+
+    assert test_asset_connector._wait_reset_jitter(150.0) is True
+
+    assert [c.args for c in wait.call_args_list] == [(60.0,), (60.0,), (30.0,)]
+    assert test_asset_connector.heartbeat.call_count == 3
+
+
+def test_wait_reset_jitter_returns_as_soon_as_stopped(
+    monkeypatch, test_asset_connector
+):
+    wait = Mock(return_value=True)
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    assert test_asset_connector._wait_reset_jitter(150.0) is False
+
+    wait.assert_called_once_with(60.0)
+
+
+def test_asset_fetch_cycle_stops_during_reset_jitter(
+    monkeypatch, test_asset_connector, asset_list
+):
+    """Stopped while waiting out the jitter: the cycle exits without fetching
+    and keeps the timestamp for the next run."""
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+    test_asset_connector._check_schema_and_reset_if_needed()
+    resume_at = time.time() + 5
+    with test_asset_connector.schema_store as store:
+        store["reset_resume_at"] = resume_at
+
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    test_asset_connector._stop_event.set()
+
+    test_asset_connector.asset_fetch_cycle()
+
+    test_asset_connector.push_assets_to_sekoia.assert_not_called()
+    with test_asset_connector.schema_store as store:
+        assert store["reset_resume_at"] == resume_at
+
+
+def test_asset_fetch_cycle_does_not_rewrite_the_schema_store(
+    monkeypatch, test_asset_connector
+):
+    """Without mapping change nor pending jitter, a cycle only reads the
+    schema store: the file is not written again."""
+    # First run: the fingerprint is saved
+    test_asset_connector._check_schema_and_reset_if_needed()
+
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.connector.time.sleep", Mock()
+    )
+    dump = Mock()
+    monkeypatch.setattr(test_asset_connector.schema_store, "dump", dump)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    dump.assert_not_called()
+
+
+@pytest.mark.parametrize("new_max, expected", [("600", 600.0), ("0", 0.0)])
+def test_pending_reset_jitter_bounded_by_lowered_max(
+    monkeypatch, test_asset_connector, new_max, expected
+):
+    monkeypatch.setattr("sekoia_automation.asset_connector.mixin.time.time", lambda: 0)
+    with test_asset_connector.schema_store as store:
+        store["reset_resume_at"] = 10_000.0
+
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", new_max)
+
+    assert test_asset_connector._pending_reset_jitter_seconds() == expected
+
+
+def test_pending_reset_jitter_bounded_after_clock_goes_back(
+    monkeypatch, test_asset_connector
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
+    with test_asset_connector.schema_store as store:
+        store["reset_resume_at"] = 1_000_000.0 + 1000
+
+    # Clock moved back by one day
+    monkeypatch.setattr(
+        "sekoia_automation.asset_connector.mixin.time.time",
+        lambda: 1_000_000.0 - 86_400,
+    )
+
+    assert test_asset_connector._pending_reset_jitter_seconds() == 1800.0
+
+
+CONNECTOR_CONFIGURATION = {
+    "sekoia_base_url": "http://example.com",
+    "sekoia_api_key": "fake_api_key",
+    "frequency": 60,
+}
+
+
+def test_configuration_loaded_from_connector_configuration_file(
+    test_asset_connector,
+):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(return_value=CONNECTOR_CONFIGURATION)
+
+    configuration = test_asset_connector.configuration
+
+    test_asset_connector.module.load_config.assert_called_once_with(
+        "connector_configuration", "json"
+    )
+    assert isinstance(configuration, DefaultAssetConnectorConfiguration)
+    assert configuration.sekoia_api_key == "fake_api_key"
+    assert configuration.frequency == 60
+
+
+def test_configuration_is_cached(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(return_value=CONNECTOR_CONFIGURATION)
+
+    first = test_asset_connector.configuration
+    second = test_asset_connector.configuration
+
+    assert first is second
+    test_asset_connector.module.load_config.assert_called_once()
+
+
+def test_configuration_falls_back_to_trigger_configuration(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        side_effect=[
+            MissingConfigurationError("connector_configuration does not exist."),
+            CONNECTOR_CONFIGURATION,
+        ]
+    )
+
+    configuration = test_asset_connector.configuration
+
+    assert [c.args for c in test_asset_connector.module.load_config.call_args_list] == [
+        ("connector_configuration", "json"),
+        ("trigger_configuration", "json"),
+    ]
+    assert isinstance(configuration, DefaultAssetConnectorConfiguration)
+    assert configuration.sekoia_api_key == "fake_api_key"
+
+
+def test_configuration_missing_everywhere_raises(test_asset_connector):
+    test_asset_connector._configuration = None
+    test_asset_connector.module.load_config = Mock(
+        side_effect=MissingConfigurationError("does not exist.")
+    )
+
+    with pytest.raises(MissingConfigurationError):
+        test_asset_connector.configuration
+
+
+def test_configuration_setter_sets_sentry_context(test_asset_connector):
+    with patch("sekoia_automation.asset_connector.mixin.sentry_sdk") as sentry_mock:
+        test_asset_connector.configuration = CONNECTOR_CONFIGURATION
+
+    sentry_mock.set_context.assert_called_once_with(
+        "connector_configuration",
+        test_asset_connector.configuration.model_dump(),
+    )
+
+
+@pytest.mark.parametrize(
+    "configuration",
+    [
+        {"sekoia_base_url": "http://example.com"},
+        {**CONNECTOR_CONFIGURATION, "frequency": "not-a-number"},
+    ],
+)
+def test_configuration_setter_invalid_raises(test_asset_connector, configuration):
+    previous = test_asset_connector.configuration
+
+    with pytest.raises(TriggerConfigurationError) as exc_info:
+        test_asset_connector.configuration = configuration
+
+    assert exc_info.value.__cause__ is not None
+    assert test_asset_connector.configuration is previous

@@ -4,14 +4,17 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
-from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
+from sekoia_automation.asset_connector.models.connector import (
+    AssetItem,
+    AssetList,
+    DefaultAssetConnectorConfiguration,
+)
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
     Device,
@@ -45,7 +48,11 @@ from sekoia_automation.asset_connector.utils import (
     TASK_POLL_TIMEOUT_DEFAULT,
     parse_retry_after,
 )
-from sekoia_automation.exceptions import AssetConnectorRateLimitError
+from sekoia_automation.configuration.exception import MissingConfigurationError
+from sekoia_automation.exceptions import (
+    AssetConnectorRateLimitError,
+    TriggerConfigurationError,
+)
 
 
 class ContextDict(dict):
@@ -330,23 +337,36 @@ def test_batch_push_interval_default(test_async_asset_connector):
 
 
 def test_batch_push_interval_from_configuration(test_async_asset_connector):
-    # Simulate a sekoia-automation-models version exposing the field.
-    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    test_async_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
     assert test_async_asset_connector.batch_push_interval == 3.0
 
 
-def test_batch_push_interval_missing_field_falls_back_to_default(
+def test_batch_push_interval_negative_configuration_is_rejected(
     test_async_asset_connector,
 ):
-    # Older models version without the field: getattr fallback to 0.
-    test_async_asset_connector._configuration = SimpleNamespace()
-    assert test_async_asset_connector.batch_push_interval == 0.0
+    with pytest.raises(TriggerConfigurationError):
+        test_async_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+            "frequency": 60,
+            "batch_push_interval": -1,
+        }
 
 
 def test_batch_push_interval_env_var_overrides_configuration(
     monkeypatch, test_async_asset_connector
 ):
-    test_async_asset_connector._configuration = SimpleNamespace(batch_push_interval=3.0)
+    test_async_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "2.5")
     assert test_async_asset_connector.batch_push_interval == 2.5
 
@@ -361,6 +381,20 @@ def test_batch_push_interval_negative_is_clamped(
 ):
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "-5")
     assert test_async_asset_connector.batch_push_interval == 0.0
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "nan", "inf"])
+def test_batch_push_interval_invalid_falls_back_to_configuration(
+    monkeypatch, test_async_asset_connector, value
+):
+    test_async_asset_connector.configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+        "batch_push_interval": 3.0,
+    }
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", value)
+    assert test_async_asset_connector.batch_push_interval == 3.0
 
 
 def test_http_header(test_async_asset_connector):
@@ -609,24 +643,56 @@ async def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
 
 
 @pytest.mark.asyncio
-async def test_asset_fetch_cycle_stops_while_waiting_between_batches(
+async def test_asset_fetch_cycle_drains_when_stopped_between_batches(
     monkeypatch, test_async_asset_connector, asset_list
 ):
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
-    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "0.5")
+    # A pause long enough to fail the test if it was not cut short by the stop
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "3600")
     test_async_asset_connector.set_assets(asset_list)
-    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+    assert len(asset_list.items) > 1
 
-    def stop_during_wait(_interval):
+    pushed = []
+
+    async def push_then_stop(batch):
+        pushed.extend(batch.items)
         test_async_asset_connector._stop_event.set()
 
-    monkeypatch.setattr(
-        test_async_asset_connector._stop_event, "wait", stop_during_wait
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(
+        side_effect=push_then_stop
     )
 
     await test_async_asset_connector.asset_fetch_cycle()
 
-    assert test_async_asset_connector.push_assets_to_sekoia.call_count == 1
+    # The connector was stopped after the first push: the pauses are skipped
+    # but every fetched asset is still pushed, none is dropped.
+    assert pushed == asset_list.items
+
+
+@pytest.mark.asyncio
+async def test_async_run_stops_the_cycle_on_rate_limit(
+    monkeypatch, test_async_asset_connector, asset_list
+):
+    """A 429 in the middle of a cycle aborts it and pauses the connector."""
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_async_asset_connector.set_assets(asset_list)
+    assert len(asset_list.items) > 2
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(
+        side_effect=[None, AssetConnectorRateLimitError(retry_after=5)]
+    )
+
+    def stop_during_wait(timeout=None):
+        test_async_asset_connector._stop_event.set()
+        return True
+
+    with patch.object(
+        test_async_asset_connector._stop_event, "wait", side_effect=stop_during_wait
+    ) as mock_wait:
+        await test_async_asset_connector.async_run()
+
+    # The batches following the rate-limited one are not pushed
+    assert test_async_asset_connector.push_assets_to_sekoia.call_count == 2
+    mock_wait.assert_called_once_with(5)
 
 
 @pytest.mark.asyncio
@@ -999,7 +1065,7 @@ async def test_async_asset_fetch_cycle_waits_for_reset_jitter(
     # The jitter wait happened once, and it went through asyncio.to_thread.
     assert wait_calls, "expected _stop_event.wait to be called for jitter"
     assert 0 < wait_calls[0] <= 5
-    assert test_async_asset_connector._stop_event.wait in to_thread_calls
+    assert test_async_asset_connector._wait_reset_jitter in to_thread_calls
 
     # The timestamp is cleared and the cycle proceeded to fetch and push.
     data = json.loads(schema_file.read_text())
@@ -1048,7 +1114,44 @@ async def test_async_asset_fetch_cycle_stops_during_reset_jitter(
     # The timestamp is preserved because we returned before clearing it.
     data = json.loads(schema_file.read_text())
     assert data["reset_resume_at"] == resume_at
-    assert test_async_asset_connector.task_endpoint == "http://example.com/api/v1/tasks"
+
+
+def test_configuration_falls_back_to_trigger_configuration(
+    test_async_asset_connector,
+):
+    configuration = {
+        "sekoia_base_url": "http://example.com",
+        "sekoia_api_key": "fake_api_key",
+        "frequency": 60,
+    }
+    test_async_asset_connector._configuration = None
+    test_async_asset_connector.module.load_config = Mock(
+        side_effect=[
+            MissingConfigurationError("connector_configuration does not exist."),
+            configuration,
+        ]
+    )
+
+    loaded = test_async_asset_connector.configuration
+
+    assert [
+        c.args for c in test_async_asset_connector.module.load_config.call_args_list
+    ] == [
+        ("connector_configuration", "json"),
+        ("trigger_configuration", "json"),
+    ]
+    assert isinstance(loaded, DefaultAssetConnectorConfiguration)
+    assert loaded.sekoia_api_key == "fake_api_key"
+
+
+def test_configuration_missing_everywhere_raises(test_async_asset_connector):
+    test_async_asset_connector._configuration = None
+    test_async_asset_connector.module.load_config = Mock(
+        side_effect=MissingConfigurationError("does not exist.")
+    )
+
+    with pytest.raises(MissingConfigurationError):
+        test_async_asset_connector.configuration
 
 
 def test_task_poll_settings_from_env(test_async_asset_connector):

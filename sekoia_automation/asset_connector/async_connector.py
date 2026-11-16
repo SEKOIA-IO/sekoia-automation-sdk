@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import time
 from abc import abstractmethod
@@ -12,6 +11,7 @@ from aiolimiter import AsyncLimiter
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
 )
+
 from .mixin import AssetConnectorBase
 from .models.connector import AssetItem, AssetList
 from .utils import (
@@ -314,7 +314,7 @@ class AsyncAssetConnector(AssetConnectorBase):
         )
 
     async def _check_schema_and_reset_if_needed(self) -> None:
-        """Compare the current field-mapping fingerprint against the stored one.
+        """Reset the checkpoint when the declared field mappings changed.
 
         When a difference is detected the checkpoint is reset via
         :meth:`reset_checkpoint` so that the next fetch cycle re-collects all
@@ -324,50 +324,16 @@ class AsyncAssetConnector(AssetConnectorBase):
         On the very first run (no fingerprint stored yet) the data is saved
         without triggering a reset.
         """
-        current_fields = self.get_mapped_fields()
-        # No declared mapping (default for connectors that don't override
-        # get_mapped_fields): schema-change detection is inert, skip entirely.
-        if not current_fields:
+        change = self._detect_schema_change()
+        if change is None:
             return
 
-        current_fingerprint = hashlib.sha256(
-            json.dumps(sorted(current_fields.items())).encode()
-        ).hexdigest()
-
-        with self.schema_store as store:
-            stored_fingerprint = store.get("fingerprint")
-            stored_fields: dict[str, str] = store.get("fields", {})
-
-        if stored_fingerprint == current_fingerprint:
-            return
-
-        if stored_fingerprint is not None:
-            diff = {
-                "added": {
-                    k: v for k, v in current_fields.items() if k not in stored_fields
-                },
-                "removed": {
-                    k: v for k, v in stored_fields.items() if k not in current_fields
-                },
-                "changed": {
-                    k: {"from": stored_fields[k], "to": v}
-                    for k, v in current_fields.items()
-                    if k in stored_fields and stored_fields[k] != v
-                },
-            }
-            self.log(
-                message=(
-                    "Field mapping change detected — "
-                    f"{diff}. Resetting checkpoint to re-fetch all assets."
-                ),
-                level="info",
-            )
+        current_fields, reset_needed = change
+        if reset_needed:
             await self.reset_checkpoint()
             self._schedule_reset_jitter()
 
-        with self.schema_store as store:
-            store["fingerprint"] = current_fingerprint
-            store["fields"] = current_fields
+        self._save_schema(current_fields)
 
     @abstractmethod
     async def get_assets(
@@ -385,18 +351,18 @@ class AsyncAssetConnector(AssetConnectorBase):
             yield  # type: ignore[unreachable, misc]
         raise NotImplementedError("This method should be implemented in a subclass")
 
-    async def _pause_between_batches(self) -> bool:
+    async def _pause_between_batches(self) -> None:
         """
         Wait the configured inter-batch interval before the next batch push.
 
-        Returns:
-            bool: ``True`` if the connector is still running afterwards,
-            ``False`` if it was stopped while waiting.
+        The wait ends as soon as the connector is stopped. The cycle is not
+        abandoned for all that: the assets already fetched still have to be
+        pushed, otherwise they would be lost while the checkpoint may already
+        have moved past them. The remaining batches are pushed without pause.
         """
         interval = self.batch_push_interval
         if interval > 0:
             await asyncio.to_thread(self._stop_event.wait, interval)
-        return self.running
 
     async def asset_fetch_cycle(self) -> None:
         """
@@ -436,12 +402,11 @@ class AsyncAssetConnector(AssetConnectorBase):
             self.log(
                 message=(
                     f"Waiting {pending:.0f}s before the post-reset "
-                    "full fetch (deterministic jitter)."
+                    "full fetch (reset jitter)."
                 ),
                 level="info",
             )
-            await asyncio.to_thread(self._stop_event.wait, pending)
-            if not self.running:
+            if not await asyncio.to_thread(self._wait_reset_jitter, pending):
                 return
         self._clear_reset_jitter()
 
@@ -456,16 +421,16 @@ class AsyncAssetConnector(AssetConnectorBase):
             total_number_of_assets += 1
 
             if len(assets) >= self.batch_size:
-                if pushed_batches and not await self._pause_between_batches():
-                    return
+                if pushed_batches:
+                    await self._pause_between_batches()
                 batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
                 await self.push_assets_to_sekoia(batch)
                 pushed_batches += 1
                 assets = []
 
         if assets:
-            if pushed_batches and not await self._pause_between_batches():
-                return
+            if pushed_batches:
+                await self._pause_between_batches()
             final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
             await self.push_assets_to_sekoia(final_batch)
 

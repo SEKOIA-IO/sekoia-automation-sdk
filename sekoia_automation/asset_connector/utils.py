@@ -13,28 +13,33 @@ TASK_POLL_INTERVAL_DEFAULT = 5.0  # seconds between two task status checks
 TASK_POLL_TIMEOUT_DEFAULT = 300.0  # give up waiting after 5 minutes
 
 RESET_JITTER_DEFAULT_MAX = 10800  # 3 hours
+# The jitter wait is split in slices of this duration (in seconds) to send a
+# heartbeat between each of them.
+RESET_JITTER_HEARTBEAT_INTERVAL = 60.0
 
-# Delay (in seconds) between two consecutive batch pushes within a fetch cycle.
-# 0 disables the pause (default), preserving the previous behaviour.
-BATCH_PUSH_INTERVAL_DEFAULT = 0.0
 
-
-def compute_reset_jitter(seed: str, max_seconds: float) -> float:
+def compute_reset_jitter(seed: str | None, max_seconds: float) -> float:
     """
-    Compute a deterministic jitter delay in ``[0, max_seconds]`` seconds.
+    Compute a jitter delay in ``[0, max_seconds]`` seconds.
+
+    The delay is deterministic for a given seed, so a connector that restarts
+    keeps the same slot in the window. Without a seed there is nothing stable
+    to derive it from: the delay is then random, so that the configurations of
+    a connector still do not restart all at once.
 
     Args:
         seed: Stable identifier used to derive the delay (e.g. the connector
-            configuration UUID).
+            configuration UUID), if any.
         max_seconds: Upper bound of the jitter window. Values ``<= 0`` disable
             the jitter and this function returns ``0``.
 
     Returns:
         float: Delay in seconds, in the ``[0, max_seconds]`` interval.
     """
-    if max_seconds <= 0 or not seed:
+    if max_seconds <= 0:
         return 0.0
-    return random.Random(seed).uniform(0, max_seconds)
+    rng = random.Random(seed) if seed else random.Random()
+    return rng.uniform(0, max_seconds)
 
 
 def parse_retry_after(header_value: str | None, default: float) -> float:

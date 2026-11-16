@@ -1,7 +1,7 @@
 import hashlib
 import json
+import math
 import os
-import random
 import time
 from abc import abstractmethod
 from functools import cached_property
@@ -18,9 +18,9 @@ from sekoia_automation.utils import get_annotation_for, get_as_model
 
 from .models.connector import DefaultAssetConnectorConfiguration
 from .utils import (
-    BATCH_PUSH_INTERVAL_DEFAULT,
     RATE_LIMIT_DEFAULT_WAIT,
     RESET_JITTER_DEFAULT_MAX,
+    RESET_JITTER_HEARTBEAT_INTERVAL,
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
     compute_reset_jitter,
@@ -162,26 +162,25 @@ class AssetConnectorBase(Trigger):
 
         Read from the connector configuration (so it can be changed from the
         platform), with an optional ``ASSET_CONNECTOR_BATCH_PUSH_INTERVAL`` env
-        override. Falls back to ``0`` (no delay) when the running
-        ``sekoia-automation-models`` version does not expose the field yet.
+        override.
 
         Returns:
             float: Delay in seconds (never negative).
         """
-        if interval := os.getenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL"):
+        if raw := os.getenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL"):
             try:
-                return max(float(interval), 0.0)
+                interval = float(raw)
             except ValueError:
-                self.log(
-                    message=(
-                        "Invalid ASSET_CONNECTOR_BATCH_PUSH_INTERVAL value; "
-                        "falling back to the configured value"
-                    )
+                interval = math.nan
+            if math.isfinite(interval):
+                return max(interval, 0.0)
+            self.log(
+                message=(
+                    "Invalid ASSET_CONNECTOR_BATCH_PUSH_INTERVAL value; "
+                    "falling back to the configured value"
                 )
-        configured = getattr(
-            self.configuration, "batch_push_interval", BATCH_PUSH_INTERVAL_DEFAULT
-        )
-        return max(configured, 0.0)
+            )
+        return max(self.configuration.batch_push_interval, 0.0)
 
     @property
     def task_poll_interval(self) -> float:
@@ -307,61 +306,135 @@ class AssetConnectorBase(Trigger):
             "get_mapped_fields must be implemented to support schema-change refetching"
         )
 
-    def _compute_schema_fingerprint(self) -> str:
+    def _compute_schema_fingerprint(self, fields: dict[str, str] | None = None) -> str:
         """Compute a SHA-256 fingerprint of the connector's declared field mappings.
 
         The fingerprint changes whenever :meth:`get_mapped_fields` returns a
         different dict, enabling automatic checkpoint detection.
 
+        Args:
+            fields: Field mappings to fingerprint. Defaults to the mappings
+                returned by :meth:`get_mapped_fields`.
+
         Returns:
             str: SHA-256 hex digest of the sorted field mapping dict.
         """
-        fields = sorted(self.get_mapped_fields().items())
-        return hashlib.sha256(json.dumps(fields).encode()).hexdigest()
+        if fields is None:
+            fields = self.get_mapped_fields()
+        return hashlib.sha256(json.dumps(sorted(fields.items())).encode()).hexdigest()
+
+    def _read_schema_store(self) -> dict:
+        """
+        Read the schema store without writing it back.
+
+        ``with self.schema_store`` rewrites the file every time it exits, even
+        when nothing changed. Reads go through this helper so that only real
+        changes are persisted.
+        """
+        self.schema_store.load()
+        return self.schema_store._data
+
+    def _detect_schema_change(self) -> tuple[dict[str, str], bool] | None:
+        """Compare the current field-mapping fingerprint against the stored one.
+
+        Returns:
+            ``None`` when there is nothing to do: no declared mapping, or a
+            mapping identical to the stored one. Otherwise the current field
+            mappings to persist with :meth:`_save_schema`, and whether the
+            checkpoint must be reset first. On the very first run (no
+            fingerprint stored yet) no reset is needed.
+        """
+        current_fields = self.get_mapped_fields()
+        # No declared mapping (default for connectors that don't override
+        # get_mapped_fields): schema-change detection is inert, skip entirely.
+        if not current_fields:
+            return None
+
+        store = self._read_schema_store()
+        stored_fingerprint = store.get("fingerprint")
+        stored_fields: dict[str, str] = store.get("fields", {})
+
+        if stored_fingerprint == self._compute_schema_fingerprint(current_fields):
+            return None
+
+        if stored_fingerprint is None:
+            return current_fields, False
+
+        diff = {
+            "added": {
+                k: v for k, v in current_fields.items() if k not in stored_fields
+            },
+            "removed": {
+                k: v for k, v in stored_fields.items() if k not in current_fields
+            },
+            "changed": {
+                k: {"from": stored_fields[k], "to": v}
+                for k, v in current_fields.items()
+                if k in stored_fields and stored_fields[k] != v
+            },
+        }
+        self.log(
+            message=(
+                "Field mapping change detected — "
+                f"{diff}. Resetting checkpoint to re-fetch all assets."
+            ),
+            level="info",
+        )
+        return current_fields, True
+
+    def _save_schema(self, fields: dict[str, str]) -> None:
+        """Persist the field mappings and their fingerprint."""
+        with self.schema_store as store:
+            store["fingerprint"] = self._compute_schema_fingerprint(fields)
+            store["fields"] = fields
 
     @property
     def reset_jitter_max_seconds(self) -> float:
         """
         Maximum jitter (in seconds) applied before the first fetch after a
-        checkpoint reset.
+        checkpoint reset. Overridable via the ASSET_CONNECTOR_RESET_JITTER_MAX
+        env variable; ``0`` disables the jitter.
 
         Returns:
             float: Maximum jitter in seconds.
         """
-        raw = os.getenv("ASSET_CONNECTOR_RESET_JITTER_MAX")
-        if raw is not None:
+        if raw := os.getenv("ASSET_CONNECTOR_RESET_JITTER_MAX"):
             try:
-                return max(float(raw), 0.0)
+                max_seconds = float(raw)
             except ValueError:
-                self.log(
-                    message=(
-                        "Invalid ASSET_CONNECTOR_RESET_JITTER_MAX value; "
-                        "falling back to the default jitter window"
-                    )
+                max_seconds = math.nan
+            # inf would wait forever and nan would silently disable the jitter
+            if math.isfinite(max_seconds):
+                return max(max_seconds, 0.0)
+            self.log(
+                message=(
+                    "Invalid ASSET_CONNECTOR_RESET_JITTER_MAX value; "
+                    "falling back to the default jitter window"
                 )
+            )
         return float(RESET_JITTER_DEFAULT_MAX)
 
     def _schedule_reset_jitter(self) -> None:
         """
-        Schedule a deterministic delay before the next fetch cycle.
+        Schedule a delay before the next fetch cycle.
+
+        The delay is derived from the connector configuration UUID, so each
+        configuration of a connector restarts at its own moment.
         """
         max_seconds = self.reset_jitter_max_seconds
 
         if max_seconds <= 0:
             return
 
-        uuid = self.module.connector_configuration_uuid
-        if uuid:
-            delay = compute_reset_jitter(uuid, max_seconds)
-        else:
-            delay = random.uniform(0, max_seconds)
-        resume_at = time.time() + delay
+        delay = compute_reset_jitter(
+            self.module.connector_configuration_uuid, max_seconds
+        )
 
         with self.schema_store as store:
-            store["reset_resume_at"] = resume_at
+            store["reset_resume_at"] = time.time() + delay
 
         self.log(
-            message=(f"Checkpoint reset — delaying next fetch by {delay:.0f}s "),
+            message=f"Checkpoint reset — delaying next fetch by {delay:.0f}s",
             level="info",
         )
 
@@ -369,16 +442,40 @@ class AssetConnectorBase(Trigger):
         """
         Return the remaining wait (seconds) before the next fetch may start.
         """
-        with self.schema_store as store:
-            resume_at = store.get("reset_resume_at")
+        resume_at = self._read_schema_store().get("reset_resume_at")
         if not resume_at:
             return 0.0
         remaining = float(resume_at) - time.time()
         # Bound by the current max: the window may have shrunk or the clock gone back
         return min(max(remaining, 0.0), self.reset_jitter_max_seconds)
 
+    def _wait_reset_jitter(self, pending: float) -> bool:
+        """
+        Wait out the reset jitter, marking the connector as alive meanwhile.
+
+        The wait can last hours: without heartbeats, the liveness probe would
+        restart the connector, which would resume the same wait and crash-loop
+        until the jitter window elapses.
+
+        Args:
+            pending: Seconds to wait.
+
+        Returns:
+            bool: ``True`` once the wait is over, ``False`` if the connector
+            was stopped meanwhile.
+        """
+        remaining = pending
+        while remaining > 0:
+            self.heartbeat()
+            timeout = min(remaining, RESET_JITTER_HEARTBEAT_INTERVAL)
+            if self._stop_event.wait(timeout) or not self.running:
+                return False
+            remaining -= timeout
+        return True
+
     def _clear_reset_jitter(self) -> None:
-        """Clear any persisted reset-jitter resume timestamp."""
+        """Clear the persisted reset-jitter resume timestamp, if any."""
+        if "reset_resume_at" not in self._read_schema_store():
+            return
         with self.schema_store as store:
-            if "reset_resume_at" in store:
-                del store["reset_resume_at"]
+            del store["reset_resume_at"]

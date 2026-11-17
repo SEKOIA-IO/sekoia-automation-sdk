@@ -8,7 +8,7 @@ from functools import cached_property
 
 import requests
 import sentry_sdk
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from requests import Response
 from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
@@ -96,6 +96,11 @@ class AssetConnector(Trigger):
             self._configuration = get_as_model(
                 get_annotation_for(self.__class__, "configuration"), configuration
             )
+        except ValidationError as e:
+            # The input holds the Sekoia.io API key: keep it out of the error
+            raise TriggerConfigurationError(
+                str(e.errors(include_url=False, include_input=False))
+            ) from None
         except Exception as e:
             raise TriggerConfigurationError(str(e)) from e
 
@@ -593,7 +598,9 @@ class AssetConnector(Trigger):
 
         If the connector is stopped, the cycle raises AssetConnectorStoppedError
         at the next asset or batch: subclasses committing their checkpoint once
-        the cycle returns never commit an interrupted cycle.
+        the cycle returns never commit an interrupted cycle. The cycle then
+        drops the `get_assets` generator, which runs its `finally` blocks: commit
+        the checkpoint in `update_checkpoint` only, never in `get_assets`.
 
         A batch that could not be pushed raises AssetConnectorPushError: the
         next cycle resumes from the last committed checkpoint, before it.
@@ -656,9 +663,17 @@ class AssetConnector(Trigger):
                     self.log(
                         message=f"Next run in the future. Waiting {delta_sleep} seconds"
                     )
-                    time.sleep(delta_sleep)
+                    self._stop_event.wait(delta_sleep)
             except AssetConnectorStoppedError:
                 return
+            except AssetConnectorPushError:
+                # The push error is already logged: retry at the next cycle, not at
+                # once, so a lasting error does not refetch and repost in a loop
+                self.log(
+                    message=f"Next run in the future. Waiting {self.frequency} seconds",
+                    level="warning",
+                )
+                self._stop_event.wait(self.frequency)
             except AssetConnectorRateLimitError as e:
                 self.log(
                     message=f"Rate limit hit, pausing connector "

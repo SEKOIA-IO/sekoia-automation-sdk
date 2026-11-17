@@ -1,6 +1,8 @@
 import signal
+import traceback
 from collections.abc import Generator
 from typing import ClassVar
+from unittest.mock import Mock
 
 import pytest
 import requests
@@ -9,10 +11,7 @@ from pydantic import ValidationError
 
 from sekoia_automation.asset_connector import AssetConnector, AssetConnectorAction
 from sekoia_automation.asset_connector.models.connector import AssetItem
-from sekoia_automation.exceptions import (
-    AssetConnectorPushError,
-    TriggerConfigurationError,
-)
+from sekoia_automation.exceptions import TriggerConfigurationError
 from sekoia_automation.storage import PersistentJSON
 from tests.asset_connector.test_connector import (  # noqa: F401
     asset_list,
@@ -135,8 +134,14 @@ def test_run_waits_for_the_rate_limit_within_the_time_budget(action, api):
 
     results = action.run(ARGUMENTS)
 
-    assert results["has_more"] is False
-    # The rate-limited batch is fetched and pushed again by the next cycle
+    # The counters of the last cycle: the rate-limited batch is fetched and
+    # pushed again by the next cycle
+    assert results == {
+        "fetched": 3,
+        "pushed_batches": 3,
+        "failed_batches": 0,
+        "has_more": False,
+    }
     assert len(requests_to(api, PUSH_URL)) == 4
 
 
@@ -169,12 +174,18 @@ def test_run_returns_has_more_when_the_time_limit_stops_a_retried_push(action, a
     }
 
 
-def test_run_fails_on_a_failed_push(action, api, tmp_path):
+def test_run_fails_with_its_counters_on_a_failed_push(action, api, tmp_path):
     api.post(PUSH_URL, [{"status_code": 200, "json": {}}, {"status_code": 500}])
 
-    with pytest.raises(AssetConnectorPushError):
-        action.run(ARGUMENTS)
+    results = action.run(ARGUMENTS)
 
+    assert results == {
+        "fetched": 2,
+        "pushed_batches": 1,
+        "failed_batches": 1,
+        "has_more": False,
+    }
+    assert action.error_message
     assert len(requests_to(api, PUSH_URL)) == 2
     with PersistentJSON("context.json", tmp_path) as cache:
         assert cache["pushes"] == 1
@@ -194,13 +205,39 @@ def test_run_logs_errors_to_the_connector_configuration(action, api, fake_connec
     assert any("LDAP is down" in message for message in messages)
 
 
+def test_run_raises_its_error_when_the_logs_api_is_down(
+    monkeypatch, action, api, fake_connector
+):
+    fake_connector.error = RuntimeError("LDAP is down")
+    monkeypatch.setattr(
+        FakeAssetConnector,
+        "_send_logs_to_api",
+        Mock(side_effect=requests.ConnectionError("logs API is down")),
+    )
+
+    with pytest.raises(RuntimeError, match="LDAP is down"):
+        action.run(ARGUMENTS)
+
+
 def test_run_requires_the_connector_configuration(action, api):
     arguments = dict(ARGUMENTS)
     del arguments["connector_configuration_token"]
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as error:
         action.run(arguments)
 
+    assert "api-key" not in str(error.value)
+    assert not api.request_history
+
+
+def test_run_keeps_the_api_key_out_of_configuration_errors(action, api):
+    arguments = dict(ARGUMENTS)
+    del arguments["sekoia_base_url"]
+
+    with pytest.raises(TriggerConfigurationError) as error:
+        action.run(arguments)
+
+    assert "api-key" not in "".join(traceback.format_exception(error.value))
     assert not api.request_history
 
 
@@ -234,3 +271,17 @@ def test_run_restores_the_signal_handlers_when_the_configuration_is_invalid(
         assert signal.getsignal(signal.SIGTERM) is handler
     finally:
         signal.signal(signal.SIGTERM, previous)
+
+
+def test_run_skips_the_handlers_not_installed_from_python(monkeypatch, action, api):
+    previous = {
+        signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)
+    }
+    monkeypatch.setattr(signal, "getsignal", lambda _: None)
+    try:
+        results = action.run(ARGUMENTS)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+    assert results["pushed_batches"] == 3

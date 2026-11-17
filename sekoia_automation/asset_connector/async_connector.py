@@ -11,12 +11,13 @@ from functools import cached_property
 import aiohttp
 import sentry_sdk
 from aiolimiter import AsyncLimiter
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.exceptions import (
     AssetConnectorPushError,
     AssetConnectorRateLimitError,
+    AssetConnectorStoppedError,
     MissingActionArgumentError,
     TriggerConfigurationError,
 )
@@ -57,6 +58,7 @@ class AsyncAssetConnector(Trigger):
         super().__init__(*args, **kwargs)
         self._latest_time = None
         self._skip_task_wait = False
+        self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
         self._session: aiohttp.ClientSession | None = None
         self._rate_limiter: AsyncLimiter | None = None
         self.schema_store = PersistentJSON(
@@ -101,6 +103,11 @@ class AsyncAssetConnector(Trigger):
             self._configuration = get_as_model(
                 get_annotation_for(self.__class__, "configuration"), configuration
             )
+        except ValidationError as e:
+            # The input holds the Sekoia.io API key: keep it out of the error
+            raise TriggerConfigurationError(
+                str(e.errors(include_url=False, include_input=False))
+            ) from None
         except Exception as e:
             raise TriggerConfigurationError(str(e)) from e
 
@@ -302,7 +309,11 @@ class AsyncAssetConnector(Trigger):
                                         "Sekoia.io asset connector API",
                                     )
                                     return None
-        except TimeoutError as ex:
+        except (aiohttp.ClientError, TimeoutError) as ex:
+            if not self.running:
+                raise AssetConnectorStoppedError() from ex
+            if not isinstance(ex, TimeoutError):
+                raise
             self.log_exception(
                 ex,
                 message="Timeout while pushing assets to Sekoia.io asset connector API",
@@ -655,16 +666,20 @@ class AsyncAssetConnector(Trigger):
 
     async def asset_fetch_cycle(self) -> None:
         """
-        Continuously fetch assets from the connector and push them to Sekoia.io.
+        Fetch assets from the connector and push them to Sekoia.io, once.
 
-        This method runs in a loop until the connector is stopped. On each cycle, it:
+        The cycle:
           1. Retrieves assets from the connector.
           2. Batches the retrieved assets.
           3. Sends the batch to Sekoia.io.
-          4. Waits for the next cycle according to the configured frequency.
 
-        If no assets are fetched during a cycle, the method sleeps for a short
-        interval to avoid overwhelming the API with repeated requests.
+        Its counters are kept in `cycle_stats`.
+
+        If the connector is stopped, the cycle raises AssetConnectorStoppedError
+        at the next asset or batch: subclasses committing their checkpoint once
+        the cycle returns never commit an interrupted cycle. The cycle then
+        drops the `get_assets` generator, which runs its `finally` blocks: commit
+        the checkpoint in `update_checkpoint` only, never in `get_assets`.
 
         A batch that could not be pushed raises AssetConnectorPushError: the
         next cycle resumes from the last committed checkpoint, before it.
@@ -684,16 +699,17 @@ class AsyncAssetConnector(Trigger):
         # every cycle and withdrawn as soon as the platform stops answering.
         self._skip_task_wait = False
 
+        self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
+
         await self._check_schema_and_reset_if_needed()
 
-        # save the starting time processing
-        processing_start = time.time()
-
         assets = []
-        total_number_of_assets = 0
         async for asset in self.get_assets():
+            if not self.running:
+                raise AssetConnectorStoppedError()
+
             assets.append(asset)
-            total_number_of_assets += 1
+            self.cycle_stats["fetched"] += 1
 
             if len(assets) >= self.batch_size:
                 await self._push_batch(assets)
@@ -702,23 +718,23 @@ class AsyncAssetConnector(Trigger):
         if assets:
             await self._push_batch(assets)
 
-        # save the end time processing
-        processing_end = time.time()
-        processing_time = processing_end - processing_start
-
-        # Compute the remaining sleeping time.
-        # If greater than 0 and no messages where fetched, pause the connector
-        delta_sleep = self.frequency - processing_time
-        if total_number_of_assets == 0 and delta_sleep > 0:
-            self.log(message=f"Next run in the future. Waiting {delta_sleep} seconds")
-
-            await asyncio.sleep(delta_sleep)
-
     async def _push_batch(self, assets: list[AssetItem]) -> None:
+        if not self.running:
+            raise AssetConnectorStoppedError()
+
         batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
-        if not await self.push_assets_to_sekoia(batch):
+        if await self.push_assets_to_sekoia(batch):
+            self.cycle_stats["pushed_batches"] += 1
+        else:
+            self.cycle_stats["failed_batches"] += 1
             # Going on would commit a checkpoint past the assets of this batch
             raise AssetConnectorPushError()
+
+    async def _wait(self, seconds: float) -> None:
+        # Wait in a worker thread with the timeout passed to Event.wait itself:
+        # the thread returns cleanly after `seconds` (or immediately when stop()
+        # is signalled), so no thread is leaked per pause.
+        await asyncio.to_thread(self._stop_event.wait, seconds)
 
     async def async_run(self) -> None:
         """
@@ -727,18 +743,37 @@ class AsyncAssetConnector(Trigger):
         try:
             while self.running:
                 try:
+                    processing_start = time.time()
                     await self.asset_fetch_cycle()
+
+                    # If no assets were fetched, pause the connector until the
+                    # next cycle
+                    delta_sleep = self.frequency - (time.time() - processing_start)
+                    if self.cycle_stats["fetched"] == 0 and delta_sleep > 0:
+                        self.log(
+                            message=f"Next run in the future. "
+                            f"Waiting {delta_sleep} seconds"
+                        )
+                        await self._wait(delta_sleep)
+                except AssetConnectorStoppedError:
+                    return
+                except AssetConnectorPushError:
+                    # The push error is already logged: retry at the next cycle,
+                    # not at once, so a lasting error does not refetch and repost
+                    # in a loop
+                    self.log(
+                        message=f"Next run in the future. "
+                        f"Waiting {self.frequency} seconds",
+                        level="warning",
+                    )
+                    await self._wait(self.frequency)
                 except AssetConnectorRateLimitError as e:
                     self.log(
                         message=f"Rate limit hit, pausing connector "
                         f"for {e.retry_after} seconds",
                         level="warning",
                     )
-                    # Wait in a worker thread with the timeout passed to
-                    # Event.wait itself: the thread returns cleanly after
-                    # retry_after (or immediately when stop() is signalled),
-                    # so no thread is leaked per pause.
-                    await asyncio.to_thread(self._stop_event.wait, e.retry_after)
+                    await self._wait(e.retry_after)
                 except Exception as e:
                     self.log_exception(
                         e,

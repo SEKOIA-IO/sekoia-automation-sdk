@@ -48,6 +48,7 @@ from sekoia_automation.exceptions import (
     AssetConnectorPushError,
     AssetConnectorRateLimitError,
     AssetConnectorStoppedError,
+    TriggerConfigurationError,
 )
 
 
@@ -516,30 +517,34 @@ def test_asset_fetch_cycle_does_not_sleep_when_no_assets(
     assert test_asset_connector.cycle_stats["fetched"] == 0
 
 
-def test_run_sleeps_when_no_assets(monkeypatch, test_asset_connector):
+def test_run_waits_when_no_assets(monkeypatch, test_asset_connector):
     test_asset_connector.set_assets(AssetList(version=1, items=[]))
-    sleep = Mock(side_effect=lambda _: test_asset_connector.stop())
-    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+    # Waiting on the stop event lets a SIGTERM end the pause at once
+    wait = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
     test_asset_connector.run()
 
-    sleep.assert_called_once()
-    assert 0 < sleep.call_args[0][0] <= 60
+    wait.assert_called_once()
+    assert 0 < wait.call_args[0][0] <= 60
 
 
-def test_run_does_not_sleep_when_assets_were_fetched(
+def test_run_does_not_wait_when_assets_were_fetched(
     monkeypatch, test_asset_connector, asset_list
 ):
     test_asset_connector.set_assets(asset_list)
-    test_asset_connector.push_assets_to_sekoia = Mock(
-        side_effect=lambda _: test_asset_connector.stop()
-    )
-    sleep = Mock()
-    monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
+
+    def push_then_stop(_):
+        test_asset_connector.stop()
+        return True
+
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
     test_asset_connector.run()
 
-    sleep.assert_not_called()
+    wait.assert_not_called()
 
 
 def test_asset_fetch_cycle_counts_batches(
@@ -576,16 +581,19 @@ def test_asset_fetch_cycle_raises_on_a_failed_push(
     }
 
 
-def test_run_goes_on_after_a_failed_push(test_asset_connector):
-    def fail_then_stop():
-        test_asset_connector.stop()
-        raise AssetConnectorPushError()
-
-    test_asset_connector.asset_fetch_cycle = Mock(side_effect=fail_then_stop)
+def test_run_waits_for_the_next_cycle_after_a_failed_push(
+    monkeypatch, test_asset_connector
+):
+    test_asset_connector.asset_fetch_cycle = Mock(side_effect=AssetConnectorPushError())
+    wait = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
     test_asset_connector.run()
 
-    test_asset_connector.log_exception.assert_called_once()
+    # Not at once: a lasting error would refetch and repost in a loop
+    wait.assert_called_once_with(60)
+    test_asset_connector.asset_fetch_cycle.assert_called_once()
+    test_asset_connector.log_exception.assert_not_called()
 
 
 def test_asset_fetch_cycle_raises_when_stopped_between_batches(
@@ -639,6 +647,17 @@ def test_configuration_api_key_not_sent_to_sentry(test_asset_connector):
     context = set_context.call_args[0][1]
     assert "sekoia_api_key" not in context
     assert context["sekoia_base_url"] == "http://example.com"
+
+
+def test_configuration_error_does_not_hold_the_api_key(test_asset_connector):
+    with pytest.raises(TriggerConfigurationError) as error:
+        # sekoia_base_url is missing
+        test_asset_connector.configuration = {"sekoia_api_key": "fake_api_key"}
+
+    assert "sekoia_base_url" in str(error.value)
+    assert "fake_api_key" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert error.value.__suppress_context__
 
 
 def test_update_checkpoint(

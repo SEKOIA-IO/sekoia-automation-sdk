@@ -1,6 +1,5 @@
 import signal
 import time
-from collections import Counter
 from threading import Timer
 from typing import Any
 
@@ -8,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from sekoia_automation.action import Action
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
     AssetConnectorStoppedError,
 )
@@ -18,7 +18,8 @@ from .connector import AssetConnector
 class AssetConnectorActionArguments(BaseModel):
     """Arguments of the asset connector, plus the connector configuration to act for."""
 
-    model_config = ConfigDict(extra="allow")
+    # The arguments hold the Sekoia.io API key and the configuration token
+    model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
 
     asset_connector_uuid: str
     connector_configuration_token: str
@@ -39,10 +40,16 @@ class AssetConnectorAction(Action):
 
     A cycle stopped before its end (time limit, rate limit, SIGTERM) returns
     `has_more: true`: the platform runs the action again, resuming from the
-    connector checkpoint. Only connectors committing their checkpoint after
-    each pushed batch can be split across runs: a connector committing once
-    per complete cycle must finish a cycle within `MAX_DURATION`, otherwise
-    every run starts again from the same checkpoint.
+    connector checkpoint. A cycle can only be split across runs if the
+    checkpoint saved by `update_checkpoint` after a push covers the pushed
+    assets and no more: `get_assets` yields the assets in checkpoint order
+    and moves its cursor per yielded asset, not per page read ahead. A
+    connector committing once per complete cycle must finish a cycle within
+    `MAX_DURATION`, otherwise every run starts again from the same checkpoint.
+
+    A batch that could not be pushed fails the run, with its counters, and
+    returns `has_more: false`: the checkpoint stays before the batch and the
+    next scheduled run resumes from it.
 
     Stopping interrupts the pushes to Sekoia.io, not a `get_assets` blocked in
     its own HTTP call: the connector owns the timeouts of its requests.
@@ -55,7 +62,8 @@ class AssetConnectorAction(Action):
     # The platform marks a run failed after 2 hours: keep time to stop cleanly.
     MAX_DURATION = 100 * 60
 
-    def run(self, arguments: AssetConnectorActionArguments) -> dict[str, Any]:
+    # Arguments validated in `run`: `validate_call` would put them in its errors
+    def run(self, arguments: dict) -> dict[str, Any]:
         # The connector registers its own SIGINT/SIGTERM handlers: restore the
         # previous ones once done, the process may run other actions
         previous_handlers = {
@@ -63,10 +71,14 @@ class AssetConnectorAction(Action):
             for signum in (signal.SIGINT, signal.SIGTERM)
         }
         try:
-            return self._run_cycle(arguments)
+            return self._run_cycle(
+                AssetConnectorActionArguments.model_validate(arguments)
+            )
         finally:
             for signum, handler in previous_handlers.items():
-                signal.signal(signum, handler)
+                # None: a handler not installed from Python, it cannot be restored
+                if handler is not None:
+                    signal.signal(signum, handler)
 
     def _run_cycle(self, arguments: AssetConnectorActionArguments) -> dict[str, Any]:
         asset_connector_uuid = arguments.asset_connector_uuid
@@ -95,7 +107,6 @@ class AssetConnectorAction(Action):
         stop_timer.start()
         connector._logs_timer.start()
 
-        stats: Counter[str] = Counter()
         has_more = False
         try:
             while True:
@@ -114,8 +125,6 @@ class AssetConnectorAction(Action):
                     if connector._stop_event.wait(error.retry_after):
                         has_more = True
                         break
-                finally:
-                    stats.update(connector.cycle_stats)
         except AssetConnectorStoppedError:
             connector.log(
                 message="Fetch cycle stopped before its end, the next run resumes "
@@ -123,12 +132,27 @@ class AssetConnectorAction(Action):
                 level="warning",
             )
             has_more = True
-        except Exception as error:
+        except AssetConnectorPushError:
+            # Fail the run without raising, so that the counters are returned.
+            # No `has_more`: a lasting error (revoked key, deleted configuration)
+            # would make the platform rerun the action at once, in a loop.
+            self.error("A batch of assets could not be pushed to Sekoia.io")
             connector.log(
-                message=f"Error while running asset connector "
-                f"{connector.connector_name}: {error}",
-                level="error",
+                message="A batch of assets could not be pushed to Sekoia.io, the "
+                "next run resumes from the last committed checkpoint",
+                level="warning",
             )
+        except Exception as error:
+            # An error log is sent at once and raises when the logs API is down:
+            # keep the real error
+            try:
+                connector.log(
+                    message=f"Error while running asset connector "
+                    f"{connector.connector_name}: {error}",
+                    level="error",
+                )
+            except Exception as log_error:
+                self.log(f"Unable to send the connector logs: {log_error}", "warning")
             raise
         finally:
             stop_timer.cancel()
@@ -138,9 +162,6 @@ class AssetConnectorAction(Action):
             except Exception as error:
                 self.log(f"Unable to send the connector logs: {error}", "warning")
 
-        return {
-            "fetched": stats["fetched"],
-            "pushed_batches": stats["pushed_batches"],
-            "failed_batches": stats["failed_batches"],
-            "has_more": has_more,
-        }
+        # The counters of the last cycle: a cycle retried after a rate limit
+        # fetches again the assets of the rate-limited batch
+        return {**connector.cycle_stats, "has_more": has_more}

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `AssetConnectorAction` to run one asset connector fetch cycle as an
+  action (e.g. on-premise). It stops before 100 minutes and returns
+  `has_more: true` when the cycle did not complete.
+- Add `cycle_stats` to asset connectors, with the counters of the last fetch cycle.
+
+### Changed
+
+Applies to `AssetConnector` and `AsyncAssetConnector`:
+
+- `asset_fetch_cycle` no longer sleeps; `run` / `async_run` do.
+- `asset_fetch_cycle` raises `AssetConnectorStoppedError` when the connector is
+  stopped mid-cycle.
+- `asset_fetch_cycle` raises `AssetConnectorPushError` when a batch could not be
+  pushed, instead of committing a checkpoint past it. The next cycle starts
+  after `frequency`.
+- `push_assets_to_sekoia` returns whether the assets were pushed.
+- A failed push stops retrying once the connector is stopped.
+- Pauses between cycles end as soon as the connector is stopped.
+
 ## 1.27.2 - 2026-11-04
 
 ### Changed

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
@@ -1041,3 +1042,24 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
+
+
+def test_async_asset_connector_runs_without_a_current_event_loop(
+    test_async_asset_connector,
+):
+    """Python 3.14 creates no event loop in the main thread: run() must create one"""
+    try:
+        previous_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        previous_loop = None
+    asyncio.set_event_loop(None)
+
+    try:
+        with patch.object(
+            FakeAsyncAssetConnector, "async_run", new_callable=AsyncMock
+        ) as async_run:
+            test_async_asset_connector.run()
+    finally:
+        asyncio.set_event_loop(previous_loop)
+
+    async_run.assert_awaited_once()

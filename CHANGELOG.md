@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.27.3 - 2026-11-17
+
+### Fixed
+
+- Start `AsyncConnector` and `AsyncAssetConnector` on Python 3.14, where `run()` stopped with "There is no current event loop in thread 'MainThread'": a new event loop is created when the thread has none
+
 ## 1.27.2 - 2026-11-04
 
 ### Changed

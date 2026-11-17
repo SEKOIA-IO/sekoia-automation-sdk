@@ -28,10 +28,17 @@ Applies to `AssetConnector` and `AsyncAssetConnector`:
 - A failed push stops retrying once the connector is stopped.
 - Pauses between cycles end as soon as the connector is stopped.
 
-### Fixed
+## 1.27.2 - 2026-11-04
 
-- Do not send the Sekoia.io API key of asset connectors to Sentry, nor put it in
-  configuration errors.
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
+## 1.27.1 - 2026-10-30
+
+### Added
+
+- Revert PEP 561 until the exposed types are improved.
 
 ## 1.27.0 - 2026-10-06
 

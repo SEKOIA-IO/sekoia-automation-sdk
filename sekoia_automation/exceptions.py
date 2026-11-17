@@ -46,3 +46,7 @@ class AssetConnectorRateLimitError(AutomationSDKError):
     def __init__(self, retry_after: float):
         super().__init__("Asset connector push rate limit exceeded (HTTP 429)")
         self.retry_after = retry_after
+
+
+class EnvironmentRuntimeError(AutomationSDKError):
+    """Raised when an issue with the runtime engine (e.g., Fission) is raised"""

@@ -10,10 +10,6 @@ import requests
 from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector.connector import AssetConnector
-from sekoia_automation.asset_connector.utils import (
-    RATE_LIMIT_DEFAULT_WAIT,
-    parse_retry_after,
-)
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -41,6 +37,12 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     KillChainPhaseID,
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
+)
+from sekoia_automation.asset_connector.utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    TASK_POLL_INTERVAL_DEFAULT,
+    TASK_POLL_TIMEOUT_DEFAULT,
+    parse_retry_after,
 )
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
@@ -674,3 +676,166 @@ def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector.checkpoint_reset_count == 1
+
+
+def test_task_endpoint(test_asset_connector):
+    assert test_asset_connector.task_endpoint == "http://example.com/api/v1/tasks"
+
+
+def test_task_poll_settings_from_env(test_asset_connector):
+    with patch.dict(
+        os.environ,
+        {
+            "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0.5",
+            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "12",
+        },
+    ):
+        assert test_asset_connector.task_poll_interval == 0.5
+        assert test_asset_connector.task_poll_timeout == 12
+
+    with patch.dict(os.environ, {"ASSET_CONNECTOR_TASK_POLL_INTERVAL": "not-a-number"}):
+        assert test_asset_connector.task_poll_interval == TASK_POLL_INTERVAL_DEFAULT
+
+    assert test_asset_connector.task_poll_timeout == TASK_POLL_TIMEOUT_DEFAULT
+
+
+def test_push_assets_to_sekoia_waits_for_the_task(test_asset_connector, asset_list):
+    test_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
+    test_asset_connector.post_assets_to_api = Mock(return_value={"task_id": "task-1"})
+    test_asset_connector.wait_for_push_task = Mock()
+
+    test_asset_connector.push_assets_to_sekoia(asset_list)
+
+    test_asset_connector.wait_for_push_task.assert_called_once_with("task-1")
+
+
+def test_push_assets_to_sekoia_without_task_id(test_asset_connector, asset_list):
+    # Platforms that could not create a task return an empty body: nothing to wait for
+    test_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
+    test_asset_connector.post_assets_to_api = Mock(return_value={})
+    test_asset_connector.wait_for_push_task = Mock()
+
+    test_asset_connector.push_assets_to_sekoia(asset_list)
+
+    test_asset_connector.wait_for_push_task.assert_not_called()
+
+
+def test_wait_for_push_task_polls_until_finished(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(
+        side_effect=[
+            Mock(status_code=200, json=lambda: {"status": "PENDING"}),
+            Mock(status_code=200, json=lambda: {"status": "FINISHED"}),
+        ]
+    )
+
+    with patch.dict(os.environ, {"ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0"}):
+        test_asset_connector.wait_for_push_task("task-1")
+
+    assert test_asset_connector._http_session.get.call_count == 2
+    test_asset_connector._http_session.get.assert_called_with(
+        "http://example.com/api/v1/tasks/task-1", timeout=30
+    )
+    assert any(
+        "finished successfully" in call.kwargs.get("message", "")
+        for call in test_asset_connector.log.call_args_list
+    )
+
+
+def test_wait_for_push_task_reports_a_failed_task(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(
+        return_value=Mock(
+            status_code=200, json=lambda: {"status": "FAILED", "error": "boom"}
+        )
+    )
+
+    test_asset_connector.wait_for_push_task("task-1")
+
+    assert any(
+        call.kwargs.get("level") == "error" and "boom" in call.kwargs.get("message", "")
+        for call in test_asset_connector.log.call_args_list
+    )
+
+
+def test_wait_for_push_task_gives_up_on_timeout(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(
+        return_value=Mock(status_code=200, json=lambda: {"status": "PENDING"})
+    )
+
+    with patch.dict(
+        os.environ,
+        {
+            "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0",
+            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "0",
+        },
+    ):
+        test_asset_connector.wait_for_push_task("task-1")
+
+    assert test_asset_connector._http_session.get.call_count == 1
+    assert any(
+        call.kwargs.get("level") == "warning"
+        for call in test_asset_connector.log.call_args_list
+    )
+
+
+def test_wait_for_push_task_on_api_error(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(return_value=Mock(status_code=404))
+
+    test_asset_connector.wait_for_push_task("task-1")
+
+    assert any(
+        call.kwargs.get("level") == "error"
+        for call in test_asset_connector.log.call_args_list
+    )
+
+
+def test_wait_for_push_task_on_request_error(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(
+        side_effect=requests.ConnectionError("nope")
+    )
+
+    test_asset_connector.wait_for_push_task("task-1")
+
+    test_asset_connector.log_exception.assert_called_once()
+
+
+def test_wait_for_push_task_skipped_after_a_timeout(test_asset_connector):
+    # A wedged platform must not cost a full timeout on every remaining batch
+    test_asset_connector._http_session.get = Mock(
+        return_value=Mock(status_code=200, json=lambda: {"status": "PENDING"})
+    )
+
+    with patch.dict(
+        os.environ,
+        {
+            "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0",
+            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "0",
+        },
+    ):
+        test_asset_connector.wait_for_push_task("task-1")
+        test_asset_connector.wait_for_push_task("task-2")
+
+    assert test_asset_connector._skip_task_wait is True
+    assert test_asset_connector._http_session.get.call_count == 1
+
+
+def test_wait_for_push_task_skipped_after_an_api_error(test_asset_connector):
+    test_asset_connector._http_session.get = Mock(return_value=Mock(status_code=500))
+
+    test_asset_connector.wait_for_push_task("task-1")
+    test_asset_connector.wait_for_push_task("task-2")
+
+    assert test_asset_connector._http_session.get.call_count == 1
+
+
+def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_list):
+    test_asset_connector._skip_task_wait = True
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector._skip_task_wait is False

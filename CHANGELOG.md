@@ -19,6 +19,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Trigger._execute_once` now returns whether `run` completed without raising
 
+## 1.27.2 - 2026-11-04
+
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
+## 1.27.1 - 2026-10-30
+
+### Added
+
+- Revert PEP 561 until the exposed types are improved.
+
+## 1.27.0 - 2026-10-06
+
+### Added
+
+- Make package PEP 561 compatible to let Mypy use type checks.
+
+### Changed
+
+- Merge `lint` and `dev` dependency groups.
+- Remove the `orjson` dependency contraint.
+
+## 1.26.1 - 2026-10-02
+
+### Fixed
+
+- Fix memory leaks when several actions run in the same process (e.g. in
+  Fission):
+  - Detach the action log handler from the root logger once the action is
+    executed, instead of keeping every past action alive.
+  - Reuse the Sentry client across `Module` instances when the DSN and
+    environment are unchanged, instead of creating (and leaking) a new client
+    on each instantiation.
+
+## 1.26.0 - 2026-09-11
+
+### Fixed
+
+- Correctly define the base directory (where `manifest.json` is located) in
+  Fission environment.
+
+### Added
+
+- Use `pydantic-settings` to manage environment variables and Fission specific
+  configuration.
+
+### Changed
+
+- Raise an explicit `MissingConfigurationError` in case of configuration error
+  where we were previously raising a `FileNotFoundError` or `KeyError` depending
+  on the execution runtime.
+- Update `ruff` and apply latest rules on code.
+
+### Removed
+
+- Remove `Module.set_working_directory()` that was only used in tests.
+
+## 1.25.0 - 2026-09-03
+
+### Added
+
+- Asset connectors now wait for the Task API to confirm the assets pushed to Sekoia.io were ingested, and report the outcome of the push task. The polling is tunable with the `ASSET_CONNECTOR_TASK_POLL_INTERVAL` and `ASSET_CONNECTOR_TASK_POLL_TIMEOUT` environment variables
+- Support for trigger-level secrets: trigger configuration fields marked with
+  `Field(json_schema_extra={"secret": True})` are emitted as `secrets` in the
+  generated trigger manifest, and their values are fetched at startup from the
+  same `/secrets` call already used for module secrets (via its `node_value`
+  field). Resolution is best-effort: when the API does not serve trigger-level
+  secrets yet, the value from the configuration file is kept, so the SDK stays
+  compatible with an older platform.
+
 ## 1.24.0 - 2026-07-30
 
 ### Added

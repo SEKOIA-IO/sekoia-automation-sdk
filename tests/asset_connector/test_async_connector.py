@@ -9,10 +9,6 @@ import aiohttp
 import pytest
 
 from sekoia_automation.asset_connector.async_connector import AsyncAssetConnector
-from sekoia_automation.asset_connector.utils import (
-    RATE_LIMIT_DEFAULT_WAIT,
-    parse_retry_after,
-)
 from sekoia_automation.asset_connector.models.connector import AssetItem, AssetList
 from sekoia_automation.asset_connector.models.ocsf.base import Metadata, Product
 from sekoia_automation.asset_connector.models.ocsf.device import (
@@ -40,6 +36,12 @@ from sekoia_automation.asset_connector.models.ocsf.vulnerability import (
     KillChainPhaseID,
     VulnerabilityDetails,
     VulnerabilityOCSFModel,
+)
+from sekoia_automation.asset_connector.utils import (
+    RATE_LIMIT_DEFAULT_WAIT,
+    TASK_POLL_INTERVAL_DEFAULT,
+    TASK_POLL_TIMEOUT_DEFAULT,
+    parse_retry_after,
 )
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
@@ -828,3 +830,214 @@ async def test_asset_fetch_cycle_resets_checkpoint_on_schema_change(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector.checkpoint_reset_count == 1
+
+
+def test_task_endpoint(test_async_asset_connector):
+    assert test_async_asset_connector.task_endpoint == "http://example.com/api/v1/tasks"
+
+
+def test_task_poll_settings_from_env(test_async_asset_connector):
+    with patch.dict(
+        os.environ,
+        {
+            "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0.5",
+            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "12",
+        },
+    ):
+        assert test_async_asset_connector.task_poll_interval == 0.5
+        assert test_async_asset_connector.task_poll_timeout == 12
+
+    with patch.dict(os.environ, {"ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "not-a-number"}):
+        assert test_async_asset_connector.task_poll_timeout == TASK_POLL_TIMEOUT_DEFAULT
+
+    assert test_async_asset_connector.task_poll_interval == TASK_POLL_INTERVAL_DEFAULT
+
+
+def _task_response(status_code: int, payload: dict | str) -> AsyncMock:
+    response = AsyncMock()
+    response.status = status_code
+    response.text = AsyncMock(
+        return_value=payload if isinstance(payload, str) else json.dumps(payload)
+    )
+    return response
+
+
+@pytest.mark.asyncio
+async def test_push_assets_to_sekoia_waits_for_the_task(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
+    test_async_asset_connector.post_assets_to_api = AsyncMock(
+        return_value={"task_id": "task-1"}
+    )
+    test_async_asset_connector.wait_for_push_task = AsyncMock()
+
+    await test_async_asset_connector.push_assets_to_sekoia(asset_list)
+
+    test_async_asset_connector.wait_for_push_task.assert_awaited_once_with("task-1")
+
+
+@pytest.mark.asyncio
+async def test_push_assets_to_sekoia_without_task_id(
+    test_async_asset_connector, asset_list
+):
+    # Platforms that could not create a task return an empty body: nothing to wait for
+    test_async_asset_connector.module._connector_configuration_uuid = (
+        "04716e25-c97f-4a22-925e-8b636ad9c8a4"
+    )
+    test_async_asset_connector.post_assets_to_api = AsyncMock(return_value={})
+    test_async_asset_connector.wait_for_push_task = AsyncMock()
+
+    await test_async_asset_connector.push_assets_to_sekoia(asset_list)
+
+    test_async_asset_connector.wait_for_push_task.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_polls_until_finished(test_async_asset_connector):
+    responses = [
+        _task_response(200, {"status": "PENDING"}),
+        _task_response(200, {"status": "FINISHED"}),
+    ]
+
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.side_effect = responses
+        mock_get.return_value.__aexit__.return_value = None
+
+        with patch.dict(os.environ, {"ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0"}):
+            await test_async_asset_connector.wait_for_push_task("task-1")
+
+        assert mock_get.call_count == 2
+        assert mock_get.call_args.args[0] == "http://example.com/api/v1/tasks/task-1"
+
+    assert any(
+        "finished successfully" in call.kwargs.get("message", "")
+        for call in test_async_asset_connector.log.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_reports_a_failed_task(test_async_asset_connector):
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(
+            200, {"status": "FAILED", "error": "boom"}
+        )
+        mock_get.return_value.__aexit__.return_value = None
+
+        await test_async_asset_connector.wait_for_push_task("task-1")
+
+    assert any(
+        call.kwargs.get("level") == "error" and "boom" in call.kwargs.get("message", "")
+        for call in test_async_asset_connector.log.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_gives_up_on_timeout(test_async_asset_connector):
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(
+            200, {"status": "PENDING"}
+        )
+        mock_get.return_value.__aexit__.return_value = None
+
+        with patch.dict(
+            os.environ,
+            {
+                "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0",
+                "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "0",
+            },
+        ):
+            await test_async_asset_connector.wait_for_push_task("task-1")
+
+        assert mock_get.call_count == 1
+
+    assert any(
+        call.kwargs.get("level") == "warning"
+        for call in test_async_asset_connector.log.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_on_api_error(test_async_asset_connector):
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(404, "")
+        mock_get.return_value.__aexit__.return_value = None
+
+        await test_async_asset_connector.wait_for_push_task("task-1")
+
+    assert any(
+        call.kwargs.get("level") == "error"
+        for call in test_async_asset_connector.log.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_on_invalid_payload(test_async_asset_connector):
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(200, "not json")
+        mock_get.return_value.__aexit__.return_value = None
+
+        await test_async_asset_connector.wait_for_push_task("task-1")
+
+    test_async_asset_connector.log_exception.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_on_request_error(test_async_asset_connector):
+    with patch("aiohttp.ClientSession.get", side_effect=aiohttp.ClientError("nope")):
+        await test_async_asset_connector.wait_for_push_task("task-1")
+
+    test_async_asset_connector.log_exception.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_skipped_after_a_timeout(test_async_asset_connector):
+    # A wedged platform must not cost a full timeout on every remaining batch
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(
+            200, {"status": "PENDING"}
+        )
+        mock_get.return_value.__aexit__.return_value = None
+
+        with patch.dict(
+            os.environ,
+            {
+                "ASSET_CONNECTOR_TASK_POLL_INTERVAL": "0",
+                "ASSET_CONNECTOR_TASK_POLL_TIMEOUT": "0",
+            },
+        ):
+            await test_async_asset_connector.wait_for_push_task("task-1")
+            await test_async_asset_connector.wait_for_push_task("task-2")
+
+        assert mock_get.call_count == 1
+
+    assert test_async_asset_connector._skip_task_wait is True
+
+
+@pytest.mark.asyncio
+async def test_wait_for_push_task_skipped_after_an_api_error(
+    test_async_asset_connector,
+):
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        mock_get.return_value.__aenter__.return_value = _task_response(500, "")
+        mock_get.return_value.__aexit__.return_value = None
+
+        await test_async_asset_connector.wait_for_push_task("task-1")
+        await test_async_asset_connector.wait_for_push_task("task-2")
+
+        assert mock_get.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_reenables_the_task_wait(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector._skip_task_wait = True
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock()
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector._skip_task_wait is False

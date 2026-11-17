@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from requests import Response
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
@@ -52,6 +53,10 @@ class Connector(Trigger, MetricsMixin, ABC):
         """
         return self.__class__.__name__
 
+    def _apply_node_secrets(self) -> None:
+        # Node-level secrets are supported for triggers only for now; connectors: no-op.
+        return
+
     @property  # type: ignore[no-redef]
     def configuration(self) -> DefaultConnectorConfiguration:
         if self._configuration is None:
@@ -59,7 +64,7 @@ class Connector(Trigger, MetricsMixin, ABC):
                 self.configuration = self.module.load_config(
                     self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
                 )
-            except FileNotFoundError:
+            except MissingConfigurationError:
                 return super().configuration  # type: ignore[return-value]
         return self._configuration  # type: ignore[return-value]
 

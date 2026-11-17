@@ -63,7 +63,8 @@ class Action(ModuleItem):
         self._outputs: dict[str, bool] = {}
         self._result_as_file = True
         self._update_secrets = False
-        logging.getLogger().addHandler(ActionLogHandler(self))
+        self._log_handler = ActionLogHandler(self)
+        logging.getLogger().addHandler(self._log_handler)
 
         # Make sure arguments are validated/coerced by Pydantic
         # if a type annotation is defined
@@ -100,14 +101,20 @@ class Action(ModuleItem):
 
     def execute(self) -> None:
         try:
-            self._ensure_data_path_set()
-            self.set_task_as_running()
-            self._results = self.run(self.arguments)
-        except Exception:
-            self.error(f"An unexpected error occurred: {format_exc()}")
-            sentry_sdk.capture_exception()
+            try:
+                self._ensure_data_path_set()
+                self.set_task_as_running()
+                self._results = self.run(self.arguments)
+            except Exception:
+                self.error(f"An unexpected error occurred: {format_exc()}")
+                sentry_sdk.capture_exception()
 
-        self.send_results()
+            self.send_results()
+        finally:
+            # The process may run several actions (e.g. in Fission): detach the
+            # handler so that it doesn't keep this action alive and receive the
+            # logs of the following ones
+            logging.getLogger().removeHandler(self._log_handler)
 
     def log(
         self,

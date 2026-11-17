@@ -271,6 +271,14 @@ def test_query_exception_api(test_connector, requests_mock):
     assert test_connector.push_events_to_intakes(EVENTS) == ["001", "002"]
 
 
+def test_apply_node_secrets_is_a_noop_for_connectors(test_connector):
+    test_connector._configuration = DefaultConnectorConfiguration(intake_key="foo")
+
+    test_connector._apply_node_secrets()
+
+    assert test_connector._configuration.intake_key == "foo"
+
+
 def test_connector_configuration(test_connector):
     test_connector._configuration = None
     config = DefaultConnectorConfiguration(intake_key="foo")

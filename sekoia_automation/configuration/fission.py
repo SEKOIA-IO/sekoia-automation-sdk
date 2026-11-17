@@ -4,6 +4,7 @@ import os
 from flask import request
 
 from sekoia_automation.configuration.base import Configuration
+from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.configuration.utils import json_load
 
 
@@ -35,7 +36,7 @@ class FissionConfiguration(Configuration):
             return None
 
         # If the configuration is not found, raise an error
-        raise KeyError(f"{name} does not exist.")
+        raise MissingConfigurationError(f"{name} does not exist.")
 
     def __hash__(self):
         return hash(frozenset(self.configurations.items()))

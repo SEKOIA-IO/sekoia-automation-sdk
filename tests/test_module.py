@@ -1,9 +1,12 @@
 import json
+import os
+from contextlib import chdir
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import pytest
+import sentry_sdk
 from sentry_sdk import get_isolation_scope
 
 from sekoia_automation import SekoiaAutomationBaseModel
@@ -49,13 +52,14 @@ def app():
     return app
 
 
-def test_command_for_fission(app, monkeypatch):
-    module = Module()
-    # Set SYMPHONY_RUNTIME to "Fission"
-    monkeypatch.setenv("SYMPHONY_RUNTIME", "Fission")
+def test_command_for_fission(app):
+    with (
+        patch.dict(os.environ, {"SYMPHONY_RUNTIME": "fission"}),
+        app.test_request_context("/", headers={"command": "some_command"}),
+    ):
+        module = Module()
 
-    # Use a test request context to simulate a Flask request
-    with app.test_request_context("/", headers={"command": "some_command"}):
+        # Use a test request context to simulate a Flask request
         assert module.command == "some_command"
 
 
@@ -162,16 +166,7 @@ def test_configuration_as_model():
         module.configuration = {"number": "NotANumber"}
 
 
-def test_module_working_directory():
-    module = Module()
-    assert module._working_directory == Path(__file__).parent.parent
-
-    module.set_working_directory(Path("/tmp"))
-    assert module._working_directory == Path("/tmp")
-
-
 def test_module_manifest_loading():
-    module = Module()
     manifest_content = {
         "name": "Test Module",
         "version": "1.0.0",
@@ -186,8 +181,9 @@ def test_module_manifest_loading():
         with manifest_path.open("w") as f:
             json.dump(manifest_content, f)
 
-        module.set_working_directory(temp_path)
-        assert module.manifest == manifest_content
+        with chdir(temp_path):
+            module = Module()
+            assert module.manifest == manifest_content
 
 
 def test_configuration_setter_add_secret_not_required():
@@ -317,3 +313,45 @@ def test_init_sentry():
         assert tags["playbook_run_uuid"] == "playbook_run"
         assert tags["trigger_configuration_uuid"] == "trigger_configuration"
         assert tags["connector_configuration_uuid"] == "connector_configuration"
+
+
+@pytest.fixture
+def reset_sentry_client():
+    Module._sentry_client = None
+    Module._sentry_options = None
+    yield
+    Module._sentry_client = None
+    Module._sentry_options = None
+
+
+def test_init_sentry_reuses_client(reset_sentry_client):
+    dsn = "http://1234@localhost/1234"
+    with (
+        patch.object(Module, "_load_sentry_dsn", return_value=dsn),
+        patch.object(Module, "_load_environment", return_value=None),
+        patch("sentry_sdk.init", wraps=sentry_sdk.init) as init,
+    ):
+        Module()
+        Module()
+
+    init.assert_called_once_with(dsn, environment=None)
+
+
+def test_init_sentry_replaces_client_on_new_options(reset_sentry_client):
+    with (
+        patch.object(Module, "_load_environment", return_value="test"),
+        patch("sentry_sdk.init", wraps=sentry_sdk.init) as init,
+    ):
+        with patch.object(
+            Module, "_load_sentry_dsn", return_value="http://1234@localhost/1234"
+        ):
+            Module()
+            first_client = sentry_sdk.get_client()
+        with patch.object(
+            Module, "_load_sentry_dsn", return_value="http://5678@localhost/5678"
+        ):
+            Module()
+
+    assert init.call_count == 2
+    assert sentry_sdk.get_client() is not first_client
+    assert sentry_sdk.get_client().options["dsn"] == "http://5678@localhost/5678"

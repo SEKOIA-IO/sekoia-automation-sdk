@@ -221,17 +221,19 @@ class AsyncConnector(Connector, ABC):
     # Put infinite arg only to have testing easier
     async def async_run(self) -> None:  # pragma: no cover
         """Runs Connector."""
-        while self.running:
-            try:
-                await self.async_next_run()
-            except Exception as e:
-                self.log_exception(
-                    e,
-                    message=f"Error while running connector {self.connector_name}",
-                )
+        log_backoff = self._log_backoff(
+            f"Error while running connector {self.connector_name}"
+        )
 
-                if self.frequency:
-                    await asyncio.sleep(self.frequency)
+        while self.running:
+            # New controller per iteration, so the delay resets on success.
+            # `self.frequency` is not usable as a pause here: it defaults to 0.
+            async for attempt in self._async_error_backoff(log_backoff):
+                with attempt:
+                    if not self.running:
+                        break
+
+                    await self.async_next_run()
 
         if self._session:
             await self._session.close()

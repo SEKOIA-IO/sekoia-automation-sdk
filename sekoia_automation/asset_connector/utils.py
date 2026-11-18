@@ -101,9 +101,10 @@ def push_429_message(body: str | None, retry_after: float) -> str:
     wait = f"Waiting {retry_after} seconds before refetching."
     detail = parse_error_detail(body) or {}
     if detail.get("code") == LIMIT_REACHED_CODE:
+        reached = detail.get("limits")
         limits = ", ".join(
             f"{limit.get('figure')} per {limit.get('scope')}"
-            for limit in detail.get("limits") or []
+            for limit in (reached if isinstance(reached, list) else [])
             if isinstance(limit, dict)
         )
         return f"Asset connector limit reached ({limits}). {wait}"

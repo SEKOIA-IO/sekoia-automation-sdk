@@ -896,6 +896,20 @@ def test_post_assets_to_api_limit_reached(test_asset_connector, asset_list):
     )
 
 
+def test_post_assets_to_api_limit_reached_with_malformed_limits(
+    test_asset_connector, asset_list
+):
+    body = {"detail": {"code": "ASSET_CONNECTOR_LIMIT_REACHED", "limits": 5}}
+    test_asset_connector._http_session.post = Mock(
+        return_value=push_response(429, json.dumps(body))
+    )
+
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+
+
 def test_post_assets_to_api_rate_limited_logs_code_and_limit(
     test_asset_connector, asset_list
 ):

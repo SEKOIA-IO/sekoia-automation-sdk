@@ -46,6 +46,26 @@ from sekoia_automation.asset_connector.utils import (
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
+async def post_with_response(
+    connector, asset_list, status: int, body: str, headers: dict | None = None
+):
+    """Push asset_list while the push API answers with the given raw body."""
+    mock_response = AsyncMock()
+    mock_response.status = status
+    mock_response.text = AsyncMock(return_value=body)
+    mock_response.headers = headers or {}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+        try:
+            return await connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+        finally:
+            await connector._session.close()
+
+
 class ContextDict(dict):
     def __enter__(self):
         return self
@@ -684,6 +704,13 @@ async def test_post_assets_to_api_rate_limited_without_retry_after(
     await test_async_asset_connector._session.close()
 
     assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector push rate limited (HTTP 429). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
 
 
 def test_parse_retry_after_delta_seconds():
@@ -1041,26 +1068,6 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
-
-
-async def post_with_response(
-    connector, asset_list, status: int, body: str, headers: dict | None = None
-):
-    """Push asset_list while the push API answers with the given raw body."""
-    mock_response = AsyncMock()
-    mock_response.status = status
-    mock_response.text = AsyncMock(return_value=body)
-    mock_response.headers = headers or {}
-
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_post.return_value.__aenter__.return_value = mock_response
-        mock_post.return_value.__aexit__.return_value = None
-        try:
-            return await connector.post_assets_to_api(
-                asset_list, "http://example.com/api"
-            )
-        finally:
-            await connector._session.close()
 
 
 @pytest.mark.asyncio

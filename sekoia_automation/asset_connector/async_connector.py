@@ -30,10 +30,9 @@ from .utils import (
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
     get_env_float,
-    parse_error_detail,
     parse_retry_after,
+    push_429_message,
     push_error_message,
-    rate_limit_message,
 )
 
 
@@ -323,9 +322,7 @@ class AsyncAssetConnector(Trigger):
         if status_code == 429:
             retry_after = parse_retry_after(retry_after_header, self.rate_limit_wait)
             self.log(
-                message=rate_limit_message(
-                    parse_error_detail(response_text), retry_after
-                ),
+                message=push_429_message(response_text, retry_after),
                 level="warning",
             )
             raise AssetConnectorRateLimitError(retry_after=retry_after)

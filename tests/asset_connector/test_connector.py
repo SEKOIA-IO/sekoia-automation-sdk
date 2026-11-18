@@ -47,6 +47,17 @@ from sekoia_automation.asset_connector.utils import (
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
+def push_response(
+    status_code: int, body: str, headers: dict | None = None
+) -> requests.Response:
+    """A push API response carrying the given raw body."""
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = body.encode()
+    response.headers.update(headers or {})
+    return response
+
+
 class ContextDict(dict):
     def __enter__(self):
         return self
@@ -541,6 +552,13 @@ def test_post_assets_to_api_rate_limited_without_retry_after(
     with pytest.raises(AssetConnectorRateLimitError) as exc_info:
         test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
     assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector push rate limited (HTTP 429). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
 
 
 def test_parse_retry_after_delta_seconds():
@@ -845,17 +863,6 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
-
-
-def push_response(
-    status_code: int, body: str, headers: dict | None = None
-) -> requests.Response:
-    """A push API response carrying the given raw body."""
-    response = requests.Response()
-    response.status_code = status_code
-    response._content = body.encode()
-    response.headers.update(headers or {})
-    return response
 
 
 def test_post_assets_to_api_limit_reached(test_asset_connector, asset_list):

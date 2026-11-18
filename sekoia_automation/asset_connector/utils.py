@@ -87,18 +87,19 @@ def parse_error_detail(body: str | None) -> dict | None:
     return detail if isinstance(detail, dict) else None
 
 
-def rate_limit_message(detail: dict | None, retry_after: float) -> str:
+def push_429_message(body: str | None, retry_after: float) -> str:
     """
-    Describe a refused push (HTTP 429): a reached limit or a rate limit.
+    Describe a push refused with an HTTP 429: a reached limit, naming each
+    limit, or a rate limit.
 
     Args:
-        detail: Detail of the 429 response, if any.
+        body: Raw response body.
         retry_after: Wait in seconds before the next fetch.
     Returns:
         str: The message to log.
     """
     wait = f"Waiting {retry_after} seconds before refetching."
-    detail = detail or {}
+    detail = parse_error_detail(body) or {}
     if detail.get("code") == LIMIT_REACHED_CODE:
         limits = ", ".join(
             f"{limit.get('figure')} per {limit.get('scope')}"

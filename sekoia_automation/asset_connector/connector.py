@@ -28,10 +28,9 @@ from .utils import (
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
     get_env_float,
-    parse_error_detail,
     parse_retry_after,
+    push_429_message,
     push_error_message,
-    rate_limit_message,
 )
 
 
@@ -281,7 +280,7 @@ class AssetConnector(Trigger):
                 res.headers.get("Retry-After"), self.rate_limit_wait
             )
             self.log(
-                message=rate_limit_message(parse_error_detail(res.text), retry_after),
+                message=push_429_message(res.text, retry_after),
                 level="warning",
             )
             raise AssetConnectorRateLimitError(retry_after=retry_after)

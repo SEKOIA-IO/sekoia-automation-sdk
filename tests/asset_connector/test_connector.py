@@ -3,7 +3,7 @@ import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -356,7 +356,7 @@ def test_post_assets_to_api_success(test_asset_connector, asset_list):
 
 
 def test_post_assets_to_api_failure(test_asset_connector, asset_list):
-    test_asset_connector._http_session.post = Mock(return_value=Mock(status_code=400))
+    test_asset_connector._http_session.post = Mock(return_value=push_response(400, ""))
     response = test_asset_connector.post_assets_to_api(
         asset_list, "http://example.com/api"
     )
@@ -377,19 +377,25 @@ def test_post_assets_to_api_timeout(test_asset_connector, asset_list):
     test_asset_connector.log_exception.assert_called_once()
 
 
-def test_post_assets_to_api_failure_with_empty_body(test_asset_connector, asset_list):
-    # A falsy response (e.g. 4xx) falls back to its text body.
-    res = MagicMock(status_code=400, text="boom")
-    res.__bool__.return_value = False
-    test_asset_connector._http_session.post = Mock(return_value=res)
+def test_post_assets_to_api_failure_logs_raw_text_body(
+    test_asset_connector, asset_list
+):
+    test_asset_connector._http_session.post = Mock(
+        return_value=push_response(502, "<html>Bad gateway</html>")
+    )
 
     response = test_asset_connector.post_assets_to_api(
         asset_list, "http://example.com/api"
     )
 
     assert response is None
-    res.json.assert_not_called()
-    test_asset_connector.log.assert_called_once()
+    test_asset_connector.log.assert_called_once_with(
+        message=(
+            "Error while pushing assets to Sekoia.io - Server error - HTTP (502) - "
+            "<html>Bad gateway</html>"
+        ),
+        level="error",
+    )
 
 
 def test_push_assets_to_sekoia_noop_when_no_assets(test_asset_connector):
@@ -519,7 +525,7 @@ def test_post_assets_to_api_rate_limited_with_retry_after(
     test_asset_connector, asset_list
 ):
     test_asset_connector._http_session.post = Mock(
-        return_value=Mock(status_code=429, headers={"Retry-After": "30"})
+        return_value=push_response(429, "", headers={"Retry-After": "30"})
     )
     with pytest.raises(AssetConnectorRateLimitError) as exc_info:
         test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
@@ -530,7 +536,7 @@ def test_post_assets_to_api_rate_limited_without_retry_after(
     test_asset_connector, asset_list
 ):
     test_asset_connector._http_session.post = Mock(
-        return_value=Mock(status_code=429, headers={})
+        return_value=push_response(429, "", headers={})
     )
     with pytest.raises(AssetConnectorRateLimitError) as exc_info:
         test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
@@ -839,3 +845,105 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     test_asset_connector.asset_fetch_cycle()
 
     assert test_asset_connector._skip_task_wait is False
+
+
+def push_response(
+    status_code: int, body: str, headers: dict | None = None
+) -> requests.Response:
+    """A push API response carrying the given raw body."""
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = body.encode()
+    response.headers.update(headers or {})
+    return response
+
+
+def test_post_assets_to_api_limit_reached(test_asset_connector, asset_list):
+    body = {
+        "detail": {
+            "message": "Asset connector limit reached",
+            "code": "ASSET_CONNECTOR_LIMIT_REACHED",
+            "limits": [
+                {"figure": "active_assets", "scope": "configuration"},
+                {"figure": "lifetime_assets", "scope": "community"},
+            ],
+        }
+    }
+    test_asset_connector._http_session.post = Mock(
+        return_value=push_response(429, json.dumps(body))
+    )
+    test_asset_connector.update_checkpoint = Mock()
+
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_asset_connector.update_checkpoint.assert_not_called()
+    test_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector limit reached (active_assets per configuration, "
+            "lifetime_assets per community). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
+
+
+def test_post_assets_to_api_rate_limited_logs_code_and_limit(
+    test_asset_connector, asset_list
+):
+    body = {
+        "detail": {
+            "message": "Asset connector push rate limit exceeded",
+            "code": "ASSET_CONNECTOR_RATE_LIMIT_EXCEEDED",
+            "limit": "items per day",
+        }
+    }
+    test_asset_connector._http_session.post = Mock(
+        return_value=push_response(429, json.dumps(body))
+    )
+    test_asset_connector.update_checkpoint = Mock()
+
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_asset_connector.update_checkpoint.assert_not_called()
+    test_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector push rate limited "
+            "(HTTP 429, ASSET_CONNECTOR_RATE_LIMIT_EXCEEDED, items per day). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
+
+
+def test_post_assets_to_api_failure_logs_error_detail(test_asset_connector, asset_list):
+    body = {
+        "detail": {
+            "message": "Unsupported push version",
+            "code": "ASSET_CONNECTOR_UNSUPPORTED_VERSION",
+            "asset_connector_configuration_uuid": "04716e25",
+            "version": 2,
+        }
+    }
+    test_asset_connector._http_session.post = Mock(
+        return_value=push_response(400, json.dumps(body))
+    )
+    test_asset_connector.update_checkpoint = Mock()
+
+    response = test_asset_connector.post_assets_to_api(
+        asset_list, "http://example.com/api"
+    )
+
+    assert response is None
+    test_asset_connector.update_checkpoint.assert_not_called()
+    test_asset_connector.log.assert_called_once_with(
+        message=(
+            "Error while pushing assets to Sekoia.io - Client error - HTTP (400) - "
+            "ASSET_CONNECTOR_UNSUPPORTED_VERSION: Unsupported push version "
+            "(asset_connector_configuration_uuid=04716e25, version=2)"
+        ),
+        level="error",
+    )

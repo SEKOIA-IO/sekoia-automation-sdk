@@ -30,7 +30,10 @@ from .utils import (
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
     get_env_float,
+    parse_error_detail,
     parse_retry_after,
+    push_error_message,
+    rate_limit_message,
 )
 
 
@@ -320,9 +323,8 @@ class AsyncAssetConnector(Trigger):
         if status_code == 429:
             retry_after = parse_retry_after(retry_after_header, self.rate_limit_wait)
             self.log(
-                message=(
-                    "Asset connector push rate limited (HTTP 429). "
-                    f"Waiting {retry_after} seconds before refetching."
+                message=rate_limit_message(
+                    parse_error_detail(response_text), retry_after
                 ),
                 level="warning",
             )
@@ -330,7 +332,7 @@ class AsyncAssetConnector(Trigger):
 
         # Handle non-200 responses
         if status_code != 200:
-            await self._log_api_error(status_code, response_text, response_json)
+            await self._log_api_error(status_code, response_text)
             return None
 
         # Update checkpoint on success
@@ -343,37 +345,20 @@ class AsyncAssetConnector(Trigger):
         )
         return response_json
 
-    async def _log_api_error(
-        self, status_code: int, response_text: str | None, response_json: dict | None
-    ) -> None:
+    async def _log_api_error(self, status_code: int, response_text: str | None) -> None:
         """
         Log API error details from response.
 
         Args:
             status_code: HTTP status code
             response_text: Raw response text
-            response_json: Parsed JSON response if available
         """
-        status_error = self.handle_api_error(status_code)
-
-        # Try to extract detailed error message from response
-        detail_message = ""
-        if response_text:
-            try:
-                error_data = response_json if response_json else {}
-                error_code = error_data.get("code", "")
-                error_message = error_data.get("message", "")
-                if error_code or error_message:
-                    detail_message = f" - {error_code}: {error_message}"
-                else:
-                    detail_message = f" - {response_text}"
-            except Exception:
-                detail_message = f" - {response_text}"
-
-        error_msg = (
-            f"Error while pushing assets to Sekoia.io - {status_error}{detail_message}"
+        self.log(
+            message=push_error_message(
+                self.handle_api_error(status_code), response_text
+            ),
+            level="error",
         )
-        self.log(message=error_msg, level="error")
 
     async def wait_for_push_task(self, task_id: str) -> None:
         """

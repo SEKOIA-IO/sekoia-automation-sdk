@@ -9,6 +9,7 @@ from cookiecutter.main import cookiecutter
 from sekoia_automation.scripts.action_runner import ModuleItemRunner
 from sekoia_automation.scripts.documentation.generate import (
     DocumentationGenerator,
+    OutputFormat,
 )
 from sekoia_automation.scripts.files_generator import FilesGenerator
 from sekoia_automation.scripts.openapi import OpenApiToModule
@@ -109,6 +110,14 @@ def generate_documentation(
         ..., help="Path to the documentation repository"
     ),
     module: OptionalStr = typer.Option(None, help="Module to deploy"),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.mkdocs, "--format", help="Documentation format"
+    ),
+    prune: bool = typer.Option(
+        False,
+        "--prune",
+        help="GitBook, full run only: delete the pages of removed modules",
+    ),
 ):
     """
     Generate modules documentation.
@@ -122,6 +131,8 @@ def generate_documentation(
         modules_path=modules_path,
         documentation_path=documentation_path,
         module=module,
+        output_format=output_format,
+        prune=prune,
     ).generate()
 
 

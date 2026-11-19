@@ -1,8 +1,10 @@
 import copy
 import json
 import os
+import re
 from collections import defaultdict
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from shutil import copyfile
 
@@ -12,12 +14,52 @@ from jinja2 import Environment, FileSystemLoader
 from rich import print
 from slugify import slugify
 
+SPACE_DIR = "docs/integration"  # GitBook space holding the library
+LIBRARY_DIR = "action_library"
+LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
+DEFAULT_CATEGORY = "Other"
+PRUNE_LIMIT = 5  # safety net against a partial modules directory
+ADMONITION = re.compile(
+    r'^([ \t]*)!!! (\w+)(?: "([^"]*)")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
+)
+HINT_STYLES = {"warning": "warning", "danger": "danger", "success": "success"}
+SUMMARY_CHILD = re.compile(r"^\s+\* \[(.+)\]\((.+)\)\s*$")
+
+
+def escape_title(title: str) -> str:
+    """Escape the markdown link delimiters of a title coming from a manifest."""
+    return title.replace("[", r"\[").replace("]", r"\]")
+
+
+def is_generated_page(page: Path) -> bool:
+    """Generated pages are the ones with the playbook front matter."""
+    return "type: playbook" in page.read_text().splitlines()[:10]
+
+
+def _summary_link(line: str) -> str:
+    match = SUMMARY_CHILD.match(line)
+    return match[2] if match else ""
+
+
+class OutputFormat(StrEnum):
+    mkdocs = "mkdocs"
+    gitbook = "gitbook"
+
 
 @dataclass
 class DocumentationModule:
     name: str
     file_name: str
     categories: list[str]
+
+    @property
+    def category(self) -> str:
+        # GitBook pages have a single place: the first category
+        return self.categories[0] if self.categories else DEFAULT_CATEGORY
+
+    @property
+    def category_dir(self) -> str:
+        return slugify(self.category, separator="_")
 
 
 class DocumentationGenerator:
@@ -35,11 +77,28 @@ class DocumentationGenerator:
         )
 
     def __init__(
-        self, modules_path: Path, documentation_path: Path, module: str | None = None
+        self,
+        modules_path: Path,
+        documentation_path: Path,
+        module: str | None = None,
+        output_format: OutputFormat = OutputFormat.mkdocs,
+        prune: bool = False,
     ):
         self.modules_path = modules_path
         self.documentation_path = documentation_path
         self.module = module
+        self.gitbook = output_format == OutputFormat.gitbook
+        self.prune = prune
+        # pages dir, assets dir (both relative to documentation_path),
+        # and the assets url as seen from a page
+        if self.gitbook:
+            self.pages_dir = f"{SPACE_DIR}/{LIBRARY_DIR}"
+            self.assets_dir = f"{SPACE_DIR}/.gitbook/assets/library"
+            self.assets_url = "../../.gitbook/assets/library"
+        else:
+            self.pages_dir = "_shared_content/automate/library"
+            self.assets_dir = "docs/assets/playbooks/library"
+            self.assets_url = "/assets/playbooks/library"
 
     def generate_module_doc(self, module_path: Path) -> DocumentationModule | None:
         """
@@ -51,6 +110,10 @@ class DocumentationGenerator:
 
         with (module_path / "manifest.json").open("rb") as fd:
             module_manifest = json.load(fd)
+
+        if module_manifest.get("deprecated"):
+            print(f"[white][!] {module_path.name}: Deprecated, ignored[/white]")
+            return None
 
         # Load connectors uuids
         connector_uuids = set()
@@ -101,57 +164,57 @@ class DocumentationGenerator:
             manifest=module_manifest,
             actions=module_actions,
             triggers=module_triggers,
-            logo_filename=module_logo_filename,
+            logo_url=module_logo_filename
+            and f"{self.assets_url}/{module_logo_filename}",
             setup=setup,
+            gitbook=self.gitbook,
         )
 
-        module_doc_filename = f"{slugify(module_manifest['name'])}.md"
-
-        module_doc_path = (
-            self.documentation_path
-            / "_shared_content/automate/library/"
-            / module_doc_filename
-        )
-
-        # write the module documentation file
-        with module_doc_path.open("wb") as fd:
-            fd.write(output.encode("utf-8"))
-
-        return DocumentationModule(
+        doc = DocumentationModule(
             name=module_manifest["name"],
-            file_name=module_doc_filename,
+            file_name=f"{slugify(module_manifest['name'])}.md",
             categories=module_manifest.get("categories", []),
         )
+        pages_dir = self.documentation_path / self.pages_dir
+        if self.gitbook:
+            pages_dir /= doc.category_dir
+        pages_dir.mkdir(parents=True, exist_ok=True)
+        (pages_dir / doc.file_name).write_bytes(output.encode("utf-8"))
+
+        if self.gitbook:
+            category_page = pages_dir / "README.md"
+            if not category_page.exists():  # keep manual edits
+                category_page.write_text(f"# {escape_title(doc.category)}\n")
+            # the module changed category: drop its page from the former one
+            for stale in pages_dir.parent.glob(f"*/{doc.file_name}"):
+                if stale.parent != pages_dir and is_generated_page(stale):
+                    stale.unlink()
+
+        return doc
 
     def _copy_logo(self, module_path: Path, module_manifest: dict) -> str | None:
         for ext in ["png", "svg"]:
             module_logo_path = module_path / f"logo.{ext}"
             if module_logo_path.exists():
                 module_logo_filename = f"{slugify(module_manifest['name'])}.{ext}"
-                copyfile(
-                    module_logo_path,
-                    (
-                        self.documentation_path
-                        / "docs/assets/playbooks/library"
-                        / module_logo_filename
-                    ),
-                )
+                logo_dir = self.documentation_path / self.assets_dir
+                logo_dir.mkdir(parents=True, exist_ok=True)
+                copyfile(module_logo_path, logo_dir / module_logo_filename)
                 return module_logo_filename
         return None
 
     def _copy_assets(self, module_path: Path, module_manifest: dict) -> str | None:
         """
         Copy the assets from the module directory to the documentation directory.
-        Return the new location of the assets
+        Return the new url of the assets, as seen from a page
         """
         assets_dir = "docs/assets"
         assets_path = module_path / assets_dir
 
         if assets_path.exists():
-            new_location = (
-                f"assets/playbooks/library/setup/{slugify(module_manifest['name'])}"
-            )
-            new_location_path = self.documentation_path / "docs" / new_location
+            setup_dir = f"setup/{slugify(module_manifest['name'])}"
+            new_location = f"{self.assets_url}/{setup_dir}"
+            new_location_path = self.documentation_path / self.assets_dir / setup_dir
             new_location_path.mkdir(parents=True, exist_ok=True)
 
             for item in assets_path.iterdir():
@@ -179,9 +242,29 @@ class DocumentationGenerator:
 
         if assets_location:
             assets_dir = "docs/assets"
-            content = content.replace(assets_dir, f"/{assets_location}")
+            content = content.replace(assets_dir, assets_location)
+
+        if self.gitbook:
+            # mkdocs-only syntax: attribute lists and admonitions
+            content = re.sub(r"\{:[^}]*\}", "", content)
+            if not content.endswith("\n"):  # ADMONITION needs ended lines
+                content += "\n"
+            content = ADMONITION.sub(self._admonition_to_hint, content)
 
         return content
+
+    @staticmethod
+    def _admonition_to_hint(match: re.Match) -> str:
+        indent, kind, title, body = match.groups()
+        style = HINT_STYLES.get(kind, "info")
+        lines = [line[len(indent) + 4 :] for line in body.rstrip().splitlines()]
+        if title:
+            lines = [f"**{title}**", "", *lines]
+        inner = "\n".join(f"{indent}{line}" for line in lines)
+        return (
+            f'{indent}{{% hint style="{style}" %}}\n{inner}\n'
+            f"{indent}{{% endhint %}}\n\n"
+        )
 
     def _update_submenu(
         self, menu: list[dict], target: str, value: list, append_only: bool = False
@@ -228,18 +311,28 @@ class DocumentationGenerator:
                 generated_modules.append(doc)
                 print(f"[green][+][/green] {module_path.name}: Success")
 
-        self._update_documentation_menu(generated_modules)
+        if self.gitbook:
+            if self.prune:
+                self._prune_pages(generated_modules)
+            self._update_summary(generated_modules)
+            self._update_redirects(generated_modules)
+        else:
+            self._update_documentation_menu(generated_modules)
 
     def _validate_dirs(self):
         if not self.modules_path.is_dir():
             print("[bold red][!] Module path doesn't exist.[/bold red]")
             raise typer.Exit(code=1)
-        if (
-            not self.documentation_path.is_dir()
-            or not (self.documentation_path / "mkdocs.yml").exists()
+        marker_files = (f"{SPACE_DIR}/SUMMARY.md",) if self.gitbook else ("mkdocs.yml",)
+        if not self.documentation_path.is_dir() or not any(
+            (self.documentation_path / name).exists() for name in marker_files
         ):
             print("[bold red][!] Documentation path is not valid.[/bold red]")
             raise typer.Exit(code=1)
+        if self.prune and (self.module or not self.gitbook):
+            print("[bold red][!] --prune needs a full gitbook run.[/bold red]")
+            raise typer.Exit(code=1)
+
         if self.module and not (self.modules_path / self.module).is_dir():
             print("[bold red][!] Module doesn't exist.[/bold red]")
             raise typer.Exit(code=1)
@@ -287,3 +380,146 @@ class DocumentationGenerator:
             fd.seek(0)
             fd.write(yaml.dump(mkdocs_conf))
             fd.truncate()
+
+    def _update_summary(self, modules: list[DocumentationModule]):
+        """
+        Replace the children of the library entry in SUMMARY.md, leaving the rest
+        of the file (edited by hand or by GitBook) untouched.
+        shortcut: modules are listed under their first category, deeper nested
+        lines of a generated category are dropped, a category without modules
+        stays until removed by hand, upgrade if needed.
+        """
+        print("Updating SUMMARY.md:")
+        path = self.documentation_path / SPACE_DIR / "SUMMARY.md"
+        lines = path.read_text().splitlines() if path.exists() else ["# Summary", ""]
+        # anchor on the link, GitBook may rewrite the title
+        entry = next(
+            (
+                i
+                for i, line in enumerate(lines)
+                if line.startswith("* [") and line.endswith(f"]({LIBRARY_OVERVIEW})")
+            ),
+            None,
+        )
+        if entry is None:
+            lines.append(f"* [Actions Library]({LIBRARY_OVERVIEW})")
+            entry = len(lines) - 1
+        start = entry + 1
+        end = start
+        while end < len(lines) and lines[end].startswith(" "):
+            end += 1
+
+        # top-level entries of the library with their nested lines
+        groups: list[list[str]] = []
+        for line in lines[start:end]:
+            if line.startswith("    ") and groups:
+                groups[-1].append(line)
+            else:
+                groups.append([line])
+
+        # category dir -> (title, {page link: title}), rebuilt by this run
+        categories: dict[str, tuple[str, dict[str, str]]] = {}
+        for module in modules:
+            _, pages = categories.setdefault(
+                module.category_dir, (escape_title(module.category), {})
+            )
+            link = f"{LIBRARY_DIR}/{module.category_dir}/{module.file_name}"
+            pages[link] = escape_title(module.name)
+        file_names = {module.file_name for module in modules}
+
+        def outdated(line: str) -> bool:
+            link = _summary_link(line)
+            missing = not (path.parent / link).exists()
+            # a module at its former flat path or category, or a pruned page
+            if Path(link).name in file_names and (
+                len(Path(link).parts) == 2 or missing
+            ):
+                return True
+            return self.prune and missing
+
+        kept: list[list[str]] = []  # the other entries are left as they are
+        for group in groups:
+            parts = Path(_summary_link(group[0])).parts
+            if len(parts) == 3 and parts[2] == "README.md" and parts[1] in categories:
+                if self.module:  # single module: keep the other modules
+                    _, pages = categories[parts[1]]
+                    for child in group[1:]:
+                        if match := SUMMARY_CHILD.match(child):
+                            pages.setdefault(match[2], match[1])
+                continue
+            group = [
+                line
+                for i, line in enumerate(group)
+                if not outdated(line) or (i == 0 and len(group) > 1)
+            ]
+            if group:
+                kept.append(group)
+
+        block = []
+        for folder, (title, pages) in sorted(
+            categories.items(), key=lambda item: item[1][0]
+        ):
+            block.append(f"  * [{title}]({LIBRARY_DIR}/{folder}/README.md)")
+            block += [
+                f"    * [{name}]({page})"
+                for page, name in sorted(pages.items(), key=lambda item: item[1])
+            ]
+        for group in kept:
+            block += group
+        lines[start:end] = block
+        path.write_text("\n".join(lines) + "\n")
+        print("[green][+][/green] SUMMARY.md updated")
+
+    def _prune_pages(self, modules: list[DocumentationModule]):
+        """
+        Delete the generated pages this run did not produce: the pages of
+        removed or deprecated modules.
+        """
+        root = self.documentation_path / SPACE_DIR / LIBRARY_DIR
+        current = {root / m.category_dir / m.file_name for m in modules}
+        stale = [
+            page
+            for page in sorted(root.glob("*/*.md"))
+            if page.name != "README.md"
+            and page not in current
+            and is_generated_page(page)
+        ]
+        if len(stale) > PRUNE_LIMIT:
+            print(
+                f"[bold red][!] {len(stale)} pages to prune, more than "
+                f"{PRUNE_LIMIT}: nothing deleted, SUMMARY and redirects not "
+                "updated, check the modules path.[/bold red]"
+            )
+            raise typer.Exit(code=1)
+        for page in stale:
+            page.unlink()
+            print(f"[red][-][/red] {page.relative_to(root)} pruned")
+
+    def _update_redirects(self, modules: list[DocumentationModule]):
+        """
+        Redirect the former flat url of each page to its category page, in the
+        redirects of the space .gitbook.yaml. Other keys and redirects are kept,
+        only the ones of that shape pointing to a missing page are dropped.
+        shortcut: the file is re-dumped, so its comments are lost.
+        """
+        path = self.documentation_path / SPACE_DIR / ".gitbook.yaml"
+        conf = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
+        redirects = conf["redirects"] = conf.get("redirects") or {}
+
+        def flat_source(target: str) -> str | None:
+            parts = Path(target).parts
+            if len(parts) == 3 and parts[0] == LIBRARY_DIR:
+                return f"{LIBRARY_DIR}/{Path(parts[2]).stem}"
+            return None
+
+        if not self.module:  # full run: drop the dead redirects of removed modules
+            space = self.documentation_path / SPACE_DIR
+            for source, target in list(redirects.items()):
+                if source == flat_source(target) and not (space / target).exists():
+                    del redirects[source]
+        for module in modules:
+            target = f"{LIBRARY_DIR}/{module.category_dir}/{module.file_name}"
+            redirects[flat_source(target)] = target
+
+        path.write_text(yaml.dump(conf, sort_keys=False))
+        print("[green][+][/green] .gitbook.yaml redirects updated")

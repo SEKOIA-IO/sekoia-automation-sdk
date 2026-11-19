@@ -113,6 +113,11 @@ def generate_documentation(
     output_format: OutputFormat = typer.Option(
         OutputFormat.mkdocs, "--format", help="Documentation format"
     ),
+    prune: bool = typer.Option(
+        False,
+        "--prune",
+        help="GitBook, full run only: delete the pages of removed modules",
+    ),
 ):
     """
     Generate modules documentation.
@@ -127,6 +132,7 @@ def generate_documentation(
         documentation_path=documentation_path,
         module=module,
         output_format=output_format,
+        prune=prune,
     ).generate()
 
 

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+import typer
 import yaml
 
 from sekoia_automation.scripts.documentation.generate import (
@@ -67,8 +68,9 @@ def gitbook_path(tmp_path: Path) -> Path:
     (path / SPACE / "SUMMARY.md").write_text(
         "# Summary\n\n* [Home](README.md)\n"
         "* [Library](action_library/overview.md)\n"
-        "  * [Other](action_library/other/README.md)\n"
-        "    * [Stale](action_library/other/stale.md)\n\n## Other\n\n* [Foo](foo.md)\n"
+        "  * [Network](action_library/network/README.md)\n"
+        "    * [Stale](action_library/network/stale.md)\n"
+        "\n## Other\n\n* [Foo](foo.md)\n"
     )
     return path
 
@@ -116,7 +118,7 @@ def test_gitbook_summary(modules_path, gitbook_path):
 def test_gitbook_single_module_keeps_others(modules_path, gitbook_path):
     generate(modules_path, gitbook_path, module="Test")
     summary = (gitbook_path / SPACE / "SUMMARY.md").read_text()
-    assert "[Stale](action_library/other/stale.md)" in summary
+    assert "[Stale](action_library/network/stale.md)" in summary
     assert "[Test Module](action_library/network/test-module.md)" in summary
 
 
@@ -166,7 +168,8 @@ def test_gitbook_redirects(modules_path, gitbook_path):
 
 
 def test_deprecated_module_ignored(modules_path, gitbook_path):
-    (modules_path / "Test").rename(modules_path / "Nybble")
+    manifest = modules_path / "Test" / "manifest.json"
+    manifest.write_text(manifest.read_text().replace('"d"', '"d", "deprecated": true'))
     generate(modules_path, gitbook_path)
     assert not (gitbook_path / SPACE / "action_library/network").exists()
 
@@ -262,3 +265,96 @@ def test_gitbook_manual_redirects_kept(modules_path, gitbook_path):
     redirects = yaml.safe_load((space / ".gitbook.yaml").read_text())["redirects"]
     assert redirects["action_library/guide"] == "action_library/manual/guide.md"
     assert "action_library/gone" not in redirects
+
+
+def test_gitbook_description_only_in_front_matter(modules_path, gitbook_path):
+    generate(modules_path, gitbook_path)
+    page = (gitbook_path / SPACE / "action_library/network/test-module.md").read_text()
+    assert page.count('description: "d"') == 1
+    assert "\n\nd\n\n" not in page and "## Configuration" in page
+
+
+def test_gitbook_manual_section_kept(modules_path, gitbook_path):
+    path = gitbook_path / SPACE / "SUMMARY.md"
+    section = (
+        "  * [Guides](action_library/guides/README.md)\n"
+        "    * [Setup](action_library/guides/setup.md)\n"
+    )
+    path.write_text(path.read_text().replace("\n## Other", section + "\n## Other"))
+    generate(modules_path, gitbook_path)
+    assert section in path.read_text()
+    generate(modules_path, gitbook_path, module="Test")
+    assert section in path.read_text()
+
+
+def stale_pages(gitbook_path: Path, count: int) -> list[Path]:
+    folder = gitbook_path / SPACE / "action_library/network"
+    folder.mkdir(parents=True, exist_ok=True)
+    pages = [folder / f"old{i}.md" for i in range(count)]
+    for page in pages:
+        page.write_text("---\nuuid: x\ntype: playbook\n---\n")
+    return pages
+
+
+def test_gitbook_prune(modules_path, gitbook_path):
+    stale = stale_pages(gitbook_path, 2)
+    manual = gitbook_path / SPACE / "action_library/network/manual.md"
+    manual.write_text("# Manual\n")
+    readme = gitbook_path / SPACE / "action_library/network/README.md"
+    readme.write_text("# Network\n")
+    flat = gitbook_path / SPACE / "action_library/flat.md"
+    flat.write_text("---\ntype: playbook\n---\n")
+    generate(modules_path, gitbook_path)
+    assert all(page.exists() for page in stale)  # no flag, no pruning
+    generate(modules_path, gitbook_path, prune=True)
+    assert not any(page.exists() for page in stale)
+    assert manual.exists() and readme.exists() and flat.exists()
+    assert (gitbook_path / SPACE / "action_library/network/test-module.md").exists()
+
+
+def test_gitbook_prune_cap(modules_path, gitbook_path):
+    stale = stale_pages(gitbook_path, 6)
+    with pytest.raises(typer.Exit):
+        generate(modules_path, gitbook_path, prune=True)
+    assert all(page.exists() for page in stale)
+
+
+def test_prune_needs_full_gitbook_run(modules_path, gitbook_path):
+    with pytest.raises(typer.Exit):
+        generate(modules_path, gitbook_path, module="Test", prune=True)
+    with pytest.raises(typer.Exit):
+        DocumentationGenerator(modules_path, gitbook_path, prune=True).generate()
+
+
+def test_gitbook_prune_drops_links_of_emptied_category(modules_path, gitbook_path):
+    space = gitbook_path / SPACE
+    folder = space / "action_library/other"
+    folder.mkdir(parents=True)
+    (folder / "README.md").write_text("# Other\n")
+    (folder / "old.md").write_text("---\ntype: playbook\n---\n")
+    summary = space / "SUMMARY.md"
+    summary.write_text(
+        summary.read_text().replace(
+            "\n## Other",
+            "  * [Other](action_library/other/README.md)\n"
+            "    * [Old](action_library/other/old.md)\n\n## Other",
+        )
+    )
+    generate(modules_path, gitbook_path, prune=True)
+    text = summary.read_text()
+    assert "(action_library/other/old.md)" not in text
+    assert "[Other](action_library/other/README.md)" in text
+
+
+def test_gitbook_manual_page_named_like_a_module_kept(modules_path, gitbook_path):
+    space = gitbook_path / SPACE
+    (space / "action_library/guides").mkdir(parents=True)
+    (space / "action_library/guides/test-module.md").write_text("# Guide\n")
+    summary = space / "SUMMARY.md"
+    entry = (
+        "  * [Guides](action_library/guides/README.md)\n"
+        "    * [Test](action_library/guides/test-module.md)\n"
+    )
+    summary.write_text(summary.read_text().replace("\n## Other", entry + "\n## Other"))
+    generate(modules_path, gitbook_path)
+    assert entry in summary.read_text()

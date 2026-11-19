@@ -18,8 +18,7 @@ SPACE_DIR = "docs/integration"  # GitBook space holding the library
 LIBRARY_DIR = "action_library"
 LIBRARY_OVERVIEW = f"{LIBRARY_DIR}/overview.md"
 DEFAULT_CATEGORY = "Other"
-# shortcut: hardcoded, the manifests have no deprecation flag, upgrade if they get one
-DEPRECATED_MODULES = {"BinaryEdges", "Nybble", "RiskIQ"}
+PRUNE_LIMIT = 5  # safety net against a partial modules directory
 ADMONITION = re.compile(
     r'^([ \t]*)!!! (\w+)(?: "([^"]*)")?\n((?:\1    .*\n|[ \t]*\n)+)', re.M
 )
@@ -30,6 +29,16 @@ SUMMARY_CHILD = re.compile(r"^\s+\* \[(.+)\]\((.+)\)\s*$")
 def escape_title(title: str) -> str:
     """Escape the markdown link delimiters of a title coming from a manifest."""
     return title.replace("[", r"\[").replace("]", r"\]")
+
+
+def is_generated_page(page: Path) -> bool:
+    """Generated pages are the ones with the playbook front matter."""
+    return "type: playbook" in page.read_text().splitlines()[:10]
+
+
+def _summary_link(line: str) -> str:
+    match = SUMMARY_CHILD.match(line)
+    return match[2] if match else ""
 
 
 class OutputFormat(StrEnum):
@@ -73,11 +82,13 @@ class DocumentationGenerator:
         documentation_path: Path,
         module: str | None = None,
         output_format: OutputFormat = OutputFormat.mkdocs,
+        prune: bool = False,
     ):
         self.modules_path = modules_path
         self.documentation_path = documentation_path
         self.module = module
         self.gitbook = output_format == OutputFormat.gitbook
+        self.prune = prune
         # pages dir, assets dir (both relative to documentation_path),
         # and the assets url as seen from a page
         if self.gitbook:
@@ -93,16 +104,16 @@ class DocumentationGenerator:
         """
         Generate documentation for the given module
         """
-        if module_path.name in DEPRECATED_MODULES:
-            print(f"[white][!] {module_path.name}: Deprecated, ignored[/white]")
-            return None
-
         if not (module_path / "manifest.json").exists():
             print(f"[orange3][!] {module_path.name}: No manifest found[/orange3]")
             return None
 
         with (module_path / "manifest.json").open("rb") as fd:
             module_manifest = json.load(fd)
+
+        if module_manifest.get("deprecated"):
+            print(f"[white][!] {module_path.name}: Deprecated, ignored[/white]")
+            return None
 
         # Load connectors uuids
         connector_uuids = set()
@@ -176,7 +187,7 @@ class DocumentationGenerator:
                 category_page.write_text(f"# {escape_title(doc.category)}\n")
             # the module changed category: drop its page from the former one
             for stale in pages_dir.parent.glob(f"*/{doc.file_name}"):
-                if stale.parent != pages_dir:
+                if stale.parent != pages_dir and is_generated_page(stale):
                     stale.unlink()
 
         return doc
@@ -301,6 +312,8 @@ class DocumentationGenerator:
                 print(f"[green][+][/green] {module_path.name}: Success")
 
         if self.gitbook:
+            if self.prune:
+                self._prune_pages(generated_modules)
             self._update_summary(generated_modules)
             self._update_redirects(generated_modules)
         else:
@@ -316,6 +329,10 @@ class DocumentationGenerator:
         ):
             print("[bold red][!] Documentation path is not valid.[/bold red]")
             raise typer.Exit(code=1)
+        if self.prune and (self.module or not self.gitbook):
+            print("[bold red][!] --prune needs a full gitbook run.[/bold red]")
+            raise typer.Exit(code=1)
+
         if self.module and not (self.modules_path / self.module).is_dir():
             print("[bold red][!] Module doesn't exist.[/bold red]")
             raise typer.Exit(code=1)
@@ -368,9 +385,9 @@ class DocumentationGenerator:
         """
         Replace the children of the library entry in SUMMARY.md, leaving the rest
         of the file (edited by hand or by GitBook) untouched.
-        shortcut: modules are listed under their first category, other nested
-        lines than categories, modules and direct children are dropped,
-        upgrade if needed.
+        shortcut: modules are listed under their first category, deeper nested
+        lines of a generated category are dropped, a category without modules
+        stays until removed by hand, upgrade if needed.
         """
         print("Updating SUMMARY.md:")
         path = self.documentation_path / SPACE_DIR / "SUMMARY.md"
@@ -392,40 +409,91 @@ class DocumentationGenerator:
         while end < len(lines) and lines[end].startswith(" "):
             end += 1
 
-        categories: dict[str, str] = {}  # category page -> title
-        pages: dict[str, str] = {}  # module page -> title
-        flat: dict[str, str] = {}  # manual pages directly under the library
+        # top-level entries of the library with their nested lines
+        groups: list[list[str]] = []
         for line in lines[start:end]:
-            if not (match := SUMMARY_CHILD.match(line)):
-                continue
-            title, link = match[1], match[2]
-            parts = Path(link).parts
-            if len(parts) == 2:
-                flat[link] = title
-            elif self.module:  # single module: keep the others
-                (categories if parts[-1] == "README.md" else pages)[link] = title
+            if line.startswith("    ") and groups:
+                groups[-1].append(line)
+            else:
+                groups.append([line])
+
+        # category dir -> (title, {page link: title}), rebuilt by this run
+        categories: dict[str, tuple[str, dict[str, str]]] = {}
         for module in modules:
-            folder = f"{LIBRARY_DIR}/{module.category_dir}"
-            categories[f"{folder}/README.md"] = escape_title(module.category)
-            # the module may have changed category, or sit at its former flat path
-            for link in [p for p in pages if Path(p).name == module.file_name]:
-                del pages[link]
-            flat.pop(f"{LIBRARY_DIR}/{module.file_name}", None)
-            pages[f"{folder}/{module.file_name}"] = escape_title(module.name)
+            _, pages = categories.setdefault(
+                module.category_dir, (escape_title(module.category), {})
+            )
+            link = f"{LIBRARY_DIR}/{module.category_dir}/{module.file_name}"
+            pages[link] = escape_title(module.name)
+        file_names = {module.file_name for module in modules}
+
+        def outdated(line: str) -> bool:
+            link = _summary_link(line)
+            missing = not (path.parent / link).exists()
+            # a module at its former flat path or category, or a pruned page
+            if Path(link).name in file_names and (
+                len(Path(link).parts) == 2 or missing
+            ):
+                return True
+            return self.prune and missing
+
+        kept: list[list[str]] = []  # the other entries are left as they are
+        for group in groups:
+            parts = Path(_summary_link(group[0])).parts
+            if len(parts) == 3 and parts[2] == "README.md" and parts[1] in categories:
+                if self.module:  # single module: keep the other modules
+                    _, pages = categories[parts[1]]
+                    for child in group[1:]:
+                        if match := SUMMARY_CHILD.match(child):
+                            pages.setdefault(match[2], match[1])
+                continue
+            group = [
+                line
+                for i, line in enumerate(group)
+                if not outdated(line) or (i == 0 and len(group) > 1)
+            ]
+            if group:
+                kept.append(group)
 
         block = []
-        for link, title in sorted(categories.items(), key=lambda e: e[1]):
-            block.append(f"  * [{title}]({link})")
-            folder = link.removesuffix("README.md")
+        for folder, (title, pages) in sorted(
+            categories.items(), key=lambda item: item[1][0]
+        ):
+            block.append(f"  * [{title}]({LIBRARY_DIR}/{folder}/README.md)")
             block += [
                 f"    * [{name}]({page})"
-                for page, name in sorted(pages.items(), key=lambda e: e[1])
-                if page.startswith(folder)
+                for page, name in sorted(pages.items(), key=lambda item: item[1])
             ]
-        block += [f"  * [{title}]({link})" for link, title in flat.items()]
+        for group in kept:
+            block += group
         lines[start:end] = block
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")
+
+    def _prune_pages(self, modules: list[DocumentationModule]):
+        """
+        Delete the generated pages this run did not produce: the pages of
+        removed or deprecated modules.
+        """
+        root = self.documentation_path / SPACE_DIR / LIBRARY_DIR
+        current = {root / m.category_dir / m.file_name for m in modules}
+        stale = [
+            page
+            for page in sorted(root.glob("*/*.md"))
+            if page.name != "README.md"
+            and page not in current
+            and is_generated_page(page)
+        ]
+        if len(stale) > PRUNE_LIMIT:
+            print(
+                f"[bold red][!] {len(stale)} pages to prune, more than "
+                f"{PRUNE_LIMIT}: nothing deleted, SUMMARY and redirects not "
+                "updated, check the modules path.[/bold red]"
+            )
+            raise typer.Exit(code=1)
+        for page in stale:
+            page.unlink()
+            print(f"[red][-][/red] {page.relative_to(root)} pruned")
 
     def _update_redirects(self, modules: list[DocumentationModule]):
         """

@@ -26,8 +26,10 @@ type: playbook
 ![{{manifest.name}}]({{logo_url}}){ align=right width=150 }
 {%- endif %}
 
+{% if not gitbook -%}
 {{manifest.description}}
 
+{% endif -%}
 ## Configuration
 
 {%- if manifest.configuration.properties %}

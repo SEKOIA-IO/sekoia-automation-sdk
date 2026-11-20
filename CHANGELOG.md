@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Asset connectors log the code, message and details of a push error response,
+  instead of its raw body.
+- On an HTTP 429, asset connectors tell a reached asset connector limit from a
+  rate limit, and log which limits are reached. Both still pause the connector
+  and do not move the checkpoint.
+
 ## 1.27.2 - 2026-11-04
 
 ### Changed

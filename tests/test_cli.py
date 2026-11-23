@@ -84,6 +84,21 @@ def test_new_module_escapes_manifest_values(tmp_path, module_type):
     assert manifest["description"] == description
 
 
+@pytest.mark.parametrize("module_type", ["python", "hwl"])
+@pytest.mark.parametrize("module", ["../evil", "a/b", "/abs", ".."])
+def test_new_module_rejects_path_traversal(tmp_path, module_type, module):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(output_dir), "--type", module_type, "--skip-hooks"],
+        input=f"{module}\ndescription\n",
+    )
+    assert res.exit_code != 0
+    assert list(tmp_path.iterdir()) == [output_dir]
+    assert list(output_dir.iterdir()) == []
+
+
 def test_generate_documentation_invalid_modules_path(tmp_path):
     res: Result = runner.invoke(app, ["generate-documentation", "foo", "bar"])
     assert res.exit_code == 1

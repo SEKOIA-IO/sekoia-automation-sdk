@@ -99,6 +99,13 @@ def new_module(
 
     For a `hwl` module it only generates the manifest, a changelog and a logo.
     """
+    module_dir = module_name.replace(" ", "")
+    # The directory name must not escape output_dir
+    if module_dir in ("", ".", "..") or Path(module_dir).name != module_dir:
+        raise typer.BadParameter(
+            "must not be empty or contain path separators", param_hint="module-name"
+        )
+
     current_dir = Path(os.path.dirname(__file__)).resolve()
     template_dir = "template" if module_type == ModuleType.python else "template_hwl"
     template = current_dir / "scripts" / "new_module" / template_dir
@@ -110,7 +117,7 @@ def new_module(
         extra_context={
             "module_name": module_name,
             "module_description": description,
-            "module_dir": module_name.replace(" ", ""),
+            "module_dir": module_dir,
         },
         accept_hooks=not skip_hooks,
     )

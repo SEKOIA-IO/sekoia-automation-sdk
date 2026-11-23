@@ -66,6 +66,24 @@ def test_new_module_hwl(tmp_path):
     ]
 
 
+@pytest.mark.parametrize("module_type", ["python", "hwl"])
+def test_new_module_escapes_manifest_values(tmp_path, module_type):
+    module = 'My "Mod\\ule"'
+    description = 'Integrates with "Example"'
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(tmp_path), "--type", module_type, "--skip-hooks"],
+        input=f"{module}\n{description}\n",
+    )
+    assert res.exit_code == 0
+
+    manifest = json.loads(
+        tmp_path.joinpath(module.replace(" ", ""), "manifest.json").read_text()
+    )
+    assert manifest["name"] == module
+    assert manifest["description"] == description
+
+
 def test_generate_documentation_invalid_modules_path(tmp_path):
     res: Result = runner.invoke(app, ["generate-documentation", "foo", "bar"])
     assert res.exit_code == 1

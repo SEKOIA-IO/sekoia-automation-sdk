@@ -1,14 +1,14 @@
 {
   "configuration": {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "{{cookiecutter.module_name}}",
+    "title": {{ cookiecutter.module_name | tojson }},
     "type": "object",
     "properties": {},
     "required": []
   },
-  "description": "{{cookiecutter.module_description}}",
-  "name": "{{cookiecutter.module_name}}",
-  "slug": "{{cookiecutter.module_name.lower().replace(' ', '-')}}",
+  "description": {{ cookiecutter.module_description | tojson }},
+  "name": {{ cookiecutter.module_name | tojson }},
+  "slug": {{ cookiecutter.module_name.lower().replace(' ', '-') | tojson }},
   "categories": [],
   "uuid": "{{ uuid4() }}",
   "version": "0.1.0"

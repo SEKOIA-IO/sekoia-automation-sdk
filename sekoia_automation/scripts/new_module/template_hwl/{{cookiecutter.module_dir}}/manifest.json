@@ -1,0 +1,15 @@
+{
+  "configuration": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "{{cookiecutter.module_name}}",
+    "type": "object",
+    "properties": {},
+    "required": []
+  },
+  "description": "{{cookiecutter.module_description}}",
+  "name": "{{cookiecutter.module_name}}",
+  "slug": "{{cookiecutter.module_name.lower().replace(' ', '-')}}",
+  "categories": [],
+  "uuid": "{{ uuid4() }}",
+  "version": "0.1.0"
+}

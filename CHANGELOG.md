@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
+  An `hwl` module only contains the manifest, a changelog and a logo.
+
 ### Changed
 
 - Asset connectors log the code, message and details of a push error response,

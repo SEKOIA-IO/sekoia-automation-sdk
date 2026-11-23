@@ -48,6 +48,24 @@ def test_new_module(tmp_path):
     assert module_path.joinpath("my_module_modules").is_dir()
 
 
+def test_new_module_hwl(tmp_path):
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(tmp_path), "--type", "hwl"],
+        input="My Module\nMy Description\n",
+    )
+    assert res.exit_code == 0
+
+    module_path = tmp_path.joinpath("MyModule")
+    manifest = json.loads(module_path.joinpath("manifest.json").read_text())
+    assert manifest["name"] == "My Module"
+    assert sorted(p.name for p in module_path.iterdir()) == [
+        "CHANGELOG.md",
+        "logo.svg",
+        "manifest.json",
+    ]
+
+
 def test_generate_documentation_invalid_modules_path(tmp_path):
     res: Result = runner.invoke(app, ["generate-documentation", "foo", "bar"])
     assert res.exit_code == 1

@@ -21,7 +21,8 @@ UPLOAD_CHUNK_SIZE = 1024 * 1024 * 50  # 50MB
 # through `S3Path.open()`, which uploads them in parts.
 SINGLE_PUT_MAX_SIZE = UPLOAD_CHUNK_SIZE
 
-# boto3 S3 resource registered for each bucket by `get_s3_data_path`
+# boto3 S3 resource registered by `get_s3_data_path`, by base path ("/bucket"),
+# the same key s3path uses for its own configuration
 _S3_RESOURCES: dict[str, Any] = {}
 
 
@@ -55,7 +56,7 @@ def get_s3_data_path(configuration: Configuration | None = None) -> Path:
         "s3", endpoint_url=endpoint_url, verify=ca_path, config=config
     )
     register_configuration_parameter(base_path, resource=stack_resource)
-    _S3_RESOURCES[bucket_name] = stack_resource
+    _S3_RESOURCES[str(base_path)] = stack_resource
 
     # This will also ensure that credentials are set and valid
     # It will raise NoCredentialsError or something similar in case of failure
@@ -106,6 +107,17 @@ def _get_tls_client_credentials(
     return ca_path, cert_path, key_path
 
 
+def _get_s3_resource(path: S3Path) -> Any:
+    """Return the resource registered for `path` or its closest parent.
+
+    This resolves the resource the same way s3path does for `S3Path.open()`.
+    """
+    for candidate in (path, *path.parents):
+        if (resource := _S3_RESOURCES.get(str(candidate))) is not None:
+            return resource
+    return None
+
+
 def write_bytes(filepath: Path, data: bytes) -> None:
     """Write `data` to `filepath`, replacing its content.
 
@@ -115,7 +127,7 @@ def write_bytes(filepath: Path, data: bytes) -> None:
     for a file of a few bytes.
     """
     if isinstance(filepath, S3Path) and len(data) <= SINGLE_PUT_MAX_SIZE:
-        resource = _S3_RESOURCES.get(filepath.bucket)
+        resource = _get_s3_resource(filepath)
         if resource is not None:
             resource.meta.client.put_object(
                 Bucket=filepath.bucket, Key=filepath.key, Body=data
@@ -192,14 +204,22 @@ class PersistentJSON:
         retry_error_callback=capture_retry_error,
     )
     def load(self):
-        if not self._data and self._filepath.is_file():
-            with self._filepath.open("r") as fd:
-                try:
-                    self._data = orjson.loads(fd.read().encode("utf-8"))
-                    self._persisted = orjson.dumps(self._data)
-                except JSONDecodeError:
-                    # The content is not valid json
-                    self._data = {}
+        if self._data:
+            return
+
+        if not self._filepath.is_file():
+            # Missing file: write it on the next exit, even if the data is empty
+            self._persisted = None
+            return
+
+        with self._filepath.open("r") as fd:
+            try:
+                self._data = orjson.loads(fd.read().encode("utf-8"))
+                self._persisted = orjson.dumps(self._data)
+            except JSONDecodeError:
+                # The content is not valid json: rewrite it on the next exit
+                self._data = {}
+                self._persisted = None
 
     @retry(
         reraise=True,

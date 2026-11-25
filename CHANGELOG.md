@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On an HTTP 429, asset connectors tell a reached asset connector limit from a
   rate limit, and log which limits are reached. Both still pause the connector
   and do not move the checkpoint.
+- Refactor the publication script for the automation modules
+
+### Fixed
+
+- Fix f-strings in the publication script
 
 ## 1.27.2 - 2026-11-04
 

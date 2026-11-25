@@ -599,3 +599,12 @@ def test_load_hwl_module_skips_manifest_properties(hwl_module, module, requests_
     arguments = post_action.last_request.json()["arguments"]
     assert "token" not in arguments["properties"]
     assert "secrets" not in arguments
+
+
+@pytest.mark.parametrize("key", ["inputs", "outputs"])
+def test_hwl_action_to_payload_not_a_mapping(key):
+    workflow = yaml.safe_load(HWL_ACTION)
+    workflow[key] = ["a", "b"]
+
+    with pytest.raises(typer.Exit):
+        module_files.hwl_action_to_payload(workflow, "action_bad.yml", "image")

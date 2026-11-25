@@ -2,11 +2,11 @@ import json
 from base64 import b64encode
 from collections.abc import Collection
 from pathlib import Path
-from slugify import slugify
 
 import typer
 import yaml
 from rich import print
+from slugify import slugify
 
 
 def load_json_objects(module_path: Path, prefix: str) -> list:
@@ -88,16 +88,24 @@ def hwl_action_to_payload(
         dict: The action object
 
     Raises:
-        typer.Exit: If the workflow has no name or no uuid, or an invalid input
+        typer.Exit: If the workflow has no name or no uuid, or invalid inputs or
+            outputs
     """
     for field in ("name", "uuid"):
         if not isinstance(workflow, dict) or not workflow.get(field):
             print(f"[bold red][!] HWL action {filename} has no {field}")
             raise typer.Exit(code=1)
 
+    inputs_definition = workflow.get("inputs") or {}
+    outputs = workflow.get("outputs") or {}
+    for key, value in (("inputs", inputs_definition), ("outputs", outputs)):
+        if not isinstance(value, dict):
+            print(f"[bold red][!] HWL action {filename}: {key} must be a mapping")
+            raise typer.Exit(code=1)
+
     raw_inputs = {
         name: schema
-        for name, schema in (workflow.get("inputs") or {}).items()
+        for name, schema in inputs_definition.items()
         if name not in module_properties
     }
     for name, schema in raw_inputs.items():
@@ -125,7 +133,7 @@ def hwl_action_to_payload(
         "docker": docker_image,
         "docker_parameters": filename,
         "arguments": arguments,
-        "results": {"type": "object", "properties": workflow.get("outputs") or {}},
+        "results": {"type": "object", "properties": outputs},
     }
     if workflow.get("description"):
         action["description"] = workflow["description"]

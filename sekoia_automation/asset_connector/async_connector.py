@@ -4,7 +4,7 @@ import json
 import os
 import time
 from abc import abstractmethod
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from functools import cached_property
 
@@ -23,6 +23,12 @@ from sekoia_automation.storage import PersistentJSON
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
+from .checkpoint import (
+    AssetCheckpoint,
+    CheckpointMode,
+    Cursor,
+    validate_checkpoint_declaration,
+)
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
 from .utils import (
     RATE_LIMIT_DEFAULT_WAIT,
@@ -729,3 +735,66 @@ class AsyncAssetConnector(Trigger):
         """
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.async_run())
+
+
+class AsyncCheckpointedAssetConnector(AsyncAssetConnector):
+    """
+    Async asset connector whose checkpoint is managed by the SDK.
+
+    Declare:
+        checkpoint_field: the source field the cursor is read from.
+        checkpoint_mode: "incremental" when the field moves on every change of
+            an asset (e.g. `updatedAt`), "sweep" otherwise (e.g. `createdAt`):
+            every asset is fetched again in full passes, one pass per frequency.
+
+    Implement :meth:`get_assets_since` instead of :meth:`get_assets`. The base
+    class implements update_checkpoint, reset_checkpoint and resume.
+    """
+
+    checkpoint_field: str
+    checkpoint_mode: CheckpointMode
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        validate_checkpoint_declaration(self)
+        self.asset_checkpoint = AssetCheckpoint(self.data_path, self.checkpoint_mode)
+
+    @abstractmethod
+    def get_assets_since(
+        self, checkpoint: Cursor | None
+    ) -> AsyncIterator[tuple[Cursor, AssetItem]]:
+        """
+        Yield `(cursor, asset)` for every asset whose `checkpoint_field` is
+        strictly greater than `checkpoint` (every asset when it is None), sorted
+        ascending on that field. `cursor` is the asset's `checkpoint_field` value.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass")
+
+    async def get_assets(self) -> AsyncGenerator[AssetItem, None]:
+        should_fetch, checkpoint = self.asset_checkpoint.begin(self.frequency)
+        if not should_fetch:
+            return
+
+        items = aiter(self.get_assets_since(checkpoint))
+        current = await anext(items, None)
+        while current is not None:
+            following = await anext(items, None)
+            next_cursor = following[0] if following is not None else None
+            if self.asset_checkpoint.stage(current[0], next_cursor):
+                self.log(
+                    message=(
+                        f"Assets are not sorted ascending on {self.checkpoint_field} "
+                        f"({next_cursor!r} after {current[0]!r}). The checkpoint "
+                        f"is not moved for the rest of this cycle"
+                    ),
+                    level="error",
+                )
+            yield current[1]
+            current = following
+        self.asset_checkpoint.exhausted()
+
+    async def update_checkpoint(self) -> None:
+        self.asset_checkpoint.commit()
+
+    async def reset_checkpoint(self) -> None:
+        self.asset_checkpoint.reset()

@@ -49,6 +49,11 @@ def generate_files(
     FilesGenerator(module).execute()
 
 
+class ModuleType(StrEnum):
+    python = "python"
+    hwl = "hwl"
+
+
 @app.command(name="new-module")
 def new_module(
     output_dir: Path = typer.Argument(
@@ -56,6 +61,9 @@ def new_module(
     ),
     module_name: str = typer.Option(..., help="Name of the module", prompt=True),
     description: str = typer.Option("", help="Description of the module", prompt=True),
+    module_type: ModuleType = typer.Option(
+        ModuleType.python, "--type", help="Kind of module to generate"
+    ),
     overwrite_if_exists: bool = typer.Option(
         False, help="Overwrite the output directory if it exists"
     ),
@@ -72,7 +80,8 @@ def new_module(
 
 
 
-    It will generate all the required files to have a working module:
+    For a `python` module (default) it generates all the required files to have
+    a working module:
 
         * The manifest
 
@@ -85,9 +94,21 @@ def new_module(
         * A tests directory with some mocks
 
         * A base package for the module
+
+
+
+    For a `hwl` module it only generates the manifest, a changelog and a logo.
     """
+    module_dir = module_name.replace(" ", "")
+    # The directory name must not escape output_dir
+    if module_dir in ("", ".", "..") or Path(module_dir).name != module_dir:
+        raise typer.BadParameter(
+            "must not be empty or contain path separators", param_hint="module-name"
+        )
+
     current_dir = Path(os.path.dirname(__file__)).resolve()
-    template = current_dir / "scripts" / "new_module" / "template"
+    template_dir = "template" if module_type == ModuleType.python else "template_hwl"
+    template = current_dir / "scripts" / "new_module" / template_dir
     cookiecutter(
         template.as_posix(),
         overwrite_if_exists=overwrite_if_exists,
@@ -96,7 +117,7 @@ def new_module(
         extra_context={
             "module_name": module_name,
             "module_description": description,
-            "module_dir": module_name.replace(" ", ""),
+            "module_dir": module_dir,
         },
         accept_hooks=not skip_hooks,
     )

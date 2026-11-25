@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The CLI and code generation dependencies (`typer`, `cookiecutter`,
+  `python-slugify`, `PyYAML`, `Jinja2`, `black` and `uv`) are now in the `cli`
+  extra, so modules no longer install them. To use the `sekoia-automation`
+  command, install `sekoia-automation-sdk[cli]`.
 - Asset connectors log the code, message and details of a push error response,
   instead of its raw body.
 - On an HTTP 429, asset connectors tell a reached asset connector limit from a

@@ -200,6 +200,21 @@ if __name__ == "__main__":
 
 The corresponding commands need to be correctly set in the manifests as "docker_parameters".
 
+## Command line tool
+
+The `sekoia-automation` command (module generation, manifests generation, documentation, …)
+needs optional dependencies that modules do not need at runtime. Install them with the `cli` extra:
+
+```
+$ pip install 'sekoia-automation-sdk[cli]'
+```
+
+or run the tool without installing it:
+
+```
+$ uvx --from 'sekoia-automation-sdk[cli]' sekoia-automation --help
+```
+
 ## Use with Pydantic
 
 It is recommended to use Pydantic to develop new modules. This should ease development.
@@ -271,7 +286,7 @@ When using pydantic models to describe configurations, arguments and results, ma
 can be automatically generated:
 
 ```
-$ uv run sekoia-automation generate-files
+$ uvx --from 'sekoia-automation-sdk[cli]' sekoia-automation generate-files
 ```
 
 This will do the following:

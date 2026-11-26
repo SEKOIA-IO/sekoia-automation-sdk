@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
+  An `hwl` module only contains the manifest, a changelog and a logo.
 - Asset connectors apply a reset jitter: after a schema-change checkpoint
   reset, the next full fetch is delayed by a per-configuration jitter (up to
   `RESET_JITTER_DEFAULT_MAX`, 3 hours by default) to spread the re-fetch burst
@@ -28,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require `sekoia-automation-models>=1.5.0`. The `batch_push_interval`
   configuration field is declared since 1.4.0.
+- Asset connectors log the code, message and details of a push error response,
+  instead of its raw body.
+- On an HTTP 429, asset connectors tell a reached asset connector limit from a
+  rate limit, and log which limits are reached. Both still pause the connector
+  and do not move the checkpoint.
+- Refactor the publication script for the automation modules
+
+### Fixed
+
+- Fix f-strings in the publication script
 
 ### Fixed
 

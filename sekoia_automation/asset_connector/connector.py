@@ -15,6 +15,8 @@ from .models.connector import AssetItem, AssetList
 from .utils import (
     TASK_PENDING_STATUSES,
     parse_retry_after,
+    push_429_message,
+    push_error_message,
 )
 
 
@@ -70,29 +72,15 @@ class AssetConnector(AssetConnectorBase):
                 res.headers.get("Retry-After"), self.rate_limit_wait
             )
             self.log(
-                message=(
-                    "Asset connector push rate limited (HTTP 429). "
-                    f"Waiting {retry_after} seconds before refetching."
-                ),
+                message=push_429_message(res.text, retry_after),
                 level="warning",
             )
             raise AssetConnectorRateLimitError(retry_after=retry_after)
 
         if res.status_code != 200:
-            error_message = self.handle_api_error(res.status_code)
-            # In case the response body is empty or not a json
-            if res:
-                error_response = res.json()
-                error_message = error_response.get("message", "")
-                error_code = error_response.get("code", "")
-                body_message = f" - {error_code} : {error_message}"
-            else:
-                body_message = res.text or ""
-
             self.log(
-                message=(
-                    "Error while pushing assets to Sekoia.io "
-                    f"- {error_message} : {body_message}"
+                message=push_error_message(
+                    self.handle_api_error(res.status_code), res.text
                 ),
                 level="error",
             )

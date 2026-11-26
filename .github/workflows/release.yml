@@ -1,0 +1,140 @@
+name: Create release
+
+# Creates the `v<version>` tag and the matching GitHub release, using the
+# version declared in `pyproject.toml` and its entry in `CHANGELOG.md` as the
+# release notes. Then triggers the PyPI publication workflow.
+#
+# Access control: only users listed in the `RELEASE_MANAGERS` repository
+# variable (GitHub logins separated by commas or whitespace) can run it.
+# The workflow fails closed if the variable is missing or empty.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Only display the release notes, do not create the tag/release"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Check that the actor is allowed to release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check actor and branch
+        env:
+          ACTOR: ${{ github.triggering_actor }}
+          RELEASE_MANAGERS: ${{ vars.RELEASE_MANAGERS }}
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::Releases can only be created from the '$DEFAULT_BRANCH' branch (got '$REF')."
+            exit 1
+          fi
+
+          if [ -z "${RELEASE_MANAGERS//[[:space:],]/}" ]; then
+            echo "::error::The RELEASE_MANAGERS repository variable is not defined."
+            exit 1
+          fi
+
+          for allowed in ${RELEASE_MANAGERS//,/ }; do
+            if [ "${allowed,,}" = "${ACTOR,,}" ]; then
+              echo "'$ACTOR' is allowed to create a release."
+              exit 0
+            fi
+          done
+
+          echo "::error::'$ACTOR' is not allowed to create a release."
+          exit 1
+
+  release:
+    name: Create tag and GitHub release
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # to create the tag and the release
+      actions: write   # to trigger the publish workflow
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read version from pyproject.toml
+        id: version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          # PEP 440 pre-releases (a, b, rc) and dev releases
+          if [[ "$version" =~ (a|b|rc|\.dev)[0-9]*$ ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check that the tag does not already exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Did you forget to bump the version in pyproject.toml?"
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Keep everything between `## <version> - <date>` and the next `## ` header
+          awk -v version="$VERSION" '
+            /^## / { if (found) exit; if ($2 == version) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-notes.md
+
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::No entry found for version $VERSION in CHANGELOG.md (expected a '## $VERSION - YYYY-MM-DD' section)."
+            exit 1
+          fi
+
+          {
+            echo "## Release notes for $VERSION"
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create tag and GitHub release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          args=()
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            "${args[@]}"
+
+      # Releases created with GITHUB_TOKEN do not trigger `release` events, so
+      # the publish workflow has to be explicitly dispatched on the new tag.
+      - name: Trigger PyPI publication
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          echo "Publication to PyPI triggered for $TAG." >> "$GITHUB_STEP_SUMMARY"

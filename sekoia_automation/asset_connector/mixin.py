@@ -45,6 +45,8 @@ class AssetConnectorBase(Trigger):
         super().__init__(*args, **kwargs)
         self._latest_time = None
         self._skip_task_wait = False
+        # (env variable, raw value) pairs already reported as invalid
+        self._warned_invalid_env: set[tuple[str, str]] = set()
         self.schema_store = PersistentJSON(
             self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
         )
@@ -153,6 +155,19 @@ class AssetConnectorBase(Trigger):
                 )
         return RATE_LIMIT_DEFAULT_WAIT
 
+    def _warn_invalid_env_once(self, name: str, raw: str, fallback: str) -> None:
+        """
+        Log that an env variable holds an invalid value, once per value.
+
+        The properties reading these variables are evaluated on every batch or
+        cycle; values are not cached so that platform configuration changes
+        still apply, hence this deduplication of the warning.
+        """
+        if (name, raw) in self._warned_invalid_env:
+            return
+        self._warned_invalid_env.add((name, raw))
+        self.log(message=f"Invalid {name} value; falling back to {fallback}")
+
     @property
     def batch_push_interval(self) -> float:
         """
@@ -174,11 +189,8 @@ class AssetConnectorBase(Trigger):
                 interval = math.nan
             if math.isfinite(interval):
                 return max(interval, 0.0)
-            self.log(
-                message=(
-                    "Invalid ASSET_CONNECTOR_BATCH_PUSH_INTERVAL value; "
-                    "falling back to the configured value"
-                )
+            self._warn_invalid_env_once(
+                "ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", raw, "the configured value"
             )
         interval = self.configuration.batch_push_interval
         return max(interval, 0.0) if math.isfinite(interval) else 0.0
@@ -407,11 +419,8 @@ class AssetConnectorBase(Trigger):
             # inf would wait forever and nan would silently disable the jitter
             if math.isfinite(max_seconds):
                 return max(max_seconds, 0.0)
-            self.log(
-                message=(
-                    "Invalid ASSET_CONNECTOR_RESET_JITTER_MAX value; "
-                    "falling back to the default jitter window"
-                )
+            self._warn_invalid_env_once(
+                "ASSET_CONNECTOR_RESET_JITTER_MAX", raw, "the default jitter window"
             )
         return float(RESET_JITTER_DEFAULT_MAX)
 

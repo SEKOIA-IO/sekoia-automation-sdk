@@ -241,9 +241,14 @@ class AssetConnector(AssetConnectorBase):
         current_fields, reset_needed = change
         if reset_needed:
             self.reset_checkpoint()
-            self._schedule_reset_jitter()
 
+        # Persist the schema before scheduling the jitter: if the connector
+        # crashes in between, the next start must not detect the same change
+        # again, reset the checkpoint a second time and restart the wait.
         self._save_schema(current_fields)
+
+        if reset_needed:
+            self._schedule_reset_jitter()
 
     @abstractmethod
     def get_assets(

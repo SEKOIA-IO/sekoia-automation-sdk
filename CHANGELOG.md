@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.28.1 - 2026-11-26
+
 ### Added
 
 - Asset connectors apply a reset jitter: after a schema-change checkpoint

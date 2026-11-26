@@ -30,9 +30,9 @@ from sekoia_automation.exceptions import (
     SendEventError,
 )
 from sekoia_automation.module import LogLevelStr, Module, ModuleItem
-from sekoia_automation.storage import UPLOAD_CHUNK_SIZE
+from sekoia_automation.storage import write_bytes
 from sekoia_automation.typing import SupportedAuthentications
-from sekoia_automation.utils import chunks, returns
+from sekoia_automation.utils import returns
 
 
 class ActionLogHandler(logging.StreamHandler):
@@ -184,11 +184,7 @@ class Action(ModuleItem):
         if self._result_as_file:
             filename = f"{name}-{uuid4()}.json"
 
-            filepath = self.data_path / filename
-            with filepath.open("wb") as f:
-                data = orjson.dumps(value)
-                for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
-                    f.write(chunk)
+            write_bytes(self.data_path / filename, orjson.dumps(value))
 
             return {f"{name}_path": filename}
         else:

@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `PersistentJSON` writes its file on leaving the context manager only when the
+  data changed, instead of on every use, including read-only ones.
+- Files of up to 50 MB written to S3 by `PersistentJSON`, `write`,
+  `Action.json_result` and connectors' events are sent with a single PutObject
+  request instead of a multipart upload of three requests.
+
 - Asset connectors log the code, message and details of a push error response,
   instead of its raw body.
 - On an HTTP 429, asset connectors tell a reached asset connector limit from a

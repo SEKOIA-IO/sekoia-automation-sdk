@@ -21,6 +21,7 @@ from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.connector.metrics import MetricsMixin
 from sekoia_automation.constants import CHUNK_BYTES_MAX_SIZE, EVENT_BYTES_MAX_SIZE
 from sekoia_automation.exceptions import TriggerConfigurationError
+from sekoia_automation.storage import write_bytes
 from sekoia_automation.trigger import Trigger
 from sekoia_automation.utils import get_annotation_for, get_as_model
 
@@ -255,8 +256,7 @@ class Connector(Trigger, MetricsMixin, ABC):
         work_dir.mkdir(parents=True, exist_ok=True)
 
         event_path = work_dir.joinpath("event.json")
-        with event_path.open("w") as fp:
-            fp.write(orjson.dumps(records).decode("utf-8"))
+        write_bytes(event_path, orjson.dumps(records))
 
         # Send Event
         directory = str(work_dir.relative_to(self.data_path))

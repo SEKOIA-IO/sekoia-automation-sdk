@@ -2,6 +2,7 @@ import uuid
 from functools import lru_cache
 from json.decoder import JSONDecodeError
 from pathlib import Path
+from typing import Any
 
 import boto3
 import orjson
@@ -15,6 +16,14 @@ from sekoia_automation.utils import capture_retry_error, chunks
 
 FilePath = Path | str
 UPLOAD_CHUNK_SIZE = 1024 * 1024 * 50  # 50MB
+
+# Largest payload written to S3 with a single PutObject request. Bigger ones go
+# through `S3Path.open()`, which uploads them in parts.
+SINGLE_PUT_MAX_SIZE = UPLOAD_CHUNK_SIZE
+
+# boto3 S3 resource registered by `get_s3_data_path`, by base path ("/bucket"),
+# the same key s3path uses for its own configuration
+_S3_RESOURCES: dict[str, Any] = {}
 
 
 @lru_cache
@@ -47,6 +56,7 @@ def get_s3_data_path(configuration: Configuration | None = None) -> Path:
         "s3", endpoint_url=endpoint_url, verify=ca_path, config=config
     )
     register_configuration_parameter(base_path, resource=stack_resource)
+    _S3_RESOURCES[str(base_path)] = stack_resource
 
     # This will also ensure that credentials are set and valid
     # It will raise NoCredentialsError or something similar in case of failure
@@ -97,6 +107,38 @@ def _get_tls_client_credentials(
     return ca_path, cert_path, key_path
 
 
+def _get_s3_resource(path: S3Path) -> Any:
+    """Return the resource registered for `path` or its closest parent.
+
+    This resolves the resource the same way s3path does for `S3Path.open()`.
+    """
+    for candidate in (path, *path.parents):
+        if (resource := _S3_RESOURCES.get(str(candidate))) is not None:
+            return resource
+    return None
+
+
+def write_bytes(filepath: Path, data: bytes) -> None:
+    """Write `data` to `filepath`, replacing its content.
+
+    On S3, a payload of up to `SINGLE_PUT_MAX_SIZE` bytes is sent with a single
+    PutObject request. Writing through `S3Path.open()` always creates a
+    multipart upload (three requests, and more I/O on the storage side), even
+    for a file of a few bytes.
+    """
+    if isinstance(filepath, S3Path) and len(data) <= SINGLE_PUT_MAX_SIZE:
+        resource = _get_s3_resource(filepath)
+        if resource is not None:
+            resource.meta.client.put_object(
+                Bucket=filepath.bucket, Key=filepath.key, Body=data
+            )
+            return
+
+    with filepath.open("wb") as out:
+        for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
+            out.write(chunk)
+
+
 def get_local_data_path() -> Path:
     return Path(constants.DATA_STORAGE)
 
@@ -133,6 +175,9 @@ class PersistentJSON:
     It can be used as a faster / less risky alternative to `shelve` when
     the dict is JSON Serializable.
 
+    Leaving the context manager writes the file only when the data differs
+    from what was last read from or written to it.
+
     Args:
     ----
         filepath (str): path of the JSON file used to persist data.
@@ -148,6 +193,9 @@ class PersistentJSON:
             self._filepath = data_path / filepath
 
         self._data: dict = {}
+        # Serialized content of the file as last read or written,
+        # None when unknown (file missing, unreadable or not loaded yet)
+        self._persisted: bytes | None = None
 
     @retry(
         reraise=True,
@@ -156,13 +204,22 @@ class PersistentJSON:
         retry_error_callback=capture_retry_error,
     )
     def load(self):
-        if not self._data and self._filepath.is_file():
-            with self._filepath.open("r") as fd:
-                try:
-                    self._data = orjson.loads(fd.read().encode("utf-8"))
-                except JSONDecodeError:
-                    # The content is not valid json
-                    self._data = {}
+        if self._data:
+            return
+
+        if not self._filepath.is_file():
+            # Missing file: write it on the next exit, even if the data is empty
+            self._persisted = None
+            return
+
+        with self._filepath.open("r") as fd:
+            try:
+                self._data = orjson.loads(fd.read().encode("utf-8"))
+                self._persisted = orjson.dumps(self._data)
+            except JSONDecodeError:
+                # The content is not valid json: rewrite it on the next exit
+                self._data = {}
+                self._persisted = None
 
     @retry(
         reraise=True,
@@ -171,10 +228,9 @@ class PersistentJSON:
         retry_error_callback=capture_retry_error,
     )
     def dump(self):
-        with self._filepath.open("wb") as out:
-            data = orjson.dumps(self._data)
-            for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
-                out.write(chunk)
+        data = orjson.dumps(self._data)
+        write_bytes(self._filepath, data)
+        self._persisted = data
 
     def __enter__(self):
         self.load()
@@ -182,7 +238,8 @@ class PersistentJSON:
         return self._data
 
     def __exit__(self, _, __, ___):
-        self.dump()
+        if orjson.dumps(self._data) != self._persisted:
+            self.dump()
 
 
 @retry(
@@ -241,8 +298,6 @@ def write(
         data = content.encode("utf-8")
     else:
         data = orjson.dumps(content)
-    with filepath.open("wb") as out:
-        for chunk in chunks(data, UPLOAD_CHUNK_SIZE):
-            out.write(chunk)
+    write_bytes(filepath, data)
 
     return filepath.relative_to(data_path)

@@ -10,13 +10,16 @@ import pytest
 from botocore.config import Config
 from s3path import S3Path
 
+from sekoia_automation import storage as storage_module
 from sekoia_automation.storage import (
+    SINGLE_PUT_MAX_SIZE,
     PersistentJSON,
     _get_tls_client_credentials,
     get_data_path,
     get_s3_data_path,
     temp_directory,
     write,
+    write_bytes,
 )
 
 
@@ -36,6 +39,123 @@ def test_persistentjson(storage):
 
     with filepath.open("r") as f:
         assert json.load(f) == {"key": "value"}
+
+
+def test_persistentjson_writes_only_changes(storage):
+    with PersistentJSON("test.json", data_path=storage) as cache:
+        cache["key"] = "value"
+
+    persistent = PersistentJSON("test.json", data_path=storage)
+    with mock.patch.object(storage_module, "write_bytes") as write_mock:
+        # Reading the data does not write the file again
+        with persistent as cache:
+            assert cache["key"] == "value"
+        write_mock.assert_not_called()
+
+        # Changing it does
+        with persistent as cache:
+            cache["key"] = "other"
+        write_mock.assert_called_once_with(storage / "test.json", b'{"key":"other"}')
+
+        # Setting the same value again does not
+        with persistent as cache:
+            cache["key"] = "other"
+        write_mock.assert_called_once()
+
+
+def test_persistentjson_creates_missing_file(storage):
+    with PersistentJSON("test.json", data_path=storage) as cache:
+        assert cache == {}
+
+    assert (storage / "test.json").read_text() == "{}"
+
+
+def test_persistentjson_rewrites_deleted_file(storage):
+    persistent = PersistentJSON("test.json", data_path=storage)
+    with persistent:
+        pass
+    (storage / "test.json").unlink()
+
+    with persistent:
+        pass
+
+    assert (storage / "test.json").read_text() == "{}"
+
+
+def test_persistentjson_rewrites_invalid_file(storage):
+    (storage / "test.json").write_text("not json")
+
+    with PersistentJSON("test.json", data_path=storage) as cache:
+        assert cache == {}
+
+    assert (storage / "test.json").read_text() == "{}"
+
+
+def test_persistentjson_dump_always_writes(storage):
+    persistent = PersistentJSON("test.json", data_path=storage)
+    with persistent as cache:
+        cache["key"] = "value"
+
+    with mock.patch.object(storage_module, "write_bytes") as write_mock:
+        persistent.dump()
+    write_mock.assert_called_once()
+
+
+def test_write_bytes_s3_single_put():
+    resource = mock.Mock()
+    path = S3Path("/bucket/dir/file.json")
+    with mock.patch.dict(storage_module._S3_RESOURCES, {"/bucket": resource}):
+        write_bytes(path, b"data")
+
+    resource.meta.client.put_object.assert_called_once_with(
+        Bucket="bucket", Key="dir/file.json", Body=b"data"
+    )
+
+
+def test_write_bytes_s3_large_payload_uses_multipart():
+    resource = mock.Mock()
+    path = S3Path("/bucket/file.json")
+    data = b"x" * (SINGLE_PUT_MAX_SIZE + 1)
+    with (
+        mock.patch.dict(storage_module._S3_RESOURCES, {"/bucket": resource}),
+        mock.patch.object(S3Path, "open", mock.mock_open()) as open_mock,
+    ):
+        write_bytes(path, data)
+
+    resource.meta.client.put_object.assert_not_called()
+    open_mock.assert_called_once_with("wb")
+    written = b"".join(c.args[0] for c in open_mock.return_value.write.call_args_list)
+    assert written == data
+
+
+def test_write_bytes_s3_uses_the_resource_of_the_closest_registered_path():
+    bucket_resource = mock.Mock()
+    folder_resource = mock.Mock()
+    registered = {"/bucket": bucket_resource, "/bucket/folder": folder_resource}
+    with mock.patch.dict(storage_module._S3_RESOURCES, registered):
+        write_bytes(S3Path("/bucket/folder/file.json"), b"data")
+        write_bytes(S3Path("/bucket/other/file.json"), b"data")
+
+    folder_resource.meta.client.put_object.assert_called_once_with(
+        Bucket="bucket", Key="folder/file.json", Body=b"data"
+    )
+    bucket_resource.meta.client.put_object.assert_called_once_with(
+        Bucket="bucket", Key="other/file.json", Body=b"data"
+    )
+
+
+def test_write_bytes_s3_unknown_bucket_uses_open():
+    path = S3Path("/unregistered/file.json")
+    with mock.patch.object(S3Path, "open", mock.mock_open()) as open_mock:
+        write_bytes(path, b"data")
+
+    open_mock.assert_called_once_with("wb")
+    open_mock.return_value.write.assert_called_once_with(b"data")
+
+
+def test_write_bytes_local(storage):
+    write_bytes(storage / "file.bin", b"data")
+    assert (storage / "file.bin").read_bytes() == b"data"
 
 
 def test_temp_directory(storage):

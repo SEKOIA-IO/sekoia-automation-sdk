@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix f-strings in the publication script
+- Start `AsyncConnector` and `AsyncAssetConnector` on Python 3.14, where `run()` stopped with "There is no current event loop in thread 'MainThread'": a new event loop is created when the thread has none
 
 ## 1.27.2 - 2026-11-04
 

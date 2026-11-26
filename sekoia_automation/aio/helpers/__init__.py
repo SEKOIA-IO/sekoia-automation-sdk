@@ -25,3 +25,19 @@ async def limit_concurrency(tasks: list, limit: int) -> AsyncGenerator[Any, None
 
     for result in await asyncio.gather(*map(sem_coro, tasks)):
         yield result
+
+
+def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
+    """
+    Return the current event loop of the thread, or a new one set as current
+
+    Python 3.14 no longer creates a loop in the main thread on
+    `asyncio.get_event_loop()`: it raises "There is no current event loop in thread
+    'MainThread'".
+    """
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop

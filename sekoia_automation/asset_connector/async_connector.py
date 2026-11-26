@@ -14,6 +14,7 @@ from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 from tenacity import Retrying, stop_after_delay, wait_exponential
 
+from sekoia_automation.aio.helpers import get_or_create_event_loop
 from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
     MissingActionArgumentError,
@@ -727,5 +728,5 @@ class AsyncAssetConnector(Trigger):
         """
         Synchronous entry point that runs the async main loop.
         """
-        loop = asyncio.get_event_loop()
+        loop = get_or_create_event_loop()
         loop.run_until_complete(self.async_run())

@@ -2722,15 +2722,15 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-models"
-version = "1.5.0"
+version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "tldextract" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/79/be/2c0ca57d277ab20e2c541aa6ebdc9376a267392f24838d993a2ec8a46bf4/sekoia_automation_models-1.5.0.tar.gz", hash = "sha256:eb036945bfcfcc98ecb80e79ed90975a160c7c79bc2f43aff462532d7ef6dbc4", size = 9161, upload-time = "2026-11-04T17:03:48.919Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/73/3e741eb3181238e0aa8c9200eadc93e28edebf65dda71b1e37ad0964ae7b/sekoia_automation_models-1.7.0.tar.gz", hash = "sha256:b6eb45073fc94b9ae65beeaba49c9915cc18ee701f899a2b2c0efb3b7e37a77e", size = 10323, upload-time = "2026-11-24T17:16:04.61Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/3f/df023f4fb1f0e3d644dee6082afff5a267a95cbbb6a95e284de6ea9a2ee0/sekoia_automation_models-1.5.0-py3-none-any.whl", hash = "sha256:4e3793714471ce394eada6ec4424e3bba9c544241c28a5d38e76fb18f58882ef", size = 13657, upload-time = "2026-11-04T17:03:47.565Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/a8/fff976d8c510f52e913815153218b783f78452fe8951a7b261f0ead4e10e/sekoia_automation_models-1.7.0-py3-none-any.whl", hash = "sha256:b422a9274a0ceaa71fad01b8260edd6bf8b519af22998635a3417ca1e75cf120", size = 15228, upload-time = "2026-11-24T17:16:03.618Z" },
 ]
 
 [[package]]
@@ -2808,7 +2808,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.25,<3" },
     { name = "requests-ratelimiter", specifier = ">=0.7.0,<0.8" },
     { name = "s3path", specifier = ">=0.6.4,<0.7" },
-    { name = "sekoia-automation-models", specifier = ">=1.5.0,<2" },
+    { name = "sekoia-automation-models", specifier = ">=1.7.0,<2" },
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer", specifier = ">=0.20" },

@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Require `sekoia-automation-models>=1.5.0`. The `batch_push_interval`
+- Require `sekoia-automation-models>=1.7.0`. The `batch_push_interval`
   configuration field is declared since 1.4.0.
 
 ### Fixed

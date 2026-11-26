@@ -437,7 +437,9 @@ class DocumentationGenerator:
                 return True
             return self.prune and missing
 
-        kept: list[list[str]] = []  # the other entries are left as they are
+        # the other entries are left as they are, a regenerated category of a
+        # single module run keeps its place (its folder stands for its lines)
+        kept: list[list[str] | str] = []
         for group in groups:
             parts = Path(_summary_link(group[0])).parts
             if len(parts) == 3 and parts[2] == "README.md" and parts[1] in categories:
@@ -446,6 +448,7 @@ class DocumentationGenerator:
                     for child in group[1:]:
                         if match := SUMMARY_CHILD.match(child):
                             pages.setdefault(match[2], match[1])
+                    kept.append(parts[1])
                 continue
             group = [
                 line
@@ -455,17 +458,22 @@ class DocumentationGenerator:
             if group:
                 kept.append(group)
 
-        block = []
-        for folder, (title, pages) in sorted(
-            categories.items(), key=lambda item: item[1][0]
-        ):
-            block.append(f"  * [{title}]({LIBRARY_DIR}/{folder}/README.md)")
-            block += [
-                f"    * [{name}]({page})"
-                for page, name in sorted(pages.items(), key=lambda item: item[1])
+        def category_lines(folder: str) -> list[str]:
+            title, pages = categories[folder]
+            return [
+                f"  * [{title}]({LIBRARY_DIR}/{folder}/README.md)",
+                *(
+                    f"    * [{name}]({page})"
+                    for page, name in sorted(pages.items(), key=lambda item: item[1])
+                ),
             ]
-        for group in kept:
-            block += group
+
+        block = []
+        for folder in sorted(categories, key=lambda folder: categories[folder][0]):
+            if folder not in kept:  # the others are written in place below
+                block += category_lines(folder)
+        for item in kept:
+            block += category_lines(item) if isinstance(item, str) else item
         lines[start:end] = block
         path.write_text("\n".join(lines) + "\n")
         print("[green][+][/green] SUMMARY.md updated")

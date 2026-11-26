@@ -1,4 +1,6 @@
 import json
+import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -358,3 +360,25 @@ def test_gitbook_manual_page_named_like_a_module_kept(modules_path, gitbook_path
     summary.write_text(summary.read_text().replace("\n## Other", entry + "\n## Other"))
     generate(modules_path, gitbook_path)
     assert entry in summary.read_text()
+
+
+def test_gitbook_single_module_keeps_category_order(modules_path, gitbook_path):
+    for name, category in (("Mail", "Email"), ("Zed", "Zeta")):
+        folder = modules_path / name
+        shutil.copytree(modules_path / "Test", folder)
+        manifest = folder / "manifest.json"
+        manifest.write_text(
+            manifest.read_text()
+            .replace("Test Module", f"{name} Module")
+            .replace('"Network"', f'"{category}"')
+            .replace("7cf9ccf6-e20a-4e53-bd77-3c19cdc94154", name)
+        )
+    generate(modules_path, gitbook_path)
+    path = gitbook_path / SPACE / "SUMMARY.md"
+
+    def titles() -> list[str]:
+        return re.findall(r"^  \* \[(.+?)\]\(.*README", path.read_text(), re.M)
+
+    assert titles() == ["Email", "Network", "Zeta"]
+    generate(modules_path, gitbook_path, module="Test")
+    assert titles() == ["Email", "Network", "Zeta"]

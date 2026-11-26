@@ -180,7 +180,8 @@ class AssetConnectorBase(Trigger):
                     "falling back to the configured value"
                 )
             )
-        return max(self.configuration.batch_push_interval, 0.0)
+        interval = self.configuration.batch_push_interval
+        return max(interval, 0.0) if math.isfinite(interval) else 0.0
 
     @property
     def task_poll_interval(self) -> float:

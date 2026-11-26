@@ -382,3 +382,33 @@ def test_gitbook_single_module_keeps_category_order(modules_path, gitbook_path):
     assert titles() == ["Email", "Network", "Zeta"]
     generate(modules_path, gitbook_path, module="Test")
     assert titles() == ["Email", "Network", "Zeta"]
+
+
+def test_gitbook_prune_keeps_page_with_playbook_in_body(modules_path, gitbook_path):
+    guide = gitbook_path / SPACE / "action_library/network/guide.md"
+    guide.parent.mkdir(parents=True, exist_ok=True)
+    guide.write_text("# Guide\n\n```yaml\ntype: playbook\n```\n")
+    generate(modules_path, gitbook_path, prune=True)
+    assert guide.exists()
+
+
+def moved_module(modules_path: Path, gitbook_path: Path) -> Path:
+    generate(modules_path, gitbook_path)
+    manifest = modules_path / "Test" / "manifest.json"
+    manifest.write_text(manifest.read_text().replace("Network", "Cloud"))
+    return gitbook_path / SPACE / "action_library/network/test-module.md"
+
+
+def test_gitbook_prune_deletes_moved_page(modules_path, gitbook_path):
+    old = moved_module(modules_path, gitbook_path)
+    generate(modules_path, gitbook_path, prune=True)
+    assert not old.exists()
+    assert (old.parents[1] / "cloud/test-module.md").exists()
+
+
+def test_gitbook_prune_cap_keeps_moved_page(modules_path, gitbook_path):
+    old = moved_module(modules_path, gitbook_path)
+    stale_pages(gitbook_path, 5)  # with the moved page, over the cap
+    with pytest.raises(typer.Exit):
+        generate(modules_path, gitbook_path, prune=True)
+    assert old.exists()

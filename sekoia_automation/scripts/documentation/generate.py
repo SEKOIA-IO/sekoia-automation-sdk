@@ -32,8 +32,11 @@ def escape_title(title: str) -> str:
 
 
 def is_generated_page(page: Path) -> bool:
-    """Generated pages are the ones with the playbook front matter."""
-    return "type: playbook" in page.read_text().splitlines()[:10]
+    """Generated pages are the ones with `type: playbook` in their front matter."""
+    lines = page.read_text().splitlines()
+    if lines[:1] != ["---"] or "---" not in lines[1:]:
+        return False
+    return "type: playbook" in lines[1 : lines.index("---", 1)]
 
 
 def _summary_link(line: str) -> str:
@@ -185,10 +188,12 @@ class DocumentationGenerator:
             category_page = pages_dir / "README.md"
             if not category_page.exists():  # keep manual edits
                 category_page.write_text(f"# {escape_title(doc.category)}\n")
-            # the module changed category: drop its page from the former one
-            for stale in pages_dir.parent.glob(f"*/{doc.file_name}"):
-                if stale.parent != pages_dir and is_generated_page(stale):
-                    stale.unlink()
+            # the module changed category: drop its page from the former one,
+            # --prune does it after its checks as it deletes the pages not generated
+            if not self.prune:
+                for stale in pages_dir.parent.glob(f"*/{doc.file_name}"):
+                    if stale.parent != pages_dir and is_generated_page(stale):
+                        stale.unlink()
 
         return doc
 

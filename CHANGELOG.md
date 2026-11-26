@@ -11,6 +11,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Expose the `scalable_horizontally` and `scalable_vertically` labels of the
   running trigger/connector, read from its descriptor (default to `false`).
+- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
+  An `hwl` module only contains the manifest, a changelog and a logo.
+
+### Changed
+
+- Asset connectors log the code, message and details of a push error response,
+  instead of its raw body.
+- On an HTTP 429, asset connectors tell a reached asset connector limit from a
+  rate limit, and log which limits are reached. Both still pause the connector
+  and do not move the checkpoint.
+- Refactor the publication script for the automation modules
+
+### Fixed
+
+- Fix f-strings in the publication script
+
+## 1.27.2 - 2026-11-04
+
+### Changed
+
+- Bump minimal versions for `uv` and `black` (security fixes) and update locked versions in `uv.lock`
+
+## 1.27.1 - 2026-10-30
+
+### Added
+
+- Revert PEP 561 until the exposed types are improved.
 
 ## 1.27.0 - 2026-10-06
 

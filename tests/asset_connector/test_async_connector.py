@@ -46,6 +46,26 @@ from sekoia_automation.asset_connector.utils import (
 from sekoia_automation.exceptions import AssetConnectorRateLimitError
 
 
+async def post_with_response(
+    connector, asset_list, status: int, body: str, headers: dict | None = None
+):
+    """Push asset_list while the push API answers with the given raw body."""
+    mock_response = AsyncMock()
+    mock_response.status = status
+    mock_response.text = AsyncMock(return_value=body)
+    mock_response.headers = headers or {}
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = mock_response
+        mock_post.return_value.__aexit__.return_value = None
+        try:
+            return await connector.post_assets_to_api(
+                asset_list, "http://example.com/api"
+            )
+        finally:
+            await connector._session.close()
+
+
 class ContextDict(dict):
     def __enter__(self):
         return self
@@ -684,6 +704,13 @@ async def test_post_assets_to_api_rate_limited_without_retry_after(
     await test_async_asset_connector._session.close()
 
     assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector push rate limited (HTTP 429). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
 
 
 def test_parse_retry_after_delta_seconds():
@@ -1041,3 +1068,112 @@ async def test_asset_fetch_cycle_reenables_the_task_wait(
     await test_async_asset_connector.asset_fetch_cycle()
 
     assert test_async_asset_connector._skip_task_wait is False
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_limit_reached(test_async_asset_connector, asset_list):
+    body = {
+        "detail": {
+            "message": "Asset connector limit reached",
+            "code": "ASSET_CONNECTOR_LIMIT_REACHED",
+            "limits": [
+                {"figure": "active_assets", "scope": "configuration"},
+                {"figure": "lifetime_assets", "scope": "community"},
+            ],
+        }
+    }
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        await post_with_response(
+            test_async_asset_connector, asset_list, 429, json.dumps(body)
+        )
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_async_asset_connector.update_checkpoint.assert_not_called()
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector limit reached (active_assets per configuration, "
+            "lifetime_assets per community). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_rate_limited_logs_code_and_limit(
+    test_async_asset_connector, asset_list
+):
+    body = {
+        "detail": {
+            "message": "Asset connector push rate limit exceeded",
+            "code": "ASSET_CONNECTOR_RATE_LIMIT_EXCEEDED",
+            "limit": "items per day",
+        }
+    }
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+
+    with pytest.raises(AssetConnectorRateLimitError) as exc_info:
+        await post_with_response(
+            test_async_asset_connector, asset_list, 429, json.dumps(body)
+        )
+
+    assert exc_info.value.retry_after == RATE_LIMIT_DEFAULT_WAIT
+    test_async_asset_connector.update_checkpoint.assert_not_called()
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Asset connector push rate limited "
+            "(HTTP 429, ASSET_CONNECTOR_RATE_LIMIT_EXCEEDED, items per day). "
+            "Waiting 3600 seconds before refetching."
+        ),
+        level="warning",
+    )
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_failure_logs_error_detail(
+    test_async_asset_connector, asset_list
+):
+    body = {
+        "detail": {
+            "message": "Unsupported push version",
+            "code": "ASSET_CONNECTOR_UNSUPPORTED_VERSION",
+            "asset_connector_configuration_uuid": "04716e25",
+            "version": 2,
+        }
+    }
+    test_async_asset_connector.update_checkpoint = AsyncMock()
+
+    response = await post_with_response(
+        test_async_asset_connector, asset_list, 400, json.dumps(body)
+    )
+
+    assert response is None
+    test_async_asset_connector.update_checkpoint.assert_not_called()
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Error while pushing assets to Sekoia.io - Client error - HTTP (400) - "
+            "ASSET_CONNECTOR_UNSUPPORTED_VERSION: Unsupported push version "
+            "(asset_connector_configuration_uuid=04716e25, version=2)"
+        ),
+        level="error",
+    )
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_failure_logs_raw_text_body(
+    test_async_asset_connector, asset_list
+):
+    response = await post_with_response(
+        test_async_asset_connector, asset_list, 502, "<html>Bad gateway</html>"
+    )
+
+    assert response is None
+    test_async_asset_connector.log.assert_called_once_with(
+        message=(
+            "Error while pushing assets to Sekoia.io - Server error - HTTP (502) - "
+            "<html>Bad gateway</html>"
+        ),
+        level="error",
+    )

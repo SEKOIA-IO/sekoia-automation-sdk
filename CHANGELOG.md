@@ -9,10 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Expose the `scalable_horizontally` and `scalable_vertically` labels of the
-  running trigger/connector, read from its descriptor (default to `false`).
-- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
-  An `hwl` module only contains the manifest, a changelog and a logo.
 - Asset connectors apply a reset jitter: after a schema-change checkpoint
   reset, the next full fetch is delayed by a per-configuration jitter (up to
   `RESET_JITTER_DEFAULT_MAX`, 3 hours by default) to spread the re-fetch burst
@@ -32,6 +28,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require `sekoia-automation-models>=1.5.0`. The `batch_push_interval`
   configuration field is declared since 1.4.0.
+
+### Fixed
+
+- `AsyncAssetConnector` now falls back to the trigger configuration when the
+  `connector_configuration` file is missing: it was catching
+  `MissingActionArgumentError`, which is never raised there, instead of
+  `MissingConfigurationError`.
+
+## 1.28.0 - 2026-11-26
+
+### Added
+
+- Expose the `scalable_horizontally` and `scalable_vertically` labels of the
+  running trigger/connector, read from its descriptor (default to `false`).
+- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
+  An `hwl` module only contains the manifest, a changelog and a logo.
+
+### Changed
+
 - Asset connectors log the code, message and details of a push error response,
   instead of its raw body.
 - On an HTTP 429, asset connectors tell a reached asset connector limit from a
@@ -43,13 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix f-strings in the publication script
 - Start `AsyncConnector` and `AsyncAssetConnector` on Python 3.14, where `run()` stopped with "There is no current event loop in thread 'MainThread'": a new event loop is created when the thread has none
-
-### Fixed
-
-- `AsyncAssetConnector` now falls back to the trigger configuration when the
-  `connector_configuration` file is missing: it was catching
-  `MissingActionArgumentError`, which is never raised there, instead of
-  `MissingConfigurationError`.
 
 ## 1.27.2 - 2026-11-04
 

@@ -3,17 +3,24 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Optional
 
-import typer
-from cookiecutter.main import cookiecutter
+try:
+    import typer
+    from cookiecutter.main import cookiecutter
 
-from sekoia_automation.scripts.action_runner import ModuleItemRunner
-from sekoia_automation.scripts.documentation.generate import (
-    DocumentationGenerator,
-)
-from sekoia_automation.scripts.files_generator import FilesGenerator
-from sekoia_automation.scripts.openapi import OpenApiToModule
-from sekoia_automation.scripts.sync_library import SyncLibrary
-from sekoia_automation.scripts.update_sdk_version import SDKUpdater
+    from sekoia_automation.scripts.action_runner import ModuleItemRunner
+    from sekoia_automation.scripts.documentation.generate import (
+        DocumentationGenerator,
+    )
+    from sekoia_automation.scripts.files_generator import FilesGenerator
+    from sekoia_automation.scripts.openapi import OpenApiToModule
+    from sekoia_automation.scripts.sync_library import SyncLibrary
+    from sekoia_automation.scripts.update_sdk_version import SDKUpdater
+except ImportError as exc:  # pragma: no cover - tested in a subprocess
+    raise SystemExit(
+        "The sekoia-automation CLI requires optional dependencies "
+        f"({exc.name} is missing).\n"
+        "Install them with: pip install 'sekoia-automation-sdk[cli]'"
+    ) from exc
 
 app = typer.Typer(
     help="Sekoia.io's automation helper to generate playbook modules",

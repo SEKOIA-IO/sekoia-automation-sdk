@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.28.0 - 2026-11-26
+
 ### Added
 
 - Expose the `scalable_horizontally` and `scalable_vertically` labels of the

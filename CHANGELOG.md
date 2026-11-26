@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Expose the `scalable_horizontally` and `scalable_vertically` labels of the
+  running trigger/connector, read from its descriptor (default to `false`).
 - Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
   An `hwl` module only contains the manifest, a changelog and a logo.
 - Asset connectors apply a reset jitter: after a schema-change checkpoint
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix f-strings in the publication script
+- Start `AsyncConnector` and `AsyncAssetConnector` on Python 3.14, where `run()` stopped with "There is no current event loop in thread 'MainThread'": a new event loop is created when the thread has none
 
 ### Fixed
 

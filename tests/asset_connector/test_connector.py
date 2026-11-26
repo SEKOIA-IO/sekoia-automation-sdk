@@ -1173,6 +1173,24 @@ def test_reset_jitter_max_invalid_falls_back_to_default(
     test_asset_connector.log.assert_called_once()
 
 
+def test_invalid_env_values_are_reported_once_per_value(
+    monkeypatch, test_asset_connector
+):
+    """An invalid env value read on every batch/cycle is logged only once."""
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "oops")
+    monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "oops")
+
+    for _ in range(5):
+        assert test_asset_connector.batch_push_interval == 0.0
+        assert test_asset_connector.reset_jitter_max_seconds == RESET_JITTER_DEFAULT_MAX
+    assert test_asset_connector.log.call_count == 2
+
+    # A new invalid value is reported again
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "still-wrong")
+    test_asset_connector.batch_push_interval
+    assert test_asset_connector.log.call_count == 3
+
+
 def test_reset_jitter_max_negative_is_clamped(monkeypatch, test_asset_connector):
     monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "-5")
 

@@ -2473,6 +2473,18 @@ wheels = [
 ]
 
 [[package]]
+name = "requests-file"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/f8/5dc70102e4d337063452c82e1f0d95e39abfe67aa222ed8a5ddeb9df8de8/requests_file-3.0.1.tar.gz", hash = "sha256:f14243d7796c588f3521bd423c5dea2ee4cc730e54a3cac9574d78aca1272576", size = 6967, upload-time = "2025-10-20T18:56:42.279Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/d5/de8f089119205a09da657ed4784c584ede8381a0ce6821212a6d4ca47054/requests_file-3.0.1-py2.py3-none-any.whl", hash = "sha256:d0f5eb94353986d998f80ac63c7f146a307728be051d4d1cd390dbdb59c10fa2", size = 4514, upload-time = "2025-10-20T18:56:41.184Z" },
+]
+
+[[package]]
 name = "requests-mock"
 version = "1.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2710,19 +2722,20 @@ wheels = [
 
 [[package]]
 name = "sekoia-automation-models"
-version = "1.4.0"
+version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
+    { name = "tldextract" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/bb/ac1fdb951091927098d60a3aa579e507988672021782af1ff983a7cdf6dc/sekoia_automation_models-1.4.0.tar.gz", hash = "sha256:0002a527458b60de70ddd7a10a1f59d131abc839fb1bb8cfead1fb91799c4274", size = 8581, upload-time = "2026-10-12T09:11:10.44Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/73/3e741eb3181238e0aa8c9200eadc93e28edebf65dda71b1e37ad0964ae7b/sekoia_automation_models-1.7.0.tar.gz", hash = "sha256:b6eb45073fc94b9ae65beeaba49c9915cc18ee701f899a2b2c0efb3b7e37a77e", size = 10323, upload-time = "2026-11-24T17:16:04.61Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/b8/d974698d12ff49db3f3d68d0fb21939c244853f8c29706231dc59106e632/sekoia_automation_models-1.4.0-py3-none-any.whl", hash = "sha256:a3079231fb88d8ea110538a1d270b47328f91d13e60e102dcdc1577115a45b8c", size = 12867, upload-time = "2026-10-12T09:11:09.235Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/a8/fff976d8c510f52e913815153218b783f78452fe8951a7b261f0ead4e10e/sekoia_automation_models-1.7.0-py3-none-any.whl", hash = "sha256:b422a9274a0ceaa71fad01b8260edd6bf8b519af22998635a3417ca1e75cf120", size = 15228, upload-time = "2026-11-24T17:16:03.618Z" },
 ]
 
 [[package]]
 name = "sekoia-automation-sdk"
-version = "1.27.3"
+version = "1.28.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiocsv" },
@@ -2795,7 +2808,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.25,<3" },
     { name = "requests-ratelimiter", specifier = ">=0.7.0,<0.8" },
     { name = "s3path", specifier = ">=0.6.4,<0.7" },
-    { name = "sekoia-automation-models", specifier = ">=1.2.0,<2" },
+    { name = "sekoia-automation-models", specifier = ">=1.7.0,<2" },
     { name = "sentry-sdk" },
     { name = "tenacity" },
     { name = "typer", specifier = ">=0.20" },
@@ -2880,6 +2893,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ab/e2/e9a00f0ccb71718418230718b3d900e71a5d16e701a3dae079a21e9cd8f8/text-unidecode-1.3.tar.gz", hash = "sha256:bad6603bb14d279193107714b288be206cac565dfa49aa5b105294dd5c4aab93", size = 76885, upload-time = "2019-08-30T21:36:45.405Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a6/a5/c0b6468d3824fe3fde30dbb5e1f687b291608f9473681bbf7dabbf5a87d7/text_unidecode-1.3-py2.py3-none-any.whl", hash = "sha256:1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8", size = 78154, upload-time = "2019-08-30T21:37:03.543Z" },
+]
+
+[[package]]
+name = "tldextract"
+version = "5.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "idna" },
+    { name = "requests" },
+    { name = "requests-file" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/5d/45ece871390ccc985f821353543165bcf3784fa97d8484fd0ca5f2726612/tldextract-5.4.0.tar.gz", hash = "sha256:6c9223212c15c25c0da2bf7313893c14f175cb36b64a0c42da67a468e0c61ee3", size = 197271, upload-time = "2026-10-03T21:32:47.229Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/e0/d5760e222a7e3f3aec7ef59f6dff952af27d09ec168bcca50751d9698151/tldextract-5.4.0-py3-none-any.whl", hash = "sha256:7f02aed30bd3b6ad5717192eb859a39b20aafc7caf3917d9cf6cb00a58efb34f", size = 107482, upload-time = "2026-10-03T21:32:45.842Z" },
 ]
 
 [[package]]

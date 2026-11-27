@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Asset connectors: when the API refuses one item of a push with an HTTP 413, log
+  it and send the batch again without it, then move the checkpoint on. The refused
+  item no longer costs the whole batch. The item is located by the `request_index`
+  of the response; without it, the 413 stays a push failure.
+
 ## 1.28.1 - 2026-11-26
 
 ### Added

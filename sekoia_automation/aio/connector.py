@@ -12,7 +12,7 @@ from posixpath import join as urljoin
 from aiohttp import ClientSession
 from aiolimiter import AsyncLimiter
 
-from sekoia_automation.aio.helpers import limit_concurrency
+from sekoia_automation.aio.helpers import get_or_create_event_loop, limit_concurrency
 from sekoia_automation.connector import (
     Connector,
     DefaultConnectorConfiguration,
@@ -240,5 +240,5 @@ class AsyncConnector(Connector, ABC):
 
     def run(self) -> None:  # pragma: no cover
         """Runs Connector."""
-        loop = asyncio.get_event_loop()
+        loop = get_or_create_event_loop()
         loop.run_until_complete(self.async_run())

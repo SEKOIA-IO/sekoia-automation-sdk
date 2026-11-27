@@ -48,6 +48,57 @@ def test_new_module(tmp_path):
     assert module_path.joinpath("my_module_modules").is_dir()
 
 
+def test_new_module_hwl(tmp_path):
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(tmp_path), "--type", "hwl"],
+        input="My Module\nMy Description\n",
+    )
+    assert res.exit_code == 0
+
+    module_path = tmp_path.joinpath("MyModule")
+    manifest = json.loads(module_path.joinpath("manifest.json").read_text())
+    assert manifest["name"] == "My Module"
+    assert sorted(p.name for p in module_path.iterdir()) == [
+        "CHANGELOG.md",
+        "logo.svg",
+        "manifest.json",
+    ]
+
+
+@pytest.mark.parametrize("module_type", ["python", "hwl"])
+def test_new_module_escapes_manifest_values(tmp_path, module_type):
+    module = 'My "Mod\\ule"'
+    description = 'Integrates with "Example"'
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(tmp_path), "--type", module_type, "--skip-hooks"],
+        input=f"{module}\n{description}\n",
+    )
+    assert res.exit_code == 0
+
+    manifest = json.loads(
+        tmp_path.joinpath(module.replace(" ", ""), "manifest.json").read_text()
+    )
+    assert manifest["name"] == module
+    assert manifest["description"] == description
+
+
+@pytest.mark.parametrize("module_type", ["python", "hwl"])
+@pytest.mark.parametrize("module", ["../evil", "a/b", "/abs", ".."])
+def test_new_module_rejects_path_traversal(tmp_path, module_type, module):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    res: Result = runner.invoke(
+        app,
+        ["new-module", str(output_dir), "--type", module_type, "--skip-hooks"],
+        input=f"{module}\ndescription\n",
+    )
+    assert res.exit_code != 0
+    assert list(tmp_path.iterdir()) == [output_dir]
+    assert list(output_dir.iterdir()) == []
+
+
 def test_generate_documentation_invalid_modules_path(tmp_path):
     res: Result = runner.invoke(app, ["generate-documentation", "foo", "bar"])
     assert res.exit_code == 1

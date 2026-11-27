@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `checkpoint_field` and `checkpoint_mode`, and yields `(cursor, asset)` sorted
   ascending from `get_assets_since`. The checkpoint moves to the last pushed
   asset, never inside a group of equal cursors and never backwards, and stops
-  moving for the cycle when the assets are not sorted.
+  moving for the cycle when the assets are not sorted or a push fails. A cursor
+  stored for another `checkpoint_field` is discarded.
 - `incremental` mode resumes after the stored cursor and refuses a creation field
-  (`created*`, `creation*`) as cursor. `sweep` mode fetches every asset again in
+  (`create*`, `creation*`) as cursor. `sweep` mode fetches every asset again in
   full passes, one pass per `frequency`, and only resumes an interrupted pass.
+  A pass with a failed push is resumed, not completed.
 
 ### Changed
 

@@ -757,7 +757,9 @@ class AsyncCheckpointedAssetConnector(AsyncAssetConnector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         validate_checkpoint_declaration(self)
-        self.asset_checkpoint = AssetCheckpoint(self.data_path, self.checkpoint_mode)
+        self.asset_checkpoint = AssetCheckpoint(
+            self.data_path, self.checkpoint_field, self.checkpoint_mode
+        )
 
     @abstractmethod
     def get_assets_since(
@@ -771,9 +773,12 @@ class AsyncCheckpointedAssetConnector(AsyncAssetConnector):
         raise NotImplementedError("This method should be implemented in a subclass")
 
     async def get_assets(self) -> AsyncGenerator[AssetItem, None]:
-        should_fetch, checkpoint = self.asset_checkpoint.begin(self.frequency)
-        if not should_fetch:
-            return
+        delay = self.asset_checkpoint.seconds_until_next_pass(self.frequency)
+        if delay > 0:
+            self.log(message=f"Next sweep pass in {delay:.0f} seconds", level="info")
+            if await asyncio.to_thread(self._stop_event.wait, delay):
+                return
+        checkpoint = self.asset_checkpoint.begin()
 
         items = aiter(self.get_assets_since(checkpoint))
         current = await anext(items, None)
@@ -792,6 +797,14 @@ class AsyncCheckpointedAssetConnector(AsyncAssetConnector):
             yield current[1]
             current = following
         self.asset_checkpoint.exhausted()
+
+    async def post_assets_to_api(
+        self, assets: AssetList, asset_connector_api_url: str
+    ) -> dict[str, str] | None:
+        response = await super().post_assets_to_api(assets, asset_connector_api_url)
+        if response is None:
+            self.asset_checkpoint.fail()
+        return response
 
     async def update_checkpoint(self) -> None:
         self.asset_checkpoint.commit()

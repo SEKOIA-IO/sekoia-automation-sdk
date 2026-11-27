@@ -10,7 +10,7 @@ Cursor = str | int | float
 CheckpointMode = Literal["incremental", "sweep"]
 
 CHECKPOINT_MODES = ("incremental", "sweep")
-CREATION_FIELD = re.compile(r"^creat(ed|ion)", re.IGNORECASE)
+CREATION_FIELD = re.compile(r"^creat(e|ion)", re.IGNORECASE)
 
 
 def validate_checkpoint_declaration(connector: Any) -> None:
@@ -56,6 +56,10 @@ class AssetCheckpoint:
         sweep: full passes. The cursor only resumes an interrupted pass; a
             completed pass clears it, and the next pass starts once `frequency`
             seconds have elapsed since the previous pass started.
+
+    A failed push freezes the cursor for the rest of the cycle, and a sweep pass
+    with a failed push is not completed: the next cycle fetches the failed batch
+    again. A cursor stored for another `field` is discarded.
     """
 
     FILE_NAME = "asset_checkpoint.json"
@@ -63,8 +67,10 @@ class AssetCheckpoint:
     def __init__(
         self,
         data_path: Path,
+        field: str,
         mode: CheckpointMode,
     ) -> None:
+        self.field = field
         self.mode = mode
         self.store = PersistentJSON(self.FILE_NAME, data_path)
         self._start_cycle()
@@ -74,6 +80,7 @@ class AssetCheckpoint:
         self._previous: Cursor | None = None
         self._previous_distinct: Cursor | None = None
         self._frozen = False
+        self._failed = False
         self._unpushed = False
         self._exhausted = False
 
@@ -83,29 +90,43 @@ class AssetCheckpoint:
             cursor: Cursor | None = store.get("cursor")
             return cursor
 
-    def begin(self, frequency: int) -> tuple[bool, Cursor | None]:
+    def seconds_until_next_pass(self, frequency: int) -> float:
+        """Seconds to wait before the next sweep pass may start; 0 when due."""
+        if self.mode != "sweep":
+            return 0
+        with self.store as store:
+            started_at = store.get("pass_started_at")
+            if started_at is None or not store.get("pass_completed", False):
+                return 0
+            return max(0, started_at + frequency - time.time())
+
+    def begin(self) -> Cursor | None:
         """
         Start a fetch cycle.
 
         Returns:
-            tuple: whether to fetch in this cycle, and the cursor to fetch after.
+            The cursor to fetch after.
         """
         self._start_cycle()
-        if self.mode == "incremental":
-            return True, self.cursor
-
+        cursor: Cursor | None
         with self.store as store:
+            if store.get("field", self.field) != self.field:
+                store.clear()
+            store["field"] = self.field
+
+            if self.mode == "incremental":
+                cursor = store.get("cursor")
+                return cursor
+
             started_at = store.get("pass_started_at")
             if started_at is not None and not store.get("pass_completed", False):
-                return True, store.get("cursor")
-
-            if started_at is not None and time.time() - started_at < frequency:
-                return False, None
+                cursor = store.get("cursor")
+                return cursor
 
             store["cursor"] = None
             store["pass_started_at"] = time.time()
             store["pass_completed"] = False
-        return True, None
+        return None
 
     def stage(self, cursor: Cursor, next_cursor: Cursor | None) -> bool:
         """
@@ -139,6 +160,12 @@ class AssetCheckpoint:
             self._safe = self._previous_distinct
         return False
 
+    def fail(self) -> None:
+        """The batch just pushed was rejected: commit nothing more this cycle."""
+        self._failed = True
+        self._frozen = True
+        self._safe = None
+
     def commit(self) -> None:
         """Commit the cursor of the batch just pushed."""
         self._unpushed = False
@@ -159,7 +186,7 @@ class AssetCheckpoint:
             self._complete_pass()
 
     def _complete_pass(self) -> None:
-        if self.mode != "sweep":
+        if self.mode != "sweep" or self._failed:
             return
         with self.store as store:
             store["cursor"] = None

@@ -53,7 +53,9 @@ from sekoia_automation.asset_connector.utils import (
 )
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
+    AssetConnectorStoppedError,
     TriggerConfigurationError,
 )
 
@@ -460,9 +462,50 @@ def test_post_assets_to_api_timeout(test_asset_connector, asset_list):
     test_asset_connector.log_exception.assert_called_once()
 
 
+def test_retry_stops_once_the_connector_is_stopped(test_asset_connector):
+    retry = test_asset_connector._retry()
+    retry_state = Mock(seconds_since_start=0)
+
+    assert not retry.stop(retry_state)
+    test_asset_connector.stop()
+    assert retry.stop(retry_state)
+
+
+def test_post_assets_to_api_raises_stopped_when_stopped_while_retrying(
+    test_asset_connector, asset_list
+):
+    def fail_and_stop(*_, **__):
+        test_asset_connector.stop()
+        raise requests.ConnectionError("platform is down")
+
+    test_asset_connector._http_session.post = Mock(side_effect=fail_and_stop)
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+    test_asset_connector._http_session.post.assert_called_once()
+
+
+def test_post_assets_to_api_raises_request_errors_while_running(
+    test_asset_connector, asset_list
+):
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(1), reraise=True
+    )
+    test_asset_connector._http_session.post = Mock(
+        side_effect=requests.ConnectionError("platform is down")
+    )
+
+    with pytest.raises(requests.ConnectionError):
+        test_asset_connector.post_assets_to_api(asset_list, "http://example.com/api")
+
+
 def test_post_assets_to_api_failure_logs_raw_text_body(
     test_asset_connector, asset_list
 ):
+    test_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(1), reraise=True
+    )
     test_asset_connector._http_session.post = Mock(
         return_value=push_response(502, "<html>Bad gateway</html>")
     )
@@ -584,28 +627,22 @@ def test_asset_fetch_cycle_no_wait_when_interval_is_zero(
     wait.assert_not_called()
 
 
-def test_asset_fetch_cycle_drains_when_stopped_between_batches(
+def test_asset_fetch_cycle_raises_when_stopped_during_a_pause(
     monkeypatch, test_asset_connector, asset_list
 ):
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
-    # A pause long enough to fail the test if it was not cut short by the stop
     monkeypatch.setenv("ASSET_CONNECTOR_BATCH_PUSH_INTERVAL", "3600")
     test_asset_connector.set_assets(asset_list)
-    assert len(asset_list.items) > 1
+    test_asset_connector.push_assets_to_sekoia = Mock(return_value=True)
+    wait = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
 
-    pushed = []
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
 
-    def push_then_stop(batch):
-        pushed.extend(batch.items)
-        test_asset_connector._stop_event.set()
-
-    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
-
-    test_asset_connector.asset_fetch_cycle()
-
-    # The connector was stopped after the first push: the pauses are skipped
-    # but every fetched asset is still pushed, none is dropped.
-    assert pushed == asset_list.items
+    # The batch waiting for the end of the pause is not pushed
+    test_asset_connector.push_assets_to_sekoia.assert_called_once()
+    wait.assert_called_once_with(3600.0)
 
 
 def test_run_stops_the_cycle_on_rate_limit(
@@ -616,7 +653,7 @@ def test_run_stops_the_cycle_on_rate_limit(
     test_asset_connector.set_assets(asset_list)
     assert len(asset_list.items) > 2
     test_asset_connector.push_assets_to_sekoia = Mock(
-        side_effect=[None, AssetConnectorRateLimitError(retry_after=5)]
+        side_effect=[True, AssetConnectorRateLimitError(retry_after=5)]
     )
 
     def stop_during_wait(timeout=None):
@@ -633,14 +670,160 @@ def test_run_stops_the_cycle_on_rate_limit(
     mock_wait.assert_called_once_with(5)
 
 
-def test_asset_fetch_cycle_sleeps_when_no_assets(monkeypatch, test_asset_connector):
+def test_asset_fetch_cycle_does_not_sleep_when_no_assets(
+    monkeypatch, test_asset_connector
+):
     test_asset_connector.set_assets(AssetList(version=1, items=[]))
     sleep = Mock()
     monkeypatch.setattr("sekoia_automation.asset_connector.connector.time.sleep", sleep)
 
     test_asset_connector.asset_fetch_cycle()
 
-    sleep.assert_called_once()
+    sleep.assert_not_called()
+    assert test_asset_connector.cycle_stats["fetched"] == 0
+
+
+def test_run_waits_when_no_assets(monkeypatch, test_asset_connector):
+    test_asset_connector.set_assets(AssetList(version=1, items=[]))
+    # Waiting on the stop event lets a SIGTERM end the pause at once
+    wait = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.run()
+
+    wait.assert_called_once()
+    assert 0 < wait.call_args[0][0] <= 60
+
+
+def test_run_does_not_wait_when_assets_were_fetched(
+    monkeypatch, test_asset_connector, asset_list
+):
+    test_asset_connector.set_assets(asset_list)
+
+    def push_then_stop(_):
+        test_asset_connector.stop()
+        return True
+
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
+    wait = Mock()
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.run()
+
+    wait.assert_not_called()
+
+
+def test_asset_fetch_cycle_counts_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock(return_value=True)
+
+    test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.cycle_stats == {
+        "fetched": 3,
+        "pushed_batches": 3,
+        "failed_batches": 0,
+    }
+
+
+def test_asset_fetch_cycle_raises_on_a_failed_push(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=[True, False, True])
+
+    with pytest.raises(AssetConnectorPushError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 2
+    assert test_asset_connector.cycle_stats == {
+        "fetched": 2,
+        "pushed_batches": 1,
+        "failed_batches": 1,
+    }
+
+
+def test_run_waits_for_the_next_cycle_after_a_failed_push(
+    monkeypatch, test_asset_connector
+):
+    test_asset_connector.asset_fetch_cycle = Mock(side_effect=AssetConnectorPushError())
+    wait = Mock(side_effect=lambda _: test_asset_connector.stop())
+    monkeypatch.setattr(test_asset_connector._stop_event, "wait", wait)
+
+    test_asset_connector.run()
+
+    # Not at once: a lasting error would refetch and repost in a loop
+    wait.assert_called_once_with(60)
+    test_asset_connector.asset_fetch_cycle.assert_called_once()
+    test_asset_connector.log_exception.assert_not_called()
+
+
+def test_asset_fetch_cycle_raises_when_stopped_between_batches(
+    monkeypatch, test_asset_connector, asset_list
+):
+    monkeypatch.setenv("ASSET_CONNECTOR_BATCH_SIZE", "1")
+    test_asset_connector.set_assets(asset_list)
+
+    def push_then_stop(_):
+        test_asset_connector.stop()
+        return True
+
+    test_asset_connector.push_assets_to_sekoia = Mock(side_effect=push_then_stop)
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.push_assets_to_sekoia.call_count == 1
+
+
+def test_run_returns_when_stopped_during_a_cycle(test_asset_connector):
+    test_asset_connector.asset_fetch_cycle = Mock(
+        side_effect=AssetConnectorStoppedError()
+    )
+
+    test_asset_connector.run()
+
+    test_asset_connector.asset_fetch_cycle.assert_called_once()
+    test_asset_connector.log_exception.assert_not_called()
+
+
+def test_push_assets_to_sekoia_returns_whether_assets_were_pushed(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.module._connector_configuration_uuid = "uuid"
+    test_asset_connector.post_assets_to_api = Mock(side_effect=[{}, None])
+
+    assert test_asset_connector.push_assets_to_sekoia(asset_list) is True
+    assert test_asset_connector.push_assets_to_sekoia(asset_list) is False
+
+
+def test_configuration_api_key_not_sent_to_sentry(test_asset_connector):
+    with patch(
+        "sekoia_automation.asset_connector.mixin.sentry_sdk.set_context"
+    ) as set_context:
+        test_asset_connector.configuration = {
+            "sekoia_base_url": "http://example.com",
+            "sekoia_api_key": "fake_api_key",
+        }
+
+    context = set_context.call_args[0][1]
+    assert "sekoia_api_key" not in context
+    assert context["sekoia_base_url"] == "http://example.com"
+
+
+def test_configuration_error_does_not_hold_the_api_key(test_asset_connector):
+    with pytest.raises(TriggerConfigurationError) as error:
+        # sekoia_base_url is missing
+        test_asset_connector.configuration = {"sekoia_api_key": "fake_api_key"}
+
+    assert "sekoia_base_url" in str(error.value)
+    assert "fake_api_key" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert error.value.__suppress_context__
 
 
 def test_update_checkpoint(
@@ -1024,6 +1207,27 @@ def test_asset_fetch_cycle_reenables_the_task_wait(test_asset_connector, asset_l
     assert test_asset_connector._skip_task_wait is False
 
 
+def test_asset_fetch_cycle_raises_when_stopped_before_a_batch_is_full(
+    test_asset_connector, asset_list
+):
+    test_asset_connector.set_assets(asset_list)
+    test_asset_connector.push_assets_to_sekoia = Mock()
+    original_get_assets = test_asset_connector.get_assets
+
+    def get_assets_then_stop():
+        for asset in original_get_assets():
+            yield asset
+            test_asset_connector.stop()
+
+    test_asset_connector.get_assets = get_assets_then_stop
+
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
+
+    assert test_asset_connector.cycle_stats["fetched"] == 1
+    test_asset_connector.push_assets_to_sekoia.assert_not_called()
+
+
 def test_compute_reset_jitter_is_deterministic_and_bounded():
     """Same seed -> same value; different seeds -> different values; bounded."""
     seed_a = "config-uuid-a"
@@ -1224,7 +1428,7 @@ def test_wait_reset_jitter_returns_as_soon_as_stopped(
 def test_asset_fetch_cycle_stops_during_reset_jitter(
     monkeypatch, test_asset_connector, asset_list
 ):
-    """Stopped while waiting out the jitter: the cycle exits without fetching
+    """Stopped while waiting out the jitter: the cycle raises without fetching
     and keeps the timestamp for the next run."""
     monkeypatch.setenv("ASSET_CONNECTOR_RESET_JITTER_MAX", "1800")
     test_asset_connector._check_schema_and_reset_if_needed()
@@ -1236,7 +1440,8 @@ def test_asset_fetch_cycle_stops_during_reset_jitter(
     test_asset_connector.push_assets_to_sekoia = Mock()
     test_asset_connector._stop_event.set()
 
-    test_asset_connector.asset_fetch_cycle()
+    with pytest.raises(AssetConnectorStoppedError):
+        test_asset_connector.asset_fetch_cycle()
 
     test_asset_connector.push_assets_to_sekoia.assert_not_called()
     with test_asset_connector.schema_store as store:
@@ -1361,7 +1566,7 @@ def test_configuration_setter_sets_sentry_context(test_asset_connector):
 
     sentry_mock.set_context.assert_called_once_with(
         "connector_configuration",
-        test_asset_connector.configuration.model_dump(),
+        test_asset_connector.configuration.model_dump(exclude={"sekoia_api_key"}),
     )
 
 
@@ -1378,7 +1583,7 @@ def test_configuration_setter_invalid_raises(test_asset_connector, configuration
     with pytest.raises(TriggerConfigurationError) as exc_info:
         test_asset_connector.configuration = configuration
 
-    assert exc_info.value.__cause__ is not None
+    assert exc_info.value.__cause__ is None
     assert test_asset_connector.configuration is previous
 
 

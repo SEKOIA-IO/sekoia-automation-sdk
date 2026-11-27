@@ -13,6 +13,10 @@ TASK_PENDING_STATUSES = frozenset({"PENDING", "RUNNING"})
 TASK_POLL_INTERVAL_DEFAULT = 5.0  # seconds between two task status checks
 TASK_POLL_TIMEOUT_DEFAULT = 300.0  # give up waiting after 5 minutes
 
+# Push statuses refusing the batch itself: pushing it again cannot succeed.
+# A 413 is not one of them: without the refused item, it may be a partial write.
+REJECTED_BATCH_STATUSES = frozenset({400, 422})
+
 # Code of the 429 the push API returns once a configuration reached a limit
 LIMIT_REACHED_CODE = "ASSET_CONNECTOR_LIMIT_REACHED"
 

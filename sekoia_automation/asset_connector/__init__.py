@@ -1,3 +1,4 @@
+from .action import AssetConnectorAction
 from .async_connector import AsyncAssetConnector
 from .connector import AssetConnector
 from .mixin import AssetConnectorBase
@@ -12,6 +13,7 @@ __all__ = [
     "RATE_LIMIT_DEFAULT_WAIT",
     "RESET_JITTER_DEFAULT_MAX",
     "AssetConnector",
+    "AssetConnectorAction",
     "AssetConnectorBase",
     "AsyncAssetConnector",
     "compute_reset_jitter",

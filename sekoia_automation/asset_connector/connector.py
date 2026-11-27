@@ -7,12 +7,15 @@ import requests
 from requests import Response
 
 from sekoia_automation.exceptions import (
+    AssetConnectorPushError,
     AssetConnectorRateLimitError,
+    AssetConnectorStoppedError,
 )
 
 from .mixin import AssetConnectorBase
 from .models.connector import AssetItem, AssetList
 from .utils import (
+    REJECTED_BATCH_STATUSES,
     TASK_PENDING_STATUSES,
     parse_retry_after,
     push_429_message,
@@ -60,12 +63,21 @@ class AssetConnector(AssetConnectorBase):
                         json=request_body,
                         timeout=30,
                     )
-        except requests.Timeout as ex:
-            self.log_exception(
-                ex,
-                message="Timeout while pushing assets to Sekoia.io asset connector API",
-            )
-            return None
+                    if res.status_code >= 500:
+                        res.raise_for_status()
+        except requests.RequestException as ex:
+            if not self.running:
+                raise AssetConnectorStoppedError() from ex
+            if isinstance(ex, requests.Timeout):
+                self.log_exception(
+                    ex,
+                    message="Timeout while pushing assets to Sekoia.io asset "
+                    "connector API",
+                )
+                return None
+            # A server error outlasting the retries is reported with the others
+            if not isinstance(ex, requests.HTTPError):
+                raise
 
         if res.status_code == 429:
             retry_after = parse_retry_after(
@@ -84,6 +96,7 @@ class AssetConnector(AssetConnectorBase):
                 ),
                 level="error",
             )
+            self._batch_rejected = res.status_code in REJECTED_BATCH_STATUSES
             return None
 
         self.update_checkpoint()
@@ -163,17 +176,17 @@ class AssetConnector(AssetConnectorBase):
             self._stop_event.wait(interval)
             interval = min(interval * 2, self.task_poll_interval)
 
-    def push_assets_to_sekoia(self, assets: AssetList) -> None:
+    def push_assets_to_sekoia(self, assets: AssetList) -> bool:
         """
         Push assets to the Sekoia.io asset connector API.
         Args:
             assets (AssetList): List of assets to push.
         Returns:
-            None: If the assets were successfully pushed.
+            bool: False if the assets could not be pushed.
         """
 
         if not assets:
-            return
+            return True
 
         url = self.asset_connector_endpoint
 
@@ -193,13 +206,15 @@ class AssetConnector(AssetConnectorBase):
                 f"asset connector API at {url}",
                 level="error",
             )
-            return
+            return False
 
         # The push endpoint returns the task tracking the ingestion of the assets.
         # Older platforms - and pushes the platform could not create a task for -
         # return nothing: there is then nothing to wait for.
         if task_id := response.get("task_id"):
             self.wait_for_push_task(task_id)
+
+        return True
 
     @abstractmethod
     def update_checkpoint(self) -> None:
@@ -266,10 +281,8 @@ class AssetConnector(AssetConnectorBase):
         """
         Wait the configured inter-batch interval before the next batch push.
 
-        The wait ends as soon as the connector is stopped. The cycle is not
-        abandoned for all that: the assets already fetched still have to be
-        pushed, otherwise they would be lost while the checkpoint may already
-        have moved past them. The remaining batches are pushed without pause.
+        The wait ends as soon as the connector is stopped: the batch is then not
+        pushed, and the cycle raises AssetConnectorStoppedError.
         """
         interval = self.batch_push_interval
         if interval > 0:
@@ -277,16 +290,25 @@ class AssetConnector(AssetConnectorBase):
 
     def asset_fetch_cycle(self) -> None:
         """
-        Continuously fetch assets from the connector and push them to Sekoia.io.
+        Fetch assets from the connector and push them to Sekoia.io, once.
 
-        This method runs in a loop until the connector is stopped. On each cycle, it:
+        The cycle:
           1. Retrieves assets from the connector.
           2. Batches the retrieved assets.
           3. Sends the batch to Sekoia.io.
-          4. Waits for the next cycle according to the configured frequency.
 
-        If no assets are fetched during a cycle, the method sleeps for a short
-        interval to avoid overwhelming the API with repeated requests.
+        Its counters are kept in `cycle_stats`.
+
+        If the connector is stopped, the cycle raises AssetConnectorStoppedError
+        at the next asset or batch: subclasses committing their checkpoint once
+        the cycle returns never commit an interrupted cycle. The cycle then
+        drops the `get_assets` generator, which runs its `finally` blocks: commit
+        the checkpoint in `update_checkpoint` only, never in `get_assets`.
+
+        A batch the API refuses (HTTP 400, 422) is dropped and counted in
+        `failed_batches`. Any other batch that could not be pushed raises
+        AssetConnectorPushError: the next cycle resumes from the last committed
+        checkpoint, before it.
 
         Note:
             This implementation assumes the connector provides a checkpointing
@@ -303,6 +325,8 @@ class AssetConnector(AssetConnectorBase):
         # every cycle and withdrawn as soon as the platform stops answering.
         self._skip_task_wait = False
 
+        self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
+
         self._check_schema_and_reset_if_needed()
 
         # If a checkpoint reset was scheduled, wait out the jitter before
@@ -318,49 +342,70 @@ class AssetConnector(AssetConnectorBase):
                 level="info",
             )
             if not self._wait_reset_jitter(pending):
-                return
+                raise AssetConnectorStoppedError()
         self._clear_reset_jitter()
 
-        # save the starting time processing
-        processing_start = time.time()
-
         assets = []
-        total_number_of_assets = 0
-        pushed_batches = 0
         for asset in self.get_assets():
+            if not self.running:
+                raise AssetConnectorStoppedError()
+
             assets.append(asset)
-            total_number_of_assets += 1
+            self.cycle_stats["fetched"] += 1
 
             if len(assets) >= self.batch_size:
-                if pushed_batches:
-                    self._pause_between_batches()
-                batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
-                self.push_assets_to_sekoia(batch)
-                pushed_batches += 1
+                self._push_batch(assets)
                 assets = []
 
+        # A `get_assets` checking `running` ends normally once stopped
+        if not self.running:
+            raise AssetConnectorStoppedError()
+
         if assets:
-            if pushed_batches:
-                self._pause_between_batches()
-            final_batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
-            self.push_assets_to_sekoia(final_batch)
+            self._push_batch(assets)
 
-        # save the end time processing
-        processing_end = time.time()
-        processing_time = processing_end - processing_start
+    def _push_batch(self, assets: list[AssetItem]) -> None:
+        if self.cycle_stats["pushed_batches"] or self.cycle_stats["failed_batches"]:
+            self._pause_between_batches()
 
-        # Compute the remaining sleeping time.
-        # If greater than 0 and no messages where fetched, pause the connector
-        delta_sleep = self.frequency - processing_time
-        if total_number_of_assets == 0 and delta_sleep > 0:
-            self.log(message=f"Next run in the future. Waiting {delta_sleep} seconds")
+        if not self.running:
+            raise AssetConnectorStoppedError()
 
-            time.sleep(delta_sleep)
+        batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
+        self._batch_rejected = False
+        if self.push_assets_to_sekoia(batch):
+            self.cycle_stats["pushed_batches"] += 1
+            return
+
+        self.cycle_stats["failed_batches"] += 1
+        # Stopping on a batch the API refuses would block the connector on it
+        if not self._batch_rejected:
+            # Going on would commit a checkpoint past the assets of this batch
+            raise AssetConnectorPushError()
 
     def run(self) -> None:
         while self.running:
             try:
+                processing_start = time.time()
                 self.asset_fetch_cycle()
+
+                # If no assets were fetched, pause the connector until the next cycle
+                delta_sleep = self.frequency - (time.time() - processing_start)
+                if self.cycle_stats["fetched"] == 0 and delta_sleep > 0:
+                    self.log(
+                        message=f"Next run in the future. Waiting {delta_sleep} seconds"
+                    )
+                    self._stop_event.wait(delta_sleep)
+            except AssetConnectorStoppedError:
+                return
+            except AssetConnectorPushError:
+                # The push error is already logged: retry at the next cycle, not at
+                # once, so a lasting error does not refetch and repost in a loop
+                self.log(
+                    message=f"Next run in the future. Waiting {self.frequency} seconds",
+                    level="warning",
+                )
+                self._stop_event.wait(self.frequency)
             except AssetConnectorRateLimitError as e:
                 self.log(
                     message=f"Rate limit hit, pausing connector "

@@ -7,8 +7,8 @@ from abc import abstractmethod
 from functools import cached_property
 
 import sentry_sdk
-from pydantic import BaseModel
-from tenacity import Retrying, stop_after_delay, wait_exponential
+from pydantic import BaseModel, ValidationError
+from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
 from sekoia_automation.configuration.exception import MissingConfigurationError
 from sekoia_automation.exceptions import TriggerConfigurationError
@@ -45,6 +45,8 @@ class AssetConnectorBase(Trigger):
         super().__init__(*args, **kwargs)
         self._latest_time = None
         self._skip_task_wait = False
+        self._batch_rejected = False
+        self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
         # (env variable, raw value) pairs already reported as invalid
         self._warned_invalid_env: set[tuple[str, str]] = set()
         self.schema_store = PersistentJSON(
@@ -89,12 +91,18 @@ class AssetConnectorBase(Trigger):
             self._configuration = get_as_model(
                 get_annotation_for(self.__class__, "configuration"), configuration
             )
+        except ValidationError as e:
+            # The input holds the Sekoia.io API key: keep it out of the error
+            raise TriggerConfigurationError(
+                str(e.errors(include_url=False, include_input=False))
+            ) from None
         except Exception as e:
             raise TriggerConfigurationError(str(e)) from e
 
         if isinstance(self._configuration, BaseModel):
             sentry_sdk.set_context(
-                self.CONNECTOR_CONFIGURATION_FILE_NAME, self._configuration.model_dump()
+                self.CONNECTOR_CONFIGURATION_FILE_NAME,
+                self._configuration.model_dump(exclude={"sekoia_api_key"}),
             )
 
     @property
@@ -222,10 +230,9 @@ class AssetConnectorBase(Trigger):
             "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
         )
 
-    @staticmethod
-    def _retry():
+    def _retry(self):
         return Retrying(
-            stop=stop_after_delay(3600),
+            stop=stop_any(stop_after_delay(3600), lambda _: not self.running),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
         )

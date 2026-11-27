@@ -26,6 +26,7 @@ from sekoia_automation.utils import get_annotation_for, get_as_model
 from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
 from .utils import (
     RATE_LIMIT_DEFAULT_WAIT,
+    REJECTED_BATCH_STATUSES,
     TASK_PENDING_STATUSES,
     TASK_POLL_INTERVAL_DEFAULT,
     TASK_POLL_TIMEOUT_DEFAULT,
@@ -53,6 +54,7 @@ class AssetConnector(Trigger):
         super().__init__(*args, **kwargs)
         self._latest_time = None
         self._skip_task_wait = False
+        self._batch_rejected = False
         self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
         self.schema_store = PersistentJSON(
             self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
@@ -274,16 +276,21 @@ class AssetConnector(Trigger):
                         json=request_body,
                         timeout=30,
                     )
+                    if res.status_code >= 500:
+                        res.raise_for_status()
         except requests.RequestException as ex:
             if not self.running:
                 raise AssetConnectorStoppedError() from ex
-            if not isinstance(ex, requests.Timeout):
+            if isinstance(ex, requests.Timeout):
+                self.log_exception(
+                    ex,
+                    message="Timeout while pushing assets to Sekoia.io asset "
+                    "connector API",
+                )
+                return None
+            # A server error outlasting the retries is reported with the others
+            if not isinstance(ex, requests.HTTPError):
                 raise
-            self.log_exception(
-                ex,
-                message="Timeout while pushing assets to Sekoia.io asset connector API",
-            )
-            return None
 
         if res.status_code == 429:
             retry_after = parse_retry_after(
@@ -316,6 +323,7 @@ class AssetConnector(Trigger):
                 ),
                 level="error",
             )
+            self._batch_rejected = res.status_code in REJECTED_BATCH_STATUSES
             return None
 
         self.update_checkpoint()
@@ -602,8 +610,10 @@ class AssetConnector(Trigger):
         drops the `get_assets` generator, which runs its `finally` blocks: commit
         the checkpoint in `update_checkpoint` only, never in `get_assets`.
 
-        A batch that could not be pushed raises AssetConnectorPushError: the
-        next cycle resumes from the last committed checkpoint, before it.
+        A batch the API refuses (HTTP 400, 422) is dropped and counted in
+        `failed_batches`. Any other batch that could not be pushed raises
+        AssetConnectorPushError: the next cycle resumes from the last committed
+        checkpoint, before it.
 
         Note:
             This implementation assumes the connector provides a checkpointing
@@ -636,6 +646,10 @@ class AssetConnector(Trigger):
                 self._push_batch(assets)
                 assets = []
 
+        # A `get_assets` checking `running` ends normally once stopped
+        if not self.running:
+            raise AssetConnectorStoppedError()
+
         if assets:
             self._push_batch(assets)
 
@@ -644,10 +658,14 @@ class AssetConnector(Trigger):
             raise AssetConnectorStoppedError()
 
         batch = AssetList(version=self.OCSF_SCHEMA_VERSION, items=assets)
+        self._batch_rejected = False
         if self.push_assets_to_sekoia(batch):
             self.cycle_stats["pushed_batches"] += 1
-        else:
-            self.cycle_stats["failed_batches"] += 1
+            return
+
+        self.cycle_stats["failed_batches"] += 1
+        # Stopping on a batch the API refuses would block the connector on it
+        if not self._batch_rejected:
             # Going on would commit a checkpoint past the assets of this batch
             raise AssetConnectorPushError()
 

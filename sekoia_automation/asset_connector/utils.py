@@ -11,6 +11,10 @@ TASK_PENDING_STATUSES = frozenset({"PENDING", "RUNNING"})
 TASK_POLL_INTERVAL_DEFAULT = 5.0  # seconds between two task status checks
 TASK_POLL_TIMEOUT_DEFAULT = 300.0  # give up waiting after 5 minutes
 
+# Push statuses refusing the batch itself: pushing it again cannot succeed.
+# A 413 is not one of them: without the refused item, it may be a partial write.
+REJECTED_BATCH_STATUSES = frozenset({400, 422})
+
 
 def parse_retry_after(header_value: str | None, default: float) -> float:
     """

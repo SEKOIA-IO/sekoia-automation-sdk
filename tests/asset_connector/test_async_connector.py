@@ -420,6 +420,60 @@ async def test_post_assets_to_api_failure(test_async_asset_connector, asset_list
         )
 
     assert response is None
+    assert test_async_asset_connector._batch_rejected is True
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_retries_a_server_error(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+    server_error = AsyncMock(status=502, headers={})
+    server_error.text = AsyncMock(return_value="")
+    server_error.raise_for_status = Mock(
+        side_effect=aiohttp.ClientResponseError(Mock(), (), status=502)
+    )
+    success = AsyncMock(status=200, headers={})
+    success.text = AsyncMock(return_value='{"result": "success"}')
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.side_effect = [server_error, success]
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    assert response == {"result": "success"}
+    assert mock_post.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_post_assets_to_api_fails_when_a_server_error_outlasts_the_retries(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector._retry = lambda: Retrying(
+        stop=stop_after_attempt(2), reraise=True
+    )
+    server_error = AsyncMock(status=503, headers={})
+    server_error.text = AsyncMock(return_value="")
+    server_error.raise_for_status = Mock(
+        side_effect=aiohttp.ClientResponseError(Mock(), (), status=503)
+    )
+
+    with patch("aiohttp.ClientSession.post") as mock_post:
+        mock_post.return_value.__aenter__.return_value = server_error
+        mock_post.return_value.__aexit__.return_value = None
+
+        response = await test_async_asset_connector.post_assets_to_api(
+            asset_list, "http://example.com/api"
+        )
+
+    assert response is None
+    assert test_async_asset_connector._batch_rejected is False
+    assert mock_post.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -553,6 +607,49 @@ async def test_asset_fetch_cycle_raises_on_a_failed_push(
         "pushed_batches": 0,
         "failed_batches": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_goes_on_after_a_rejected_batch(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.configuration.batch_size = 1
+    results = iter([True, False, True])
+
+    async def push(_):
+        pushed = next(results)
+        test_async_asset_connector._batch_rejected = not pushed
+        return pushed
+
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(side_effect=push)
+
+    await test_async_asset_connector.asset_fetch_cycle()
+
+    assert test_async_asset_connector.cycle_stats == {
+        "fetched": 3,
+        "pushed_batches": 2,
+        "failed_batches": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_asset_fetch_cycle_raises_when_stopped_after_the_last_batch(
+    test_async_asset_connector, asset_list
+):
+    test_async_asset_connector.set_assets(asset_list)
+    test_async_asset_connector.configuration.batch_size = 3
+
+    async def push_then_stop(_):
+        test_async_asset_connector.stop()
+        return True
+
+    test_async_asset_connector.push_assets_to_sekoia = AsyncMock(
+        side_effect=push_then_stop
+    )
+
+    with pytest.raises(AssetConnectorStoppedError):
+        await test_async_asset_connector.asset_fetch_cycle()
 
 
 @pytest.mark.asyncio

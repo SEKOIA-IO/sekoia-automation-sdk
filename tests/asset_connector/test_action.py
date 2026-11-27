@@ -8,6 +8,7 @@ import pytest
 import requests
 import requests_mock
 from pydantic import ValidationError
+from tenacity import Retrying, stop_after_attempt
 
 from sekoia_automation.asset_connector import AssetConnector, AssetConnectorAction
 from sekoia_automation.asset_connector.models.connector import AssetItem
@@ -54,6 +55,10 @@ class FakeAssetConnector(AssetConnector):
             if self.error:
                 raise self.error
             yield item
+        # Like the connectors whose listing loop checks `running`: a stop landing
+        # after the last flushed batch ends the generator normally
+        if self.stop_after == len(self.items):
+            self.stop()
 
 
 class FakeAssetConnectorAction(AssetConnectorAction):
@@ -123,6 +128,17 @@ def test_run_returns_has_more_when_stopped(action, api, fake_connector):
     assert len(requests_to(api, PUSH_URL)) == 1
 
 
+def test_run_returns_has_more_when_stopped_after_a_flushed_batch(
+    action, api, fake_connector
+):
+    fake_connector.stop_after = len(fake_connector.items)
+
+    results = action.run(ARGUMENTS)
+
+    assert results["has_more"] is True
+    assert results["pushed_batches"] == 3
+
+
 def test_run_waits_for_the_rate_limit_within_the_time_budget(action, api):
     api.post(
         PUSH_URL,
@@ -175,7 +191,7 @@ def test_run_returns_has_more_when_the_time_limit_stops_a_retried_push(action, a
 
 
 def test_run_fails_with_its_counters_on_a_failed_push(action, api, tmp_path):
-    api.post(PUSH_URL, [{"status_code": 200, "json": {}}, {"status_code": 500}])
+    api.post(PUSH_URL, [{"status_code": 200, "json": {}}, {"status_code": 404}])
 
     results = action.run(ARGUMENTS)
 
@@ -189,6 +205,71 @@ def test_run_fails_with_its_counters_on_a_failed_push(action, api, tmp_path):
     assert len(requests_to(api, PUSH_URL)) == 2
     with PersistentJSON("context.json", tmp_path) as cache:
         assert cache["pushes"] == 1
+
+
+def test_run_retries_a_server_error(monkeypatch, action, api, tmp_path):
+    monkeypatch.setattr(
+        FakeAssetConnector,
+        "_retry",
+        lambda self: Retrying(stop=stop_after_attempt(3), reraise=True),
+    )
+    api.post(PUSH_URL, [{"status_code": 502}, {"status_code": 200, "json": {}}])
+
+    results = action.run(ARGUMENTS)
+
+    assert results == {
+        "fetched": 3,
+        "pushed_batches": 3,
+        "failed_batches": 0,
+        "has_more": False,
+    }
+    assert len(requests_to(api, PUSH_URL)) == 4
+
+
+def test_run_fails_when_a_server_error_outlasts_the_retries(
+    monkeypatch, action, api, tmp_path
+):
+    monkeypatch.setattr(
+        FakeAssetConnector,
+        "_retry",
+        lambda self: Retrying(stop=stop_after_attempt(2), reraise=True),
+    )
+    api.post(PUSH_URL, status_code=503)
+
+    results = action.run(ARGUMENTS)
+
+    assert results == {
+        "fetched": 1,
+        "pushed_batches": 0,
+        "failed_batches": 1,
+        "has_more": False,
+    }
+    assert action.error_message
+    assert len(requests_to(api, PUSH_URL)) == 2
+
+
+@pytest.mark.parametrize("status_code", [400, 422])
+def test_run_drops_a_batch_the_api_rejects(action, api, tmp_path, status_code):
+    api.post(
+        PUSH_URL,
+        [
+            {"status_code": 200, "json": {}},
+            {"status_code": status_code, "json": {}},
+            {"status_code": 200, "json": {}},
+        ],
+    )
+
+    results = action.run(ARGUMENTS)
+
+    assert results == {
+        "fetched": 3,
+        "pushed_batches": 2,
+        "failed_batches": 1,
+        "has_more": False,
+    }
+    assert not action.error_message
+    with PersistentJSON("context.json", tmp_path) as cache:
+        assert cache["pushes"] == 2
 
 
 def test_run_logs_errors_to_the_connector_configuration(action, api, fake_connector):

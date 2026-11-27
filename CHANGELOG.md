@@ -20,10 +20,13 @@ Applies to `AssetConnector` and `AsyncAssetConnector`:
 
 - `asset_fetch_cycle` no longer sleeps; `run` / `async_run` do.
 - `asset_fetch_cycle` raises `AssetConnectorStoppedError` when the connector is
-  stopped mid-cycle.
+  stopped mid-cycle, also when `get_assets` ends early because it was stopped.
+- A push answered with a server error (HTTP 5xx) is retried like a connection
+  error.
 - `asset_fetch_cycle` raises `AssetConnectorPushError` when a batch could not be
   pushed, instead of committing a checkpoint past it. The next cycle starts
-  after `frequency`.
+  after `frequency`. A batch the API refuses (HTTP 400, 422) is dropped and
+  counted in `failed_batches` instead, so it cannot block the connector.
 - `push_assets_to_sekoia` returns whether the assets were pushed.
 - A failed push stops retrying once the connector is stopped.
 - Pauses between cycles end as soon as the connector is stopped.

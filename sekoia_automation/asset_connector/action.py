@@ -47,9 +47,10 @@ class AssetConnectorAction(Action):
     connector committing once per complete cycle must finish a cycle within
     `MAX_DURATION`, otherwise every run starts again from the same checkpoint.
 
-    A batch that could not be pushed fails the run, with its counters, and
-    returns `has_more: false`: the checkpoint stays before the batch and the
-    next scheduled run resumes from it.
+    A batch the API refuses (HTTP 400, 422) is dropped and counted in
+    `failed_batches`. Any other batch that could not be pushed fails the run,
+    with its counters, and returns `has_more: false`: the checkpoint stays
+    before the batch and the next scheduled run resumes from it.
 
     Stopping interrupts the pushes to Sekoia.io, not a `get_assets` blocked in
     its own HTTP call: the connector owns the timeouts of its requests.

@@ -1,43 +1,32 @@
 import asyncio
-import hashlib
 import json
-import os
 import time
 from abc import abstractmethod
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from functools import cached_property
 
 import aiohttp
-import sentry_sdk
 from aiolimiter import AsyncLimiter
-from pydantic import BaseModel, ValidationError
-from tenacity import Retrying, stop_after_delay, stop_any, wait_exponential
 
+from sekoia_automation.aio.helpers import get_or_create_event_loop
 from sekoia_automation.exceptions import (
     AssetConnectorPushError,
     AssetConnectorRateLimitError,
     AssetConnectorStoppedError,
-    MissingActionArgumentError,
-    TriggerConfigurationError,
 )
-from sekoia_automation.storage import PersistentJSON
-from sekoia_automation.trigger import Trigger
-from sekoia_automation.utils import get_annotation_for, get_as_model
 
-from .models.connector import AssetItem, AssetList, DefaultAssetConnectorConfiguration
+from .mixin import AssetConnectorBase
+from .models.connector import AssetItem, AssetList
 from .utils import (
-    RATE_LIMIT_DEFAULT_WAIT,
     REJECTED_BATCH_STATUSES,
     TASK_PENDING_STATUSES,
-    TASK_POLL_INTERVAL_DEFAULT,
-    TASK_POLL_TIMEOUT_DEFAULT,
-    get_env_float,
     parse_retry_after,
+    push_429_message,
+    push_error_message,
 )
 
 
-class AsyncAssetConnector(Trigger):
+class AsyncAssetConnector(AssetConnectorBase):
     """
     Async base class for all asset connectors.
 
@@ -48,200 +37,10 @@ class AsyncAssetConnector(Trigger):
     and aiohttp for HTTP requests.
     """
 
-    ASSET_SCHEMA_FIELDS_FILE = "asset_schema_fields.json"
-    CONNECTOR_CONFIGURATION_FILE_NAME = "connector_configuration"
-    PRODUCTION_BASE_URL = "https://api.sekoia.io"
-    OCSF_SCHEMA_VERSION = 1
-
-    configuration: DefaultAssetConnectorConfiguration  # type: ignore[override]
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._latest_time = None
-        self._skip_task_wait = False
-        self._batch_rejected = False
-        self.cycle_stats = {"fetched": 0, "pushed_batches": 0, "failed_batches": 0}
         self._session: aiohttp.ClientSession | None = None
         self._rate_limiter: AsyncLimiter | None = None
-        self.schema_store = PersistentJSON(
-            self.ASSET_SCHEMA_FIELDS_FILE, self.data_path
-        )
-
-    @property
-    def connector_name(self) -> str:
-        """
-        Get connector name.
-
-        Returns:
-            str:
-        """
-        return self.__class__.__name__
-
-    @property  # type: ignore[override, no-redef]
-    def configuration(self) -> DefaultAssetConnectorConfiguration:
-        """
-        Get the module configuration.
-        Returns:
-            DefaultAssetConnectorConfiguration: Connector configuration
-        """
-        if self._configuration is None:
-            try:
-                self.configuration = self.module.load_config(
-                    self.CONNECTOR_CONFIGURATION_FILE_NAME, "json"
-                )
-            except MissingActionArgumentError:
-                return super().configuration  # type: ignore[return-value]
-        return self._configuration  # type: ignore[return-value]
-
-    @configuration.setter  # type: ignore[override]
-    def configuration(self, configuration: dict) -> None:
-        """
-        Set the module configuration.
-
-        Args:
-            configuration: dict
-        """
-        try:
-            self._configuration = get_as_model(
-                get_annotation_for(self.__class__, "configuration"), configuration
-            )
-        except ValidationError as e:
-            # The input holds the Sekoia.io API key: keep it out of the error
-            raise TriggerConfigurationError(
-                str(e.errors(include_url=False, include_input=False))
-            ) from None
-        except Exception as e:
-            raise TriggerConfigurationError(str(e)) from e
-
-        if isinstance(self._configuration, BaseModel):
-            sentry_sdk.set_context(
-                self.CONNECTOR_CONFIGURATION_FILE_NAME,
-                self._configuration.model_dump(exclude={"sekoia_api_key"}),
-            )
-
-    @property
-    def batch_size(self) -> int:
-        """
-        Get the batch size from the os env.
-
-        Returns:
-            int: Batch size
-        """
-        if batch := os.getenv("ASSET_CONNECTOR_BATCH_SIZE"):
-            return int(batch)
-        return self.configuration.batch_size
-
-    @property
-    def production_base_url(self) -> str:
-        """
-        Get the production base URL from os env.
-
-        Returns:
-            str: Production base URL
-        """
-        return os.getenv(
-            "ASSET_CONNECTOR_PRODUCTION_BASE_URL", self.PRODUCTION_BASE_URL
-        )
-
-    @property
-    def frequency(self) -> int:
-        """
-        Get the frequency for the connector.
-
-        Returns:
-            str: Frequency
-        """
-        if frequency := os.getenv("ASSET_CONNECTOR_FREQUENCY"):
-            return int(frequency)
-        return self.configuration.frequency
-
-    @property
-    def rate_limit_wait(self) -> float:
-        """
-        Default wait (in seconds) after a 429, used when the response carries no
-        usable Retry-After header. Overridable via the
-        ASSET_CONNECTOR_RATE_LIMIT_WAIT env variable.
-
-        Returns:
-            float: Wait time in seconds
-        """
-        if wait := os.getenv("ASSET_CONNECTOR_RATE_LIMIT_WAIT"):
-            try:
-                return float(wait)
-            except ValueError:
-                self.log(
-                    message=(
-                        "Invalid ASSET_CONNECTOR_RATE_LIMIT_WAIT value; "
-                        "falling back to the default wait"
-                    )
-                )
-        return RATE_LIMIT_DEFAULT_WAIT
-
-    @property
-    def task_poll_interval(self) -> float:
-        """
-        Delay (in seconds) between two checks of an asset push task status.
-        Overridable via the ASSET_CONNECTOR_TASK_POLL_INTERVAL env variable.
-
-        Returns:
-            float: Delay in seconds
-        """
-        return get_env_float(
-            "ASSET_CONNECTOR_TASK_POLL_INTERVAL", TASK_POLL_INTERVAL_DEFAULT
-        )
-
-    @property
-    def task_poll_timeout(self) -> float:
-        """
-        How long (in seconds) to wait for an asset push task to complete before
-        giving up. Overridable via the ASSET_CONNECTOR_TASK_POLL_TIMEOUT env
-        variable.
-
-        Returns:
-            float: Timeout in seconds
-        """
-        return get_env_float(
-            "ASSET_CONNECTOR_TASK_POLL_TIMEOUT", TASK_POLL_TIMEOUT_DEFAULT
-        )
-
-    def _retry(self):
-        return Retrying(
-            stop=stop_any(stop_after_delay(3600), lambda _: not self.running),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
-            reraise=True,
-        )
-
-    @cached_property
-    def _http_header(self) -> dict[str, str]:
-        """
-        Get the headers for the connector.
-
-        Returns:
-            dict: Headers
-        """
-        return {
-            "Authorization": f"Bearer {self.configuration.sekoia_api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": f"sekoiaio-asset-connector-"
-            f"{self.module.connector_configuration_uuid}",
-        }
-
-    @cached_property
-    def asset_connector_endpoint(self) -> str:
-        base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
-            "/"
-        )
-        return (
-            f"{base}/api/v2/asset-management/asset-connector/"
-            f"{self.module.connector_configuration_uuid}"
-        )
-
-    @cached_property
-    def task_endpoint(self) -> str:
-        base = (self.configuration.sekoia_base_url or self.production_base_url).rstrip(
-            "/"
-        )
-        return f"{base}/api/v1/tasks"
 
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[aiohttp.ClientSession, None]:
@@ -259,14 +58,6 @@ class AsyncAssetConnector(Trigger):
                 yield self._session
         else:
             yield self._session
-
-    @staticmethod
-    def handle_api_error(error_code: int) -> str:
-        if 400 <= error_code < 500:
-            return f"Client error - HTTP ({error_code})"
-        if 500 <= error_code < 600:
-            return f"Server error - HTTP ({error_code})"
-        return f"Unexpected error ({error_code})"
 
     async def post_assets_to_api(
         self, assets: AssetList, asset_connector_api_url: str
@@ -339,17 +130,14 @@ class AsyncAssetConnector(Trigger):
         if status_code == 429:
             retry_after = parse_retry_after(retry_after_header, self.rate_limit_wait)
             self.log(
-                message=(
-                    "Asset connector push rate limited (HTTP 429). "
-                    f"Waiting {retry_after} seconds before refetching."
-                ),
+                message=push_429_message(response_text, retry_after),
                 level="warning",
             )
             raise AssetConnectorRateLimitError(retry_after=retry_after)
 
         # Handle non-200 responses
         if status_code != 200:
-            await self._log_api_error(status_code, response_text, response_json)
+            await self._log_api_error(status_code, response_text)
             self._batch_rejected = status_code in REJECTED_BATCH_STATUSES
             return None
 
@@ -363,37 +151,20 @@ class AsyncAssetConnector(Trigger):
         )
         return response_json
 
-    async def _log_api_error(
-        self, status_code: int, response_text: str | None, response_json: dict | None
-    ) -> None:
+    async def _log_api_error(self, status_code: int, response_text: str | None) -> None:
         """
         Log API error details from response.
 
         Args:
             status_code: HTTP status code
             response_text: Raw response text
-            response_json: Parsed JSON response if available
         """
-        status_error = self.handle_api_error(status_code)
-
-        # Try to extract detailed error message from response
-        detail_message = ""
-        if response_text:
-            try:
-                error_data = response_json if response_json else {}
-                error_code = error_data.get("code", "")
-                error_message = error_data.get("message", "")
-                if error_code or error_message:
-                    detail_message = f" - {error_code}: {error_message}"
-                else:
-                    detail_message = f" - {response_text}"
-            except Exception:
-                detail_message = f" - {response_text}"
-
-        error_msg = (
-            f"Error while pushing assets to Sekoia.io - {status_error}{detail_message}"
+        self.log(
+            message=push_error_message(
+                self.handle_api_error(status_code), response_text
+            ),
+            level="error",
         )
-        self.log(message=error_msg, level="error")
 
     async def wait_for_push_task(self, task_id: str) -> None:
         """
@@ -478,40 +249,6 @@ class AsyncAssetConnector(Trigger):
             await asyncio.sleep(interval)
             interval = min(interval * 2, self.task_poll_interval)
 
-    def _disable_task_wait(self) -> None:
-        """
-        Stop waiting for push tasks until the end of the current fetch cycle.
-
-        A cycle can push thousands of batches. Paying the full timeout on each
-        of them once the platform stopped answering would stall the connector
-        for days, so the verification is dropped for the rest of the cycle.
-        """
-        self._skip_task_wait = True
-
-    def _log_task_outcome(self, task_id: str, task: dict, status: str | None) -> None:
-        """
-        Report the terminal status of an asset push task.
-
-        Args:
-            task_id (str): UUID of the task.
-            task (dict): Task as returned by the Task API.
-            status (str | None): Terminal status of the task.
-        """
-        if status == "FINISHED":
-            self.log(
-                message=f"Asset push task {task_id} finished successfully",
-                level="info",
-            )
-            return
-
-        self.log(
-            message=(
-                f"Asset push task {task_id} ended with the status {status} "
-                f"- {task.get('error') or 'no error reported'}"
-            ),
-            level="error",
-        )
-
     async def push_assets_to_sekoia(self, assets: AssetList) -> bool:
         """
         Push assets to the Sekoia.io asset connector API.
@@ -574,35 +311,8 @@ class AsyncAssetConnector(Trigger):
             "reset_checkpoint must be implemented to support schema-change refetching"
         )
 
-    @abstractmethod
-    def get_mapped_fields(self) -> dict[str, str]:
-        """
-        Return the field mappings declared by this connector as a dict.
-
-        Default empty mapping for backward compatibility: connectors that want
-        automatic checkpoint reset on schema change should override this.
-
-        Returns:
-            dict[str, str]: Mapping of source API field → OCSF field path.
-        """
-        raise NotImplementedError(
-            "get_mapped_fields must be implemented to support schema-change refetching"
-        )
-
-    def _compute_schema_fingerprint(self) -> str:
-        """Compute a SHA-256 fingerprint of the connector's declared field mappings.
-
-        The fingerprint changes whenever :meth:`get_mapped_fields` returns a
-        different dict, enabling automatic checkpoint detection.
-
-        Returns:
-            str: SHA-256 hex digest of the sorted field mapping dict.
-        """
-        fields = sorted(self.get_mapped_fields().items())
-        return hashlib.sha256(json.dumps(fields).encode()).hexdigest()
-
     async def _check_schema_and_reset_if_needed(self) -> None:
-        """Compare the current field-mapping fingerprint against the stored one.
+        """Reset the checkpoint when the declared field mappings changed.
 
         When a difference is detected the checkpoint is reset via
         :meth:`reset_checkpoint` so that the next fetch cycle re-collects all
@@ -612,49 +322,21 @@ class AsyncAssetConnector(Trigger):
         On the very first run (no fingerprint stored yet) the data is saved
         without triggering a reset.
         """
-        current_fields = self.get_mapped_fields()
-        # No declared mapping (default for connectors that don't override
-        # get_mapped_fields): schema-change detection is inert, skip entirely.
-        if not current_fields:
+        change = self._detect_schema_change()
+        if change is None:
             return
 
-        current_fingerprint = hashlib.sha256(
-            json.dumps(sorted(current_fields.items())).encode()
-        ).hexdigest()
-
-        with self.schema_store as store:
-            stored_fingerprint = store.get("fingerprint")
-            stored_fields: dict[str, str] = store.get("fields", {})
-
-        if stored_fingerprint == current_fingerprint:
-            return
-
-        if stored_fingerprint is not None:
-            diff = {
-                "added": {
-                    k: v for k, v in current_fields.items() if k not in stored_fields
-                },
-                "removed": {
-                    k: v for k, v in stored_fields.items() if k not in current_fields
-                },
-                "changed": {
-                    k: {"from": stored_fields[k], "to": v}
-                    for k, v in current_fields.items()
-                    if k in stored_fields and stored_fields[k] != v
-                },
-            }
-            self.log(
-                message=(
-                    "Field mapping change detected — "
-                    f"{diff}. Resetting checkpoint to re-fetch all assets."
-                ),
-                level="info",
-            )
+        current_fields, reset_needed = change
+        if reset_needed:
             await self.reset_checkpoint()
 
-        with self.schema_store as store:
-            store["fingerprint"] = current_fingerprint
-            store["fields"] = current_fields
+        # Persist the schema before scheduling the jitter: if the connector
+        # crashes in between, the next start must not detect the same change
+        # again, reset the checkpoint a second time and restart the wait.
+        self._save_schema(current_fields)
+
+        if reset_needed:
+            self._schedule_reset_jitter()
 
     @abstractmethod
     async def get_assets(
@@ -671,6 +353,17 @@ class AsyncAssetConnector(Trigger):
         if False:  # pragma: no cover
             yield  # type: ignore[unreachable, misc]
         raise NotImplementedError("This method should be implemented in a subclass")
+
+    async def _pause_between_batches(self) -> None:
+        """
+        Wait the configured inter-batch interval before the next batch push.
+
+        The wait ends as soon as the connector is stopped: the batch is then not
+        pushed, and the cycle raises AssetConnectorStoppedError.
+        """
+        interval = self.batch_push_interval
+        if interval > 0:
+            await asyncio.to_thread(self._stop_event.wait, interval)
 
     async def asset_fetch_cycle(self) -> None:
         """
@@ -713,6 +406,22 @@ class AsyncAssetConnector(Trigger):
 
         await self._check_schema_and_reset_if_needed()
 
+        # If a checkpoint reset was scheduled, wait out the deterministic
+        # jitter before starting the full re-fetch. This spreads the burst
+        # across all configurations of the same connector.
+        pending = self._pending_reset_jitter_seconds()
+        if pending > 0:
+            self.log(
+                message=(
+                    f"Waiting {pending:.0f}s before the post-reset "
+                    "full fetch (reset jitter)."
+                ),
+                level="info",
+            )
+            if not await asyncio.to_thread(self._wait_reset_jitter, pending):
+                raise AssetConnectorStoppedError()
+        self._clear_reset_jitter()
+
         assets = []
         async for asset in self.get_assets():
             if not self.running:
@@ -733,6 +442,9 @@ class AsyncAssetConnector(Trigger):
             await self._push_batch(assets)
 
     async def _push_batch(self, assets: list[AssetItem]) -> None:
+        if self.cycle_stats["pushed_batches"] or self.cycle_stats["failed_batches"]:
+            await self._pause_between_batches()
+
         if not self.running:
             raise AssetConnectorStoppedError()
 
@@ -808,5 +520,5 @@ class AsyncAssetConnector(Trigger):
         """
         Synchronous entry point that runs the async main loop.
         """
-        loop = asyncio.get_event_loop()
+        loop = get_or_create_event_loop()
         loop.run_until_complete(self.async_run())

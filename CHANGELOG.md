@@ -20,7 +20,8 @@ Applies to `AssetConnector` and `AsyncAssetConnector`:
 
 - `asset_fetch_cycle` no longer sleeps; `run` / `async_run` do.
 - `asset_fetch_cycle` raises `AssetConnectorStoppedError` when the connector is
-  stopped mid-cycle, also when `get_assets` ends early because it was stopped.
+  stopped mid-cycle, also during the reset jitter or a pause between batches,
+  and when `get_assets` ends early because it was stopped.
 - A push answered with a server error (HTTP 5xx) is retried like a connection
   error.
 - `asset_fetch_cycle` raises `AssetConnectorPushError` when a batch could not be
@@ -30,6 +31,60 @@ Applies to `AssetConnector` and `AsyncAssetConnector`:
 - `push_assets_to_sekoia` returns whether the assets were pushed.
 - A failed push stops retrying once the connector is stopped.
 - Pauses between cycles end as soon as the connector is stopped.
+
+## 1.28.1 - 2026-11-26
+
+### Added
+
+- Asset connectors apply a reset jitter: after a schema-change checkpoint
+  reset, the next full fetch is delayed by a per-configuration jitter (up to
+  `RESET_JITTER_DEFAULT_MAX`, 3 hours by default) to spread the re-fetch burst
+  across all configurations of the same connector. The delay is derived from
+  the connector configuration UUID (random when no UUID is available) and can
+  be bounded or disabled (`0`) with the `ASSET_CONNECTOR_RESET_JITTER_MAX` env
+  variable.
+- Asset connectors can pace their pushes: the `batch_push_interval`
+  configuration field (overridable with the
+  `ASSET_CONNECTOR_BATCH_PUSH_INTERVAL` env variable) sets the delay, in
+  seconds, between two consecutive batch pushes of a fetch cycle. Defaults to
+  `0` (no delay).
+- Export `AssetConnectorBase`, the base class shared by `AssetConnector` and
+  `AsyncAssetConnector`.
+
+### Changed
+
+- Require `sekoia-automation-models>=1.7.0`. The `batch_push_interval`
+  configuration field is declared since 1.4.0.
+
+### Fixed
+
+- `AsyncAssetConnector` now falls back to the trigger configuration when the
+  `connector_configuration` file is missing: it was catching
+  `MissingActionArgumentError`, which is never raised there, instead of
+  `MissingConfigurationError`.
+
+## 1.28.0 - 2026-11-26
+
+### Added
+
+- Expose the `scalable_horizontally` and `scalable_vertically` labels of the
+  running trigger/connector, read from its descriptor (default to `false`).
+- Add a `--type` option (`python` by default, or `hwl`) to the `new-module` command.
+  An `hwl` module only contains the manifest, a changelog and a logo.
+
+### Changed
+
+- Asset connectors log the code, message and details of a push error response,
+  instead of its raw body.
+- On an HTTP 429, asset connectors tell a reached asset connector limit from a
+  rate limit, and log which limits are reached. Both still pause the connector
+  and do not move the checkpoint.
+- Refactor the publication script for the automation modules
+
+### Fixed
+
+- Fix f-strings in the publication script
+- Start `AsyncConnector` and `AsyncAssetConnector` on Python 3.14, where `run()` stopped with "There is no current event loop in thread 'MainThread'": a new event loop is created when the thread has none
 
 ## 1.27.2 - 2026-11-04
 

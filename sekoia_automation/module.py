@@ -4,6 +4,7 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from functools import cached_property
+from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -449,6 +450,18 @@ class ModuleItem(ABC):
             sentry_sdk.capture_exception(exception)
 
     @cached_property
+    def _api_session(self) -> requests.Session:
+        """Session of the requests sent to the Sekoia.io API (callbacks, secrets, logs).
+
+        Reuses its connections: an action sends at least two callbacks (running, then
+        its results), which each opened a new connection, with its TLS handshake.
+        """
+        session = requests.Session()
+        # Keep no cookie between requests, as `requests.request` does
+        session.cookies.set_policy(DefaultCookiePolicy(allowed_domains=[]))
+        return session
+
+    @cached_property
     def callback_url(self) -> str:
         return self.module.load_config(self.CALLBACK_URL_FILE_NAME)
 
@@ -476,7 +489,7 @@ class ModuleItem(ABC):
 
     def _send_request(self, data: dict, verb: str = "POST", attempt=1) -> Response:
         try:
-            response = requests.request(
+            response = self._api_session.request(
                 verb, self.callback_url, json=data, headers=self._headers, timeout=30
             )
             response.raise_for_status()

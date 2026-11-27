@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Actions, triggers and account validators send their requests to the Sekoia.io
+  API (callbacks, secrets, logs) through one `requests.Session` per instance,
+  which keeps no cookie: an action sets its task as running then sends its
+  results over the same connection, instead of opening a new connection, with
+  its TLS handshake, for each request.
+
 ## 1.28.1 - 2026-11-26
 
 ### Added

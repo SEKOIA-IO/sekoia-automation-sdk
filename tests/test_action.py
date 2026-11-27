@@ -1,5 +1,8 @@
 import json
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import ClassVar
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -660,3 +663,50 @@ def test_add_secrets_object(_, __, **kwargs):
     ):
         action.set_task_as_running()
     assert getattr(action.module.configuration, secret_key) == secrets[secret_key]
+
+
+class _CallbackHandler(BaseHTTPRequestHandler):
+    """Callback endpoint over HTTP/1.1, recording each request and its connection."""
+
+    protocol_version = "HTTP/1.1"
+    received: ClassVar[list[tuple[int, dict, str | None]]] = []
+
+    def do_PATCH(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        # The client port tells the connections apart
+        self.received.append((self.client_address[1], body, self.headers.get("Cookie")))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Set-Cookie", "session=abc; Path=/")
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def callback_server():
+    _CallbackHandler.received = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _CallbackHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/callback"
+    server.shutdown()
+    server.server_close()
+    thread.join()
+
+
+def test_action_callbacks_share_one_connection(mock_volume, callback_server):
+    action = DummyAction()
+    action.callback_url = callback_server
+
+    action.execute()
+
+    received = _CallbackHandler.received
+    assert [body["status"] for _, body, _ in received] == ["running", "finished"]
+    # The results are sent over the connection opened to set the task as running
+    assert len({connection for connection, _, _ in received}) == 1
+    # No cookie is kept between the requests, as with `requests.request`
+    assert [cookie for _, _, cookie in received] == [None, None]

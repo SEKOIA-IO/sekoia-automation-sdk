@@ -12,7 +12,6 @@ from typing import Any, ClassVar
 from uuid import uuid4
 
 import botocore.exceptions
-import requests
 import sentry_sdk
 from cachetools import TLRUCache
 from pydantic import BaseModel
@@ -114,7 +113,7 @@ class Trigger(ModuleItem):
         secrets: dict[str, Any] = {}
         node_secrets: dict[str, Any] = {}
         try:
-            response = requests.get(
+            response = self._api_session.get(
                 self.secrets_url,
                 headers=self._headers,
                 timeout=30,
@@ -461,8 +460,8 @@ class Trigger(ModuleItem):
         self._logs = []
         try:
             data = {"logs": logs}
-            response = requests.request(
-                "POST", self.logs_url, json=data, headers=self._headers, timeout=30
+            response = self._api_session.post(
+                self.logs_url, json=data, headers=self._headers, timeout=30
             )
             response.raise_for_status()
         except Exception:

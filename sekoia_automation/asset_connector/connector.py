@@ -1,6 +1,6 @@
 import time
 from abc import abstractmethod
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from functools import cached_property
 
 import requests
@@ -10,6 +10,12 @@ from sekoia_automation.exceptions import (
     AssetConnectorRateLimitError,
 )
 
+from .checkpoint import (
+    AssetCheckpoint,
+    CheckpointMode,
+    Cursor,
+    validate_checkpoint_declaration,
+)
 from .mixin import AssetConnectorBase
 from .models.connector import AssetItem, AssetList
 from .utils import (
@@ -374,3 +380,79 @@ class AssetConnector(AssetConnectorBase):
                     message=f"Error while running asset connector "
                     f"{self.connector_name}",
                 )
+
+
+class CheckpointedAssetConnector(AssetConnector):
+    """
+    Asset connector whose checkpoint is managed by the SDK.
+
+    Declare:
+        checkpoint_field: the source field the cursor is read from.
+        checkpoint_mode: "incremental" when the field moves on every change of
+            an asset (e.g. `updatedAt`), "sweep" otherwise (e.g. `createdAt`):
+            every asset is fetched again in full passes, one pass per frequency.
+
+    Implement :meth:`get_assets_since` instead of :meth:`get_assets`. The base
+    class implements update_checkpoint, reset_checkpoint and resume.
+    """
+
+    checkpoint_field: str
+    checkpoint_mode: CheckpointMode
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        validate_checkpoint_declaration(self)
+        self.asset_checkpoint = AssetCheckpoint(
+            self.data_path, self.checkpoint_field, self.checkpoint_mode
+        )
+
+    @abstractmethod
+    def get_assets_since(
+        self, checkpoint: Cursor | None
+    ) -> Iterator[tuple[Cursor, AssetItem]]:
+        """
+        Yield `(cursor, asset)` for every asset whose `checkpoint_field` is
+        strictly greater than `checkpoint` (every asset when it is None), sorted
+        ascending on that field. `cursor` is the asset's `checkpoint_field` value.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass")
+
+    def get_assets(self) -> Generator[AssetItem, None, None]:
+        delay = self.asset_checkpoint.seconds_until_next_pass(self.frequency)
+        if delay > 0:
+            self.log(message=f"Next sweep pass in {delay:.0f} seconds", level="info")
+            if self._stop_event.wait(delay):
+                return
+        checkpoint = self.asset_checkpoint.begin()
+
+        items = iter(self.get_assets_since(checkpoint))
+        current = next(items, None)
+        while current is not None:
+            following = next(items, None)
+            next_cursor = following[0] if following is not None else None
+            if self.asset_checkpoint.stage(current[0], next_cursor):
+                self.log(
+                    message=(
+                        f"Assets are not sorted ascending on {self.checkpoint_field} "
+                        f"({next_cursor!r} after {current[0]!r}). The checkpoint "
+                        f"is not moved for the rest of this cycle"
+                    ),
+                    level="error",
+                )
+            yield current[1]
+            current = following
+        self.asset_checkpoint.exhausted()
+
+    def post_assets_to_api(
+        self, assets: AssetList, asset_connector_api_url: str
+    ) -> dict[str, str] | None:
+        response = super().post_assets_to_api(assets, asset_connector_api_url)
+        if response is None:
+            self.asset_checkpoint.fail()
+        return response
+
+    def update_checkpoint(self) -> None:
+        self.asset_checkpoint.commit()
+
+    def reset_checkpoint(self) -> None:
+        self.asset_checkpoint.reset()

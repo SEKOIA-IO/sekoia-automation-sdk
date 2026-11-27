@@ -1,5 +1,5 @@
-from .async_connector import AsyncAssetConnector
-from .connector import AssetConnector
+from .async_connector import AsyncAssetConnector, AsyncCheckpointedAssetConnector
+from .connector import AssetConnector, CheckpointedAssetConnector
 from .mixin import AssetConnectorBase
 from .utils import (
     RATE_LIMIT_DEFAULT_WAIT,
@@ -14,6 +14,8 @@ __all__ = [
     "AssetConnector",
     "AssetConnectorBase",
     "AsyncAssetConnector",
+    "AsyncCheckpointedAssetConnector",
+    "CheckpointedAssetConnector",
     "compute_reset_jitter",
     "parse_retry_after",
 ]

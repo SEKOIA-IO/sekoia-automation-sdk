@@ -846,10 +846,13 @@ def _uid(item):
     return next(v["uid"] for v in item.values() if isinstance(v, dict) and "uid" in v)
 
 
-def _refusal(item_index, item_bytes=None):
-    detail = {"item_index": item_index, "limit_bytes": 900000}
-    if item_bytes is not None:
-        detail["item_bytes"] = item_bytes
+def _refusal(request_index, item_index=0):
+    detail = {
+        "request_index": request_index,
+        "item_index": item_index,
+        "item_bytes": 950000,
+        "limit_bytes": 900000,
+    }
     return Mock(status_code=413, text=json.dumps({"detail": detail}))
 
 
@@ -872,10 +875,6 @@ def _accepted():
     return Mock(status_code=200, json=lambda: {"task_id": "1"})
 
 
-def _size(item):
-    return len(item.model_dump_json().encode())
-
-
 def _model_uid(item):
     return _uid(item.model_dump(exclude_none=True))
 
@@ -888,7 +887,7 @@ def test_post_assets_to_api_resends_without_the_refused_item(
     response, sent = _push(
         test_asset_connector,
         asset_list,
-        _refusal(1, _size(asset_list.items[1])),
+        _refusal(1),
         _accepted(),
     )
 
@@ -901,31 +900,18 @@ def test_post_assets_to_api_resends_without_the_refused_item(
     assert uids[1] in message["message"]
 
 
-def test_post_assets_to_api_finds_the_item_behind_a_shifted_index(
+def test_post_assets_to_api_uses_the_request_index_over_the_item_index(
     test_asset_connector, asset_list
 ):
-    # The API dropped an item with an unusable hostname: its index is too low by one
+    # The API dropped an item with an unusable hostname: item_index is too low by one
     uids = [_model_uid(item) for item in asset_list.items]
 
     response, sent = _push(
-        test_asset_connector,
-        asset_list,
-        _refusal(1, _size(asset_list.items[2])),
-        _accepted(),
+        test_asset_connector, asset_list, _refusal(2, item_index=1), _accepted()
     )
 
     assert response == {"task_id": "1"}
     assert sent[1] == uids[:2]
-
-
-def test_post_assets_to_api_without_item_bytes_trusts_the_index(
-    test_asset_connector, asset_list
-):
-    uids = [_model_uid(item) for item in asset_list.items]
-
-    _, sent = _push(test_asset_connector, asset_list, _refusal(1), _accepted())
-
-    assert sent[1] == [uids[0], uids[2]]
 
 
 def test_post_assets_to_api_several_refused_items(test_asset_connector, asset_list):
@@ -984,16 +970,15 @@ def test_post_assets_to_api_rate_limited_on_resend(test_asset_connector, asset_l
         "<html>Request Entity Too Large</html>",
         "[]",
         '{"detail": "too large"}',
-        '{"detail": {"item_bytes": 1}}',
-        '{"detail": {"item_index": -1}}',
-        '{"detail": {"item_index": 3}}',
-        '{"detail": {"item_index": "0"}}',
-        '{"detail": {"item_index": true}}',
+        '{"detail": {"item_index": 0, "item_bytes": 950000}}',
+        '{"detail": {"request_index": -1}}',
+        '{"detail": {"request_index": 3}}',
+        '{"detail": {"request_index": "0"}}',
+        '{"detail": {"request_index": true}}',
     ],
 )
 def test_pop_refused_item_without_a_usable_index(asset_list, body):
-    models = list(asset_list.items)
     items = asset_list.model_dump(exclude_none=True)["items"]
 
-    assert pop_refused_item(body, models, items) is None
-    assert len(models) == len(items) == 3
+    assert pop_refused_item(body, items) is None
+    assert len(items) == 3

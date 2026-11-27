@@ -258,7 +258,6 @@ class AssetConnector(Trigger):
         asset_items = assets_object_to_dict.get("items", [])
 
         request_body = assets_object_to_dict
-        models: list[BaseModel] = list(assets.items)
 
         while True:
             try:
@@ -280,7 +279,7 @@ class AssetConnector(Trigger):
             if res.status_code != 413:
                 break
 
-            refused_item = pop_refused_item(res.text, models, asset_items)
+            refused_item = pop_refused_item(res.text, asset_items)
             if refused_item is None:
                 break
 

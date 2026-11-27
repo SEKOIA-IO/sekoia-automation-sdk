@@ -272,7 +272,6 @@ class AsyncAssetConnector(Trigger):
         """
         request_body = assets.model_dump(exclude_none=True)
         asset_items = request_body.get("items", [])
-        models: list[BaseModel] = list(assets.items)
 
         # Perform the API request with retry logic
         status_code: int | None = None
@@ -323,7 +322,7 @@ class AsyncAssetConnector(Trigger):
             if status_code != 413:
                 break
 
-            refused_item = pop_refused_item(response_text, models, asset_items)
+            refused_item = pop_refused_item(response_text, asset_items)
             if refused_item is None:
                 break
 

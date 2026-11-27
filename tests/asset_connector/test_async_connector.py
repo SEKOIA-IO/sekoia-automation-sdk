@@ -1052,10 +1052,13 @@ def _async_response(status, body):
     return response
 
 
-def _async_refusal(item_index, item_bytes=None):
-    detail = {"item_index": item_index, "limit_bytes": 900000}
-    if item_bytes is not None:
-        detail["item_bytes"] = item_bytes
+def _async_refusal(request_index):
+    detail = {
+        "request_index": request_index,
+        "item_index": 0,
+        "item_bytes": 950000,
+        "limit_bytes": 900000,
+    }
     return _async_response(413, json.dumps({"detail": detail}))
 
 
@@ -1076,12 +1079,11 @@ async def test_post_assets_to_api_resends_without_the_refused_item(
     test_async_asset_connector, asset_list
 ):
     refused = asset_list.items[1]
-    size = len(refused.model_dump_json().encode())
 
     result, mock_post = await _async_push(
         test_async_asset_connector,
         asset_list,
-        _async_refusal(1, size),
+        _async_refusal(1),
         _async_response(200, '{"task_id": "1"}'),
     )
 
